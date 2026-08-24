@@ -1,0 +1,1 @@
+PRO logic fixed v2 — JS syntax validated with node --check.
