@@ -1,0 +1,19 @@
+{
+  "name": "STACK — Рабочий трекер",
+  "short_name": "STACK",
+  "description": "Трекер процессов, задач, аналитики и накоплений",
+  "start_url": "./?app=1",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#01050b",
+  "theme_color": "#030914",
+  "lang": "ru",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

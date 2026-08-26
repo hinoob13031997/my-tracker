@@ -1,0 +1,31 @@
+ПОЛНАЯ ПЕРЕЗАГРУЗКА НА GITHUB
+
+Репозиторий: hinoob13031997/my-tracker
+Ветка: main
+GitHub Pages: main / (root)
+
+Загрузите в КОРЕНЬ репозитория:
+- index.html
+- sw.js
+- manifest.webmanifest
+- icon.svg
+
+README.txt загружать необязательно.
+
+Лучший вариант:
+1. В репозитории откройте Code.
+2. Убедитесь, что index.html находится прямо в корне, не внутри папки.
+3. Upload files.
+4. Перетащите index.html, sw.js, manifest.webmanifest и icon.svg.
+5. Для существующего index.html GitHub может попросить заменить файл — подтвердите.
+6. Нажмите Commit changes.
+7. Откройте Settings → Pages.
+8. Дождитесь нового Last deployed.
+9. Откройте:
+   https://hinoob13031997.github.io/my-tracker/?v=20
+
+Если Safari/VK всё ещё показывает старый интерфейс:
+- полностью закройте вкладку;
+- откройте адрес с ?v=20;
+- лучше один раз открыть напрямую в Safari;
+- после нового sw.js последующие обновления должны приходить стабильнее.
