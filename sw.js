@@ -1,5 +1,6 @@
-const CACHE='stack-v20-final';
-const STATIC=['./manifest.webmanifest','./icon.svg'];
+const CACHE='stack-v21-safe-backup';
+const STATIC=['./manifest.webmanifest','./icon.svg','./backup.js'];
+const BACKUP_SCRIPT='<script src="./backup.js?v=21"></script>';
 
 self.addEventListener('install',event=>{
   self.skipWaiting();
@@ -14,6 +15,29 @@ self.addEventListener('activate',event=>{
   );
 });
 
+async function injectBackup(response){
+  if(!response) return response;
+  try{
+    const type=response.headers.get('content-type')||'';
+    if(!type.includes('text/html')) return response;
+    let text=await response.text();
+    if(!text.includes('backup.js?v=21')){
+      text=text.includes('</body>')
+        ? text.replace('</body>',BACKUP_SCRIPT+'</body>')
+        : text+BACKUP_SCRIPT;
+    }
+    const headers=new Headers(response.headers);
+    headers.delete('content-length');
+    return new Response(text,{
+      status:response.status,
+      statusText:response.statusText,
+      headers
+    });
+  }catch(e){
+    return response;
+  }
+}
+
 self.addEventListener('fetch',event=>{
   if(event.request.method!=='GET') return;
 
@@ -21,15 +45,17 @@ self.addEventListener('fetch',event=>{
   const isNavigation=req.mode==='navigate' || req.destination==='document';
 
   if(isNavigation){
-    event.respondWith(
-      fetch(req,{cache:'no-store'})
-        .then(resp=>{
-          const copy=resp.clone();
-          caches.open(CACHE).then(cache=>cache.put('./index.html',copy)).catch(()=>{});
-          return resp;
-        })
-        .catch(()=>caches.match('./index.html').then(r=>r||caches.match('./')))
-    );
+    event.respondWith((async()=>{
+      try{
+        const network=await fetch(req,{cache:'no-store'});
+        const raw=network.clone();
+        caches.open(CACHE).then(cache=>cache.put('./index.html',raw)).catch(()=>{});
+        return await injectBackup(network);
+      }catch(e){
+        const cached=await caches.match('./index.html') || await caches.match('./');
+        return injectBackup(cached);
+      }
+    })());
     return;
   }
 
