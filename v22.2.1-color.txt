@@ -1,0 +1,1 @@
+STACK v22.2.1 — Savings goal icon color picker restored. Data storage key unchanged; existing savings data preserved.
