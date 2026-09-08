@@ -1,18 +1,10 @@
-/* STACK v22.38 — event-driven FX history repair with explicit fallback state. */
+/* STACK v22.41 — FX history repair-only worker. No aggregate DOM ownership. */
 (()=>{'use strict';
 const HKEY='stack_fx_history_v1';
 const D=()=>globalThis.STACK_DATA,F=()=>globalThis.STACK_FX;
 let busy=false,last='',refreshTimer=0;
-const fmt=(v,n=0)=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:n}).format(Number(v)||0);
 function goals(){return D()?.goals?.()||[]}
 function history(){return F()?.history?.()||{}}
-function currency(){
-  let a=[...document.querySelectorAll('#screenSavings button,.sav-currency-tabs button,.sav-tabs button')].find(x=>x.classList.contains('active')||x.getAttribute('aria-selected')==='true'),t=(a?.textContent||'').toUpperCase();
-  if(t.includes('USD')||t.includes('ДОЛЛ')||t.includes('$'))return'USD';
-  if(t.includes('EUR')||t.includes('ЕВРО')||t.includes('€'))return'EUR';
-  let c=D()?.main?.()?.savings?.currency;
-  return c==='USD'||c==='EUR'?c:null
-}
 async function fetchHistorical(date,c){
   if(!date||!/^\d{4}-\d{2}-\d{2}$/.test(date))return null;
   let base=new Date(date+'T12:00:00');
@@ -32,10 +24,13 @@ function fallbackEntry(date,c,kind){
   const r=Number(F()?.currentRate?.(c))||0;
   return r?{rate:r,source:'current-fallback',rateDate:new Date().toISOString().slice(0,10),date:date||'',currency:c,kind:kind||'tx'}:null
 }
+function emitComplete(detail){
+  try{window.dispatchEvent(new CustomEvent('stack:fx-repair-complete',{detail}))}catch(e){}
+}
 async function repairHistory(){
   if(busy||!F())return;
   busy=true;
-  let h=history(),changed=false;
+  let h=history(),changed=false,cbr=0,fallback=0,actual=0;
   try{
     for(const g of goals()){
       let c=F().currency(g?.currency);
@@ -45,8 +40,8 @@ async function repairHistory(){
         let sk=F().startKey(g),old=h[sk];
         if(!((old?.source==='CBR'||old?.source==='actual')&&Number(old.rate)>0)){
           let got=await fetchHistorical(g.startDate,c);
-          if(got){h[sk]={...got,date:g.startDate,currency:c,kind:'start'};changed=true}
-          else if(!old){let fb=fallbackEntry(g.startDate,c,'start');if(fb){h[sk]=fb;changed=true}}
+          if(got){h[sk]={...got,date:g.startDate,currency:c,kind:'start'};changed=true;cbr++}
+          else if(!old){let fb=fallbackEntry(g.startDate,c,'start');if(fb){h[sk]=fb;changed=true;fallback++}}
         }
       }
       for(const t of (D()?.transactions?.(g)||[])){
@@ -54,45 +49,38 @@ async function repairHistory(){
         let k=F().txKey(g,t),old=h[k];
         if(Number(t.actualRate)>0){
           if(old?.source!=='actual'||Number(old.rate)!==Number(t.actualRate)){
-            h[k]={rate:Number(t.actualRate),source:'actual',rateDate:t.date,date:t.date,currency:c,rubAmount:Number(t.rubAmount)||0};changed=true
+            h[k]={rate:Number(t.actualRate),source:'actual',rateDate:t.date,date:t.date,currency:c,rubAmount:Number(t.rubAmount)||0};changed=true;actual++
           }
           continue
         }
         if((old?.source==='CBR'||old?.source==='actual')&&Number(old.rate)>0)continue;
         let got=await fetchHistorical(t.date,c);
-        if(got){h[k]={...got,date:t.date,currency:c};changed=true}
-        else if(!old){let fb=fallbackEntry(t.date,c,'tx');if(fb){h[k]=fb;changed=true}}
+        if(got){h[k]={...got,date:t.date,currency:c};changed=true;cbr++}
+        else if(!old){let fb=fallbackEntry(t.date,c,'tx');if(fb){h[k]=fb;changed=true;fallback++}}
       }
     }
     if(changed){
       try{localStorage.setItem(HKEY,JSON.stringify(h))}catch(e){}
-      window.dispatchEvent(new CustomEvent('stack:fx-history-changed'))
+      window.dispatchEvent(new CustomEvent('stack:fx-history-changed',{detail:{source:'fx-repair'}}))
     }
-  }finally{busy=false;renderFx()}
-}
-function renderFx(){
-  let c=currency(),box=document.getElementById('v2214fx'),api=F();
-  if(!c||!box||!api)return;
-  let x=api.portfolio(c),r=x.currentRate,cards=box.querySelectorAll('.v2214card b');
-  if(cards[0])cards[0].textContent=r?fmt(x.costRub)+' ₽':'—';
-  if(cards[1])cards[1].textContent=r?fmt(x.nowRub)+' ₽':'—';
-  if(cards[2]){cards[2].textContent=r?(x.diffRub>=0?'+':'')+fmt(x.diffRub)+' ₽':'—';cards[2].classList.toggle('v2214pos',x.diffRub>=0);cards[2].classList.toggle('v2214neg',x.diffRub<0)}
-  let foot=box.querySelector('.v2214rate');
-  if(foot){let extra=x.actual?` · <span style="color:#68d43f">фактический курс: ${x.actual} оп.</span>`:x.pending?` · <span style="color:#e0ad37">уточняем исторический курс: ${x.pending}</span>`:x.fallback?` · <span style="color:#e0ad37">для ${x.fallback} поз. используется текущий курс</span>`:` · <span style="color:#68d43f">исторические курсы ЦБ: ${x.known}</span>`;foot.innerHTML=`Всего: ${fmt(x.native,2)} ${c} · текущий курс ${r?fmt(r,2)+' ₽/'+c:'загрузка курса…'}${extra}`}
-  box.dataset.v2238='1'
+    emitComplete({changed,cbr,fallback,actual})
+  }catch(e){
+    emitComplete({changed:false,error:true})
+  }finally{busy=false}
 }
 function signature(){return goals().map(g=>[g?.id,g?.currency,g?.start,g?.startDate,(D()?.transactions?.(g)||[]).map(t=>[t?.id,t?.date,t?.amount,t?.actualRate,t?.rubAmount]).join(':')].join('|')).join(';')+'|'+JSON.stringify(D()?.fxCache?.()||{})}
-function refresh(force=false){clearTimeout(refreshTimer);refreshTimer=setTimeout(()=>{renderFx();let sig=signature();if(force||sig!==last){last=sig;repairHistory()}},force?0:80)}
+function refresh(force=false){
+  clearTimeout(refreshTimer);
+  refreshTimer=setTimeout(()=>{let sig=signature();if(force||sig!==last){last=sig;repairHistory()}},force?0:80)
+}
 function installEvents(){
-  document.getElementById('screenSavings')?.addEventListener('click',()=>refresh(false));
   window.addEventListener('stack:fx-ready',()=>refresh(true));
   window.addEventListener('stack:data-ready',()=>refresh(true));
   window.addEventListener('stack:data-changed',()=>refresh(false));
-  window.addEventListener('stack:fx-history-changed',()=>renderFx());
   window.addEventListener('storage',e=>{const k=D()?.keys||{};if([k.main,k.fx,HKEY].includes(e.key))refresh(false)});
-  window.addEventListener('focus',()=>refresh(false));
-  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refresh(false)})
+  window.addEventListener('focus',()=>refresh(true));
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refresh(true)})
 }
-function init(){installEvents();refresh(true);console.info('STACK v22.38 FX history fallback state')}
+function init(){installEvents();refresh(true);console.info('STACK v22.41 FX repair-only worker')}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(init,1500),{once:true});else setTimeout(init,1500)
 })();
