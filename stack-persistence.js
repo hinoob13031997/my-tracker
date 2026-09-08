@@ -1,15 +1,26 @@
-/* STACK v22.42 — persistence/recovery guard. Additive; main storage schema/key unchanged. */
+/* STACK v22.50 — final data integrity + recovery guard. Additive; main storage key/schema unchanged. */
 (()=>{'use strict';
-const BUILD='v22.42-persistence-recovery';
+const BUILD='v22.50-final-integrity';
 const RECOVERY_KEY='stack_recovery_v2242';
-const MAX=6;
+const MAX=8;
+const RECOVER_MARK='stack_v2250_recovered_once';
 let queue=Promise.resolve();
+
 function clone(v){try{return JSON.parse(JSON.stringify(v))}catch(e){return null}}
+function serial(v){try{return JSON.stringify(v)}catch(e){return null}}
+function sane(v){return !!v&&typeof v==='object'&&!Array.isArray(v)&&serial(v)!==null}
+function itemKey(v){
+  if(!v||typeof v!=='object'||Array.isArray(v))return null;
+  if(v.id!=null)return 'id:'+String(v.id);
+  const parts=[];
+  for(const k of ['date','amount','note','type','name','title','month','year','currency'])if(v[k]!=null&&typeof v[k]!=='object')parts.push(k+'='+String(v[k]));
+  return parts.length>=2?'fp:'+parts.join('|'):null;
+}
 function mergeExtras(target,source){
   if(!target||!source||typeof target!=='object'||typeof source!=='object')return target;
   if(Array.isArray(target)&&Array.isArray(source)){
-    const n=Math.min(target.length,source.length);
-    for(let i=0;i<n;i++)mergeExtras(target[i],source[i]);
+    const src=new Map();for(const x of source){const k=itemKey(x);if(k&&!src.has(k))src.set(k,x)}
+    for(const x of target){const k=itemKey(x);if(k&&src.has(k))mergeExtras(x,src.get(k))}
     return target;
   }
   if(Array.isArray(target)||Array.isArray(source))return target;
@@ -19,42 +30,69 @@ function mergeExtras(target,source){
   }
   return target;
 }
-function rawMain(){
-  try{if(typeof KEY==='undefined')return null;const raw=localStorage.getItem(KEY);return raw?JSON.parse(raw):null}catch(e){return null}
+function readMain(){
+  try{
+    if(typeof KEY==='undefined')return{status:'unavailable',raw:null,value:null};
+    const raw=localStorage.getItem(KEY);if(raw==null)return{status:'missing',raw:null,value:null};
+    try{return{status:'ok',raw,value:JSON.parse(raw)}}catch(e){return{status:'corrupt',raw,value:null}}
+  }catch(e){return{status:'unavailable',raw:null,value:null}}
 }
 async function loadVault(){
   try{if(typeof idbOpen!=='function')return[];const db=await idbOpen();const out=await new Promise((res,rej)=>{const tx=db.transaction(IDB_STORE,'readonly'),r=tx.objectStore(IDB_STORE).get(RECOVERY_KEY);r.onsuccess=()=>res(Array.isArray(r.result)?r.result:[]);r.onerror=()=>rej(r.error)});db.close();return out}catch(e){return[]}
 }
 async function writeVault(snapshot,reason){
-  if(!snapshot||typeof snapshot!=='object'||typeof idbOpen!=='function')return;
-  const list=await loadVault(),payload=JSON.stringify(snapshot),last=list[list.length-1];
-  if(last?.payload===payload)return;
+  if(!sane(snapshot)||typeof idbOpen!=='function')return;
+  const list=await loadVault(),payload=serial(snapshot),last=list[list.length-1];if(!payload||last?.payload===payload)return;
   list.push({ts:Date.now(),build:BUILD,reason,payload});while(list.length>MAX)list.shift();
   const db=await idbOpen();await new Promise((res,rej)=>{const tx=db.transaction(IDB_STORE,'readwrite');tx.objectStore(IDB_STORE).put(list,RECOVERY_KEY);tx.oncomplete=res;tx.onerror=()=>rej(tx.error)});db.close();
 }
-function vault(snapshot,reason){queue=queue.then(()=>writeVault(clone(snapshot),reason)).catch(()=>{});return queue}
+function vault(snapshot,reason){const copy=clone(snapshot);if(!sane(copy))return queue;queue=queue.then(()=>writeVault(copy,reason)).catch(()=>{});return queue}
+async function latestValidPayload(){
+  const list=await loadVault();for(let i=list.length-1;i>=0;i--){try{const p=list[i]?.payload,v=JSON.parse(p);if(sane(v))return p}catch(e){}}return null;
+}
+async function recoverCorruptMain(){
+  const main=readMain();if(main.status!=='corrupt')return false;
+  try{if(sessionStorage.getItem(RECOVER_MARK)==='1')return false}catch(e){}
+  const payload=await latestValidPayload();if(!payload)return false;
+  try{
+    localStorage.setItem(KEY,payload);try{sessionStorage.setItem(RECOVER_MARK,'1')}catch(e){}
+    console.warn('STACK recovered corrupt main state from recovery vault',BUILD);
+    location.reload();return true;
+  }catch(e){return false}
+}
 function installSaveGuard(){
   try{
     if(typeof save!=='function'||save.__stackPersistenceGuard)return;
     const original=save;
     const wrapped=function(...args){
-      const previous=rawMain();
-      try{if(previous&&typeof state!=='undefined')mergeExtras(state,previous)}catch(e){}
-      if(previous)vault(previous,'before-save');
+      const previous=readMain();
+      try{if(previous.status==='ok'&&sane(previous.value)&&typeof state!=='undefined'&&sane(state))mergeExtras(state,previous.value)}catch(e){}
+      if(previous.status==='ok'&&sane(previous.value))vault(previous.value,'before-save');
+      if(typeof state!=='undefined'&&!sane(state)){
+        console.error('STACK blocked invalid state write',BUILD);
+        try{window.dispatchEvent(new CustomEvent('stack:data-write-blocked',{detail:{source:BUILD}}))}catch(e){}
+        return;
+      }
       const result=original.apply(this,args);
-      try{if(typeof state!=='undefined')vault(state,'after-save')}catch(e){}
+      try{if(typeof state!=='undefined'&&sane(state))vault(state,'after-save')}catch(e){}
       return result;
     };
     wrapped.__stackPersistenceGuard=true;save=wrapped;
   }catch(e){}
 }
-function persist(){try{if(typeof state!=='undefined')vault(state,'lifecycle')}catch(e){}}
-function boot(){
-  const raw=rawMain();if(raw)vault(raw,'boot-raw');
+function persist(){try{if(typeof state!=='undefined'&&sane(state))vault(state,'lifecycle')}catch(e){}}
+async function restoreLatest(){
+  const payload=await latestValidPayload();if(!payload)throw new Error('No valid recovery snapshot');
+  localStorage.setItem(KEY,payload);location.reload();
+}
+async function boot(){
+  if(await recoverCorruptMain())return;
+  const main=readMain();if(main.status==='ok'&&sane(main.value))vault(main.value,'boot-raw');
   installSaveGuard();persist();
   window.addEventListener('pagehide',persist);
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')persist()});
+  globalThis.STACK_RECOVERY=Object.freeze({build:BUILD,list:loadVault,restoreLatest});
   console.info('STACK persistence guard',BUILD);
 }
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{boot().catch(()=>{})},{once:true});else boot().catch(()=>{});
 })();
