@@ -6,7 +6,6 @@ const RECOVERY_KEY='stack_recovery_v2242';
 const MAX=8;
 const RECOVER_MARK='stack_v2250_recovered_once';
 let queue=Promise.resolve();
-
 function clone(v){try{return JSON.parse(JSON.stringify(v))}catch(e){return null}}
 function serial(v){try{return JSON.stringify(v)}catch(e){return null}}
 function sane(v){return !!v&&typeof v==='object'&&!Array.isArray(v)&&serial(v)!==null}
@@ -21,7 +20,7 @@ async function recoverCorruptMain(){const main=readMain();if(main.status!=='corr
 function installSaveGuard(){try{if(typeof save!=='function'||save.__stackPersistenceGuard)return;const original=save;const wrapped=function(...args){const previous=readMain();try{if(previous.status==='ok'&&sane(previous.value)&&typeof state!=='undefined'&&sane(state))mergeExtras(state,previous.value)}catch(e){}if(previous.status==='ok'&&sane(previous.value))vault(previous.value,'before-save');if(typeof state!=='undefined'&&!sane(state)){console.error('STACK blocked invalid state write',BUILD);try{window.dispatchEvent(new CustomEvent('stack:data-write-blocked',{detail:{source:BUILD}}))}catch(e){}return}const result=original.apply(this,args);try{if(typeof state!=='undefined'&&sane(state))vault(state,'after-save')}catch(e){}return result};wrapped.__stackPersistenceGuard=true;save=wrapped}catch(e){}}
 function persist(){try{if(typeof state!=='undefined'&&sane(state))vault(state,'lifecycle')}catch(e){}}
 async function restoreLatest(){const payload=await latestValidPayload();if(!payload)throw new Error('No valid recovery snapshot');localStorage.setItem(KEY,payload);location.reload()}
-function installVersion(){if(document.getElementById('stackVersion'))return;const el=document.createElement('div');el.id='stackVersion';el.textContent=VERSION;el.setAttribute('aria-label','Версия STACK '+VERSION);Object.assign(el.style,{textAlign:'center',font:'600 9px Arial, sans-serif',letterSpacing:'.08em',color:'#667084',opacity:'.72',padding:'12px 0 `max(10px, env(safe-area-inset-bottom))`',userSelect:'none',pointerEvents:'none'});document.body.appendChild(el)}
+function installVersion(){if(document.getElementById('stackVersion'))return;const el=document.createElement('div');el.id='stackVersion';el.textContent=VERSION;el.setAttribute('aria-label','Версия STACK '+VERSION);Object.assign(el.style,{textAlign:'center',font:'600 9px Arial, sans-serif',letterSpacing:'.08em',color:'#667084',opacity:'.72',padding:'12px 0 max(10px, env(safe-area-inset-bottom))',userSelect:'none',pointerEvents:'none'});document.body.appendChild(el)}
 async function boot(){if(await recoverCorruptMain())return;const main=readMain();if(main.status==='ok'&&sane(main.value))vault(main.value,'boot-raw');installSaveGuard();persist();installVersion();window.addEventListener('pagehide',persist);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')persist()});globalThis.STACK_RECOVERY=Object.freeze({build:BUILD,list:loadVault,restoreLatest});console.info('STACK persistence guard',BUILD)}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{boot().catch(()=>{})},{once:true});else boot().catch(()=>{});
 })();
