@@ -1,9 +1,9 @@
-/* STACK v21 SAFE BACKUP
+/* STACK v22.37 SAFE BACKUP + data event
    Adds local backup history without changing the existing storage key or state format. */
 (()=>{
 'use strict';
 
-const BUILD='v21-safe-backup-2026-09-04';
+const BUILD='v22.37-backup-data-events';
 const BACKUP_KEY='stack_backups_v21';
 const MAX_BACKUPS=10;
 
@@ -124,6 +124,7 @@ function wrapSave(){
       const result=original.apply(this,args);
       try{
         if(typeof state!=='undefined') saveBackup(state);
+        window.dispatchEvent(new CustomEvent('stack:data-changed',{detail:{source:'core-save'}}));
         toast('✓ Сохранено');
       }catch(e){}
       return result;
