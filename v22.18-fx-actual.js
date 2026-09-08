@@ -1,4 +1,4 @@
-/* STACK v22.37 — actual FX purchase cost on shared STACK_DATA/STACK_FX + data events. */
+/* STACK v22.41 — actual FX purchase cost; single persistence/event path. */
 (()=>{'use strict';
 const MKEY='stack_fx_dash_month_v1',HKEY='stack_fx_history_v1';
 const D=()=>globalThis.STACK_DATA,F=()=>globalThis.STACK_FX;
@@ -12,8 +12,7 @@ const selected=()=>{
 };
 const fmt=(v,n=2)=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:n}).format(Number(v)||0);
 const key=(g,t)=>F()?.txKey?.(g,t)||(t?.id||[g?.id,t?.date,t?.amount,t?.note||''].join('|'));
-function emit(source='fx-actual'){
-  try{window.dispatchEvent(new CustomEvent('stack:data-changed',{detail:{source}}))}catch(e){}
+function emitHistory(source='fx-actual'){
   try{window.dispatchEvent(new CustomEvent('stack:fx-history-changed',{detail:{source}}))}catch(e){}
 }
 function addField(){
@@ -30,31 +29,30 @@ function showField(){
   let out=document.getElementById('stActualRate');if(out)out.textContent=''
 }
 function patchOpen(){
-  if(typeof globalThis.openSavingsTx!=='function'||globalThis.openSavingsTx.__v2237)return false;
+  if(typeof globalThis.openSavingsTx!=='function'||globalThis.openSavingsTx.__v2241)return false;
   let old=globalThis.openSavingsTx;
   globalThis.openSavingsTx=function(t){old(t);setTimeout(showField,0)};
-  globalThis.openSavingsTx.__v2237=1;return true
+  globalThis.openSavingsTx.__v2241=1;return true
 }
 function patchSave(){
-  if(typeof globalThis.saveSavingsTx!=='function'||globalThis.saveSavingsTx.__v2237)return false;
+  if(typeof globalThis.saveSavingsTx!=='function'||globalThis.saveSavingsTx.__v2241)return false;
   let old=globalThis.saveSavingsTx;
   globalThis.saveSavingsTx=function(){
     let g=selected(),foreign=g&&(D()?.goalCurrency?.(g)||'RUB')!=='RUB',rub=foreign?Math.abs(Number(document.getElementById('stRubCost')?.value)||0):0,date=document.getElementById('stDate')?.value||'',before=g?.tx?.length||0;
     old();
-    let after=g?.tx?.length||0,historyChanged=false;
+    let after=g?.tx?.length||0,historyChanged=false,needsSecondSave=false;
     if(after>before){
       let t=g.tx[after-1];
       if(rub>0&&Number(t.amount)){
-        t.rubAmount=rub;t.actualRate=rub/Math.abs(Number(t.amount));
+        t.rubAmount=rub;t.actualRate=rub/Math.abs(Number(t.amount));needsSecondSave=true;
         try{let h=F()?.history?.()||{};h[key(g,t)]={rate:t.actualRate,source:'actual',rateDate:t.date,date:t.date,currency:D()?.goalCurrency?.(g)||g.currency,rubAmount:rub};localStorage.setItem(HKEY,JSON.stringify(h));historyChanged=true}catch(e){}
-        try{if(typeof globalThis.save==='function')globalThis.save()}catch(e){}
       }
       if(date&&/^\d{4}-\d{2}/.test(date)){try{localStorage.setItem(MKEY,date.slice(0,7))}catch(e){}}
     }
-    try{globalThis.renderSavings?.()}catch(e){}
-    emit(historyChanged?'fx-actual-history':'fx-actual')
+    if(needsSecondSave){try{if(typeof globalThis.save==='function')globalThis.save()}catch(e){}}
+    if(historyChanged)emitHistory('fx-actual-history')
   };
-  globalThis.saveSavingsTx.__v2237=1;
+  globalThis.saveSavingsTx.__v2241=1;
   let b=document.getElementById('stSave');if(b)b.onclick=globalThis.saveSavingsTx;
   return true
 }
@@ -71,12 +69,12 @@ function patchExisting(){
         }
       }
     }
-    if(changed){localStorage.setItem(HKEY,JSON.stringify(h));emit('fx-actual-backfill')}
+    if(changed){localStorage.setItem(HKEY,JSON.stringify(h));emitHistory('fx-actual-backfill')}
   }catch(e){}
 }
 function init(){
   addField();let a=patchOpen(),b=patchSave();patchExisting();if(a&&b)installed=true;if(!installed)setTimeout(init,500);
-  console.info('STACK v22.37 actual FX on shared engine')
+  console.info('STACK v22.41 actual FX single event path')
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(init,1800),{once:true});else setTimeout(init,1800)
 })();
