@@ -1,4 +1,4 @@
-/* STACK v22.34 — event-driven per-goal FX history renderer on shared STACK_FX. Read-only. */
+/* STACK v22.41 — per-goal FX history renderer. Read-only; shared pending/fallback semantics. */
 (()=>{'use strict';
 const HKEY='stack_fx_history_v1';
 const D=()=>globalThis.STACK_DATA,F=()=>globalThis.STACK_FX;
@@ -22,19 +22,21 @@ function render(){
   if(old)old.remove();
   let api=F(),g=selected();
   if(!api||!g||api.currency(g?.currency)==='RUB')return;
-  let c=api.currency(g.currency),nowRate=api.currentRate(c),paid=0,now=0,rows=[],missing=0;
+  let c=api.currency(g.currency),nowRate=api.currentRate(c),paid=0,now=0,rows=[],pending=0,fallback=0;
   for(const t of (D()?.transactions?.(g)||[])){
     if(!t?.date)continue;
     let x=api.transactionRate(g,t),r=Number(x?.rate)||0,a=Number(t?.amount)||0;
     if(!r)r=nowRate;
-    if(x?.source==='current-fallback')missing++;
+    if(x?.source==='pending')pending++;
+    if(x?.source==='current-fallback')fallback++;
     paid+=a*r;
     now+=a*nowRate;
     rows.push({t,r,rub:a*r,source:x?.source})
   }
   let diff=now-paid,b=document.createElement('div');
   b.id='v2213fx';b.className='v2213fx';
-  b.innerHTML=`<div class="v2213ttl">ВАЛЮТА · ${c}<div class="v2213sub">Сравнение рублёвой стоимости без изменения суммы цели</div></div><div class="v2213grid"><div class="v2213k"><span>ПО КУРСУ ЦБ НА ДАТЫ ОПЕРАЦИЙ</span><b>${fmt(paid,0)} ₽</b></div><div class="v2213k"><span>СТОИМОСТЬ СЕЙЧАС</span><b>${fmt(now,0)} ₽</b></div><div class="v2213k"><span>ИЗМЕНЕНИЕ ИЗ-ЗА КУРСА</span><b class="${diff>=0?'v2213pos':'v2213neg'}">${diff>=0?'+':''}${fmt(diff,0)} ₽</b></div></div>${missing?`<div class="v2213wait">Исторический курс загружается для ${missing} операций…</div>`:''}${rows.slice().sort((a,b)=>String(b.t.date).localeCompare(String(a.t.date))).map(x=>`<div class="v2213row"><span>${new Date(x.t.date+'T12:00:00').toLocaleDateString('ru-RU')}</span><span><span class="v2213native">${Number(x.t.amount)>=0?'+':''}${fmt(x.t.amount)} ${c}</span> · ${fmt(x.r)} ₽/${c}</span><b>${Number(x.rub)>=0?'+':''}${fmt(x.rub,0)} ₽</b></div>`).join('')}`;
+  let stateNote=pending?`Исторический курс уточняется для ${pending} операций…`:fallback?`Для ${fallback} операций временно используется текущий курс.`:'';
+  b.innerHTML=`<div class="v2213ttl">ВАЛЮТА · ${c}<div class="v2213sub">Сравнение рублёвой стоимости без изменения суммы цели</div></div><div class="v2213grid"><div class="v2213k"><span>ПО КУРСУ НА ДАТЫ ОПЕРАЦИЙ</span><b>${pending?'…':fmt(paid,0)+' ₽'}</b></div><div class="v2213k"><span>СТОИМОСТЬ СЕЙЧАС</span><b>${fmt(now,0)} ₽</b></div><div class="v2213k"><span>ИЗМЕНЕНИЕ ИЗ-ЗА КУРСА</span><b class="${diff>=0?'v2213pos':'v2213neg'}">${pending?'…':(diff>=0?'+':'')+fmt(diff,0)+' ₽'}</b></div></div>${stateNote?`<div class="v2213wait">${stateNote}</div>`:''}${rows.slice().sort((a,b)=>String(b.t.date).localeCompare(String(a.t.date))).map(x=>`<div class="v2213row"><span>${new Date(x.t.date+'T12:00:00').toLocaleDateString('ru-RU')}</span><span><span class="v2213native">${Number(x.t.amount)>=0?'+':''}${fmt(x.t.amount)} ${c}</span> · ${fmt(x.r)} ₽/${c}${x.source==='current-fallback'?' · текущий':''}</span><b>${Number(x.rub)>=0?'+':''}${fmt(x.rub,0)} ₽</b></div>`).join('')}`;
   root.appendChild(b)
 }
 function refresh(force=false){
@@ -47,6 +49,7 @@ function installEvents(){
   window.addEventListener('stack:data-ready',()=>refresh(true));
   window.addEventListener('stack:data-changed',()=>refresh(false));
   window.addEventListener('stack:fx-history-changed',()=>refresh(false));
+  window.addEventListener('stack:fx-repair-complete',()=>refresh(false));
   window.addEventListener('storage',e=>{
     const k=D()?.keys||{};
     if([k.main,k.fx,HKEY].includes(e.key))refresh(false)
@@ -54,6 +57,6 @@ function installEvents(){
   window.addEventListener('focus',()=>refresh(false));
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refresh(false)})
 }
-function init(){css();installEvents();refresh(true);console.info('STACK v22.34 FX history renderer on shared engine')}
+function init(){css();installEvents();refresh(true);console.info('STACK v22.41 per-goal FX renderer')}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(init,900),{once:true});else setTimeout(init,900)
 })();
