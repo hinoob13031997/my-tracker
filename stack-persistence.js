@@ -1,7 +1,7 @@
-/* STACK v22.50 — final data integrity + recovery guard. Additive; main storage key/schema unchanged. */
+/* STACK v23.0 — data integrity + recovery guard. Main storage key/schema unchanged. */
 (()=>{'use strict';
-const BUILD='v22.50-final-integrity';
-const VERSION='v22.50';
+const BUILD='v23.0-final-integrity';
+const VERSION='v23.0';
 const RECOVERY_KEY='stack_recovery_v2242';
 const MAX=8;
 const RECOVER_MARK='stack_v2250_recovered_once';
