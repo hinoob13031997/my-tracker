@@ -22,5 +22,5 @@ const css=`@media(max-width:720px){
 #v233Calendar .v233-dayprogress{font-size:9px;color:#718198;margin-bottom:11px}
 #v233Calendar .v233-event{padding:11px 0}
 }`;
-function apply(){if(!document.getElementById('v238CalendarStyle')){const s=document.createElement('style');s.id='v238CalendarStyle';s.textContent=css;document.head.appendChild(s)}const setVersion=()=>{const v=document.getElementById('stackVersion');if(v){v.textContent='v23.8';v.setAttribute('aria-label','Версия STACK v23.8')}};setVersion();setTimeout(setVersion,300);setTimeout(setVersion,1200);console.info('STACK',BUILD)}
+function apply(){if(!document.getElementById('v238CalendarStyle')){const s=document.createElement('style');s.id='v238CalendarStyle';s.textContent=css;document.head.appendChild(s)}console.info('STACK',BUILD)}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',apply,{once:true});else apply();})();
