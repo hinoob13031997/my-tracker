@@ -1,7 +1,7 @@
-/* STACK v23.14 — data integrity + recovery guard. Main storage key/schema unchanged. */
+/* STACK v23.15 — data integrity + recovery guard. Main storage key/schema unchanged. */
 (()=>{'use strict';
-const BUILD='v23.14-exercise-visual-guidance';
-const VERSION='v23.14';
+const BUILD='v23.15-complete-exercise-visuals';
+const VERSION='v23.15';
 const RECOVERY_KEY='stack_recovery_v2242';
 const MAX=8;
 const RECOVER_MARK='stack_v2250_recovered_once';
