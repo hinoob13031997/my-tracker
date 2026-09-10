@@ -1,10 +1,11 @@
-/* STACK v23.20 — intelligent training engine and human-readable analytics. */
+/* STACK v23.21 — intelligent training, exercise library and smart rotation. */
 (()=>{'use strict';
-const BUILD='v23.20-intelligent-training';
+const BUILD='v23.21-exercise-library';
 const START=new Date(2026,7,10),DAY=86400000;
 const GOAL_KEY='stack_fitness_goal_v2318';
 const PROFILE_KEY='stack_fitness_profile_v2320';
 const SETS_KEY='stack_fitness_sets_v2320';
+const SWAPS_KEY='stack_fitness_exercise_swaps_v2321';
 const BODY_KEY='stack_fitness_log_v2310';
 
 const EX={
@@ -15,7 +16,22 @@ const EX={
  rdl:{name:'Румынская тяга',base:'3 × 8–10',range:[8,10]},
  dbbench:{name:'Жим гантелей лёжа',base:'3 × 8–12',range:[8,12]},
  row:{name:'Тяга горизонтального блока',base:'3 × 10–12',range:[10,12]},
- dbpress:{name:'Жим гантелей сидя',base:'2–3 × 8–12',range:[8,12]}
+ dbpress:{name:'Жим гантелей сидя',base:'2–3 × 8–12',range:[8,12]},
+ goblet:{name:'Гоблет-присед',base:'3 × 10–12',range:[10,12]},
+ legpress:{name:'Жим ногами',base:'3 × 10–12',range:[10,12]},
+ split:{name:'Болгарский сплит-присед',base:'3 × 8–10',range:[8,10]},
+ hipthrust:{name:'Ягодичный мост со штангой',base:'3 × 8–12',range:[8,12]},
+ legcurl:{name:'Сгибание ног лёжа',base:'3 × 10–15',range:[10,15]},
+ backext:{name:'Гиперэкстензия',base:'3 × 10–15',range:[10,15]},
+ incline:{name:'Наклонный жим гантелей',base:'3 × 8–12',range:[8,12]},
+ cablefly:{name:'Сведение рук в кроссовере',base:'3 × 10–15',range:[10,15]},
+ lateral:{name:'Подъём гантелей в стороны',base:'3 × 12–15',range:[12,15]},
+ assisted:{name:'Подтягивания с поддержкой',base:'3 × 8–12',range:[8,12]},
+ onerow:{name:'Тяга гантели одной рукой',base:'3 × 8–12',range:[8,12]},
+ facepull:{name:'Тяга каната к лицу',base:'3 × 12–15',range:[12,15]},
+ deadbug:{name:'Мёртвый жук',base:'3 × 8–12',range:[8,12]},
+ sideplank:{name:'Боковая планка',base:'3 × 20–40 сек',range:[20,40],unit:'сек'},
+ calf:{name:'Подъём на носки с гантелями',base:'3 × 12–15',range:[12,15]}
 };
 
 const PHASES=[
@@ -28,18 +44,27 @@ const PHASES=[
 const TEMPLATES={
  A:{name:'Тренировка A',ids:['squat','bench','pulldown','core']},
  B:{name:'Тренировка B',ids:['rdl','dbbench','row','dbpress']},
- UA:{name:'Верх тела · основная',ids:['bench','pulldown','dbpress','row']},
- LA:{name:'Низ тела · основная',ids:['squat','rdl','core']},
- UB:{name:'Верх тела · объёмная',ids:['dbbench','row','dbpress','pulldown']},
- LB:{name:'Низ тела · объёмная',ids:['rdl','squat','core']},
+ UA:{name:'Верх тела · основная',ids:['bench','assisted','dbpress','onerow']},
+ LA:{name:'Низ тела · основная',ids:['squat','hipthrust','legcurl','calf']},
+ UB:{name:'Верх тела · объёмная',ids:['incline','row','lateral','facepull']},
+ LB:{name:'Низ тела · объёмная',ids:['rdl','legpress','split','sideplank']},
  SA:{name:'Сила · тренировка A',ids:['squat','bench','row','core']},
  SB:{name:'Сила · тренировка B',ids:['rdl','dbbench','pulldown','dbpress']}
+};
+
+const ROTATION={
+ pulldown:['pulldown','assisted','pulldown'],core:['core','deadbug','sideplank'],
+ dbbench:['dbbench','incline','cablefly'],row:['row','onerow','row'],dbpress:['dbpress','lateral','dbpress'],
+ assisted:['assisted','pulldown','assisted'],onerow:['onerow','row','onerow'],
+ hipthrust:['hipthrust','backext','hipthrust'],legcurl:['legcurl','split','legcurl'],
+ incline:['incline','dbbench','cablefly'],lateral:['lateral','dbpress','lateral'],facepull:['facepull','pulldown','facepull'],
+ legpress:['legpress','goblet','legpress'],split:['split','legcurl','split'],sideplank:['sideplank','deadbug','core']
 };
 
 const css=`@media(max-width:720px){
 .fx-engine-card{margin:9px 0;padding:14px;border:1px solid #205271;border-radius:17px;background:radial-gradient(circle at 90% 0,#0eb1db24,transparent 44%),linear-gradient(155deg,#071522,#030914 72%);box-shadow:0 0 18px #0877f319}
 .fx-engine-head{display:flex;justify-content:space-between;gap:9px;align-items:flex-start}.fx-engine-head h2{font-size:19px;margin:5px 0}.fx-engine-week{font-size:9px;font-weight:900;color:#0ed2e7}.fx-engine-note{font-size:9px;line-height:1.45;color:#8998ad}.fx-engine-chips{display:flex;gap:5px;flex-wrap:wrap;margin:9px 0}.fx-engine-chips span{padding:5px 8px;border:1px solid #294b64;border-radius:999px;color:#aab8ca;font-size:8px}.fx-engine-chips .hot{border-color:#9133e4;color:#dfc4ff;box-shadow:0 0 10px #9133e433}
-.fx-engine-ex{display:grid;grid-template-columns:23px 1fr 44px 44px;gap:6px;align-items:center;padding:10px 0;border-top:1px solid #10283d}.fx-engine-ex b{display:block;font-size:10px}.fx-engine-ex small{display:block;margin-top:3px;color:#8291a6;font-size:9px}.fx-engine-num{width:21px;height:21px;display:grid;place-items:center;border:1px solid #15516b;border-radius:7px;background:#082437;color:#0ed2e7;font-size:8px;font-weight:900}.fx-engine-icon{width:44px;min-height:44px;border:1px solid #31516b;border-radius:10px;background:#07131f;color:#0ed2e7;font-weight:900}.fx-engine-log{color:#fff;border-color:#9133e4;background:#1a0c2b}
+.fx-engine-ex{display:grid;grid-template-columns:23px minmax(78px,1fr) 44px 44px 44px;gap:5px;align-items:center;padding:10px 0;border-top:1px solid #10283d}.fx-engine-ex b{display:block;font-size:10px}.fx-engine-ex small{display:block;margin-top:3px;color:#8291a6;font-size:9px}.fx-engine-num{width:21px;height:21px;display:grid;place-items:center;border:1px solid #15516b;border-radius:7px;background:#082437;color:#0ed2e7;font-size:8px;font-weight:900}.fx-engine-icon{width:44px;min-height:44px;border:1px solid #31516b;border-radius:10px;background:#07131f;color:#0ed2e7;font-weight:900}.fx-engine-swap{color:#d6b7ff;border-color:#7134ad}.fx-engine-log{color:#fff;border-color:#9133e4;background:#1a0c2b}
 .fx-engine-status{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:11px}.fx-engine-status button{min-height:44px;border:1px solid #29455e;border-radius:10px;background:#06111e;color:#8e9caf;font-size:8px;font-weight:900}.fx-engine-status .done.on{border-color:#68d43f;color:#68d43f}.fx-engine-status .skip.on{border-color:#f04b6c;color:#f06b85}.fx-engine-status .clear.on{border-color:#0eb1db;color:#0ed2e7}
 .fx-cycle-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:10px 0}.fx-cycle-stat{padding:10px;border:1px solid #183b55;border-radius:11px;background:#050e19}.fx-cycle-stat b{display:block;margin:3px 0;font-size:15px}.fx-cycle-stat small{color:#8090a5;font-size:8px}.fx-phase-list{display:grid;gap:7px;margin-top:10px}.fx-phase-item{display:grid;grid-template-columns:1fr auto;gap:8px;padding:11px;border:1px solid #183950;border-radius:12px;background:#050e19}.fx-phase-item.on{border-color:#9133e4;box-shadow:0 0 12px #9133e42d}.fx-phase-item b{font-size:11px}.fx-phase-item p{margin:4px 0 0;color:#8190a5;font-size:8px}.fx-phase-item span{color:#0ed2e7;font-size:8px;font-weight:900}
 .fx-analytics{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin:9px 0}.fx-analytic{padding:11px;border:1px solid #1a405b;border-radius:13px;background:#050e19}.fx-analytic b{display:block;margin:4px 0;font-size:17px}.fx-analytic small{color:#8190a5;font-size:8px}.fx-ex-history{padding:9px 0;border-top:1px solid #10283d}.fx-ex-history b{font-size:10px}.fx-ex-history p{margin:4px 0 0;color:#8b9aaf;font-size:9px;line-height:1.4}.fx-positive{color:#68d43f}.fx-neutral{color:#0ed2e7}
@@ -72,20 +97,19 @@ function workoutFor(d){
    const schedule={1:'UA',2:'LA',4:'UB',5:'LB'};code=schedule[day]||null;
  }
  if(!code)return null;
- const t=TEMPLATES[code],cycle=Math.floor((w-1)/4)%3;
- let ids=t.ids.slice();
- if(cycle===1&&ids.length>3)ids=[ids[0],ids[2],ids[1],...ids.slice(3)];
- if(cycle===2&&ids.length>3)ids=[ids[0],ids[1],...ids.slice(3),ids[2]];
- return {...t,ids,light,week:w,phase:p,cycle:Math.floor((w-1)/4)+1};
+ const t=TEMPLATES[code],rotation=Math.floor((w-1)/4)%3,block=Math.floor((w-1)/4)+1,baseIds=t.ids.slice(),manual=read(SWAPS_KEY,{});
+ let ids=baseIds.map(id=>ROTATION[id]?.[rotation]||id);
+ ids=ids.map((id,i)=>manual[block+'|'+baseIds[i]]||id);
+ return {...t,ids,baseIds,light,week:w,phase:p,cycle:block};
 }
 
 function prescription(id,wo){
  const e=EX[id],p=wo.phase.name;
- if(wo.light)return id==='core'?'2 лёгких подхода':'2 × 8 · лёгкий вес';
+ if(wo.light)return id==='sideplank'?'2 × 20 сек':id==='core'?'2 лёгких подхода':'2 × 8 · лёгкий вес';
  if(p==='Адаптация')return e.base;
- if(p==='Рост объёма')return id==='core'?'3 подхода':`4 × ${e.range[0]}–${e.range[1]}`;
+ if(p==='Рост объёма')return id==='sideplank'?'3 × 20–40 сек':id==='core'?'3 подхода':`4 × ${e.range[0]}–${e.range[1]}`;
  if(p==='Сила + масса')return ['squat','bench','rdl'].includes(id)?'4 × 5–7':'3 × 8–12';
- return id==='core'?'3 подхода':`3 × ${e.range[0]}–${e.range[1]}`;
+ return id==='sideplank'?'3 × 20–40 сек':id==='core'?'3 подхода':`3 × ${e.range[0]}–${e.range[1]}`;
 }
 
 function suggestion(id){
@@ -102,12 +126,12 @@ function suggestion(id){
 function todayCard(d,wo){
  const w=weekNo(d),p=phaseFor(w),st=workoutStatus(d),label=d.toLocaleDateString('ru-RU',{weekday:'long',day:'numeric',month:'long'});
  if(!wo)return `<section class="fx-engine-card" data-engine-today><div class="fx-engine-head"><div><div class="fx-eye">FITNESS · ВЫБРАННЫЙ ДЕНЬ</div><h2>День восстановления</h2></div><span class="fx-engine-week">НЕДЕЛЯ ${w}</span></div><div class="fx-engine-note">${label}. По текущему циклу силовой тренировки нет.</div><div class="fx-engine-chips"><span class="hot">${p.name}</span><span>${p.focus}</span></div></section>`;
- return `<section class="fx-engine-card" data-engine-today><div class="fx-engine-head"><div><div class="fx-eye">FITNESS · ВЫБРАННЫЙ ДЕНЬ</div><h2>${wo.light?'Разгрузка · ':''}${wo.name}</h2><div class="fx-engine-note">${label} · ${wo.light?'35–45':'45–65'} минут</div></div><span class="fx-engine-week">НЕДЕЛЯ ${w}</span></div><div class="fx-engine-chips"><span class="hot">${wo.phase.name}</span><span>ЦИКЛ ${wo.cycle}</span><span>${wo.light?'ОБЛЕГЧЁННАЯ НЕДЕЛЯ':'РАБОЧАЯ НЕДЕЛЯ'}</span></div>${wo.ids.map((id,i)=>{const e=EX[id];return `<div class="fx-engine-ex"><span class="fx-engine-num">${i+1}</span><div><b>${e.name}</b><small>${prescription(id,wo)}</small></div><button class="fx-engine-icon" data-info="${id}" aria-label="Как выполнять ${esc(e.name)}">i</button><button class="fx-engine-icon fx-engine-log" data-log-exercise="${id}" data-log-date="${key(d)}" aria-label="Записать подходы ${esc(e.name)}">＋</button></div>`}).join('')}<div class="fx-help">${suggestion(wo.ids[0])}</div><div class="fx-engine-status"><button class="done ${st==='done'?'on':''}" data-engine-status="done">✓ ВЫПОЛНЕНА</button><button class="skip ${st==='skip'?'on':''}" data-engine-status="skip">○ ПРОПУЩЕНА</button><button class="clear ${!st?'on':''}" data-engine-status="">· БЕЗ ОТМЕТКИ</button></div></section>`;
+ return `<section class="fx-engine-card" data-engine-today><div class="fx-engine-head"><div><div class="fx-eye">FITNESS · ВЫБРАННЫЙ ДЕНЬ</div><h2>${wo.light?'Разгрузка · ':''}${wo.name}</h2><div class="fx-engine-note">${label} · ${wo.light?'35–45':'45–65'} минут</div></div><span class="fx-engine-week">НЕДЕЛЯ ${w}</span></div><div class="fx-engine-chips"><span class="hot">${wo.phase.name}</span><span>ЦИКЛ ${wo.cycle}</span><span>${wo.light?'ОБЛЕГЧЁННАЯ НЕДЕЛЯ':'РАБОЧАЯ НЕДЕЛЯ'}</span></div>${wo.ids.map((id,i)=>{const e=EX[id],base=wo.baseIds[i];return `<div class="fx-engine-ex"><span class="fx-engine-num">${i+1}</span><div><b>${e.name}</b><small>${prescription(id,wo)}</small></div><button class="fx-engine-icon" data-info="${id}" aria-label="Как выполнять ${esc(e.name)}">i</button><button class="fx-engine-icon fx-engine-swap" data-swap-exercise="${id}" data-swap-base="${base}" data-swap-block="${wo.cycle}" aria-label="Заменить ${esc(e.name)}">↻</button><button class="fx-engine-icon fx-engine-log" data-log-exercise="${id}" data-log-date="${key(d)}" aria-label="Записать подходы ${esc(e.name)}">＋</button></div>`}).join('')}<div class="fx-help">${suggestion(wo.ids[0])}</div><div class="fx-engine-status"><button class="done ${st==='done'?'on':''}" data-engine-status="done">✓ ВЫПОЛНЕНА</button><button class="skip ${st==='skip'?'on':''}" data-engine-status="skip">○ ПРОПУЩЕНА</button><button class="clear ${!st?'on':''}" data-engine-status="">· БЕЗ ОТМЕТКИ</button></div></section>`;
 }
 
 function programCard(){
  const w=weekNo(new Date()),p=phaseFor(w),left=p.to-w,nextDeload=w%4===0?w:w+(4-w%4),cycle=Math.floor((w-1)/4)+1;
- return `<section class="fx-engine-card" data-engine-program><div class="fx-engine-head"><div><div class="fx-eye">УМНАЯ ПРОГРАММА · 52 НЕДЕЛИ</div><h2>${p.name}</h2></div><span class="fx-engine-week">НЕДЕЛЯ ${w}</span></div><div class="fx-engine-note">${p.focus}. Тренировки чередуются между неделями; состав и акцент цикла меняются каждые 4 недели.</div><div class="fx-cycle-grid"><div class="fx-cycle-stat"><small>ТЕКУЩИЙ ЦИКЛ</small><b>${cycle}</b><small>4 недели</small></div><div class="fx-cycle-stat"><small>ОСТАЛОСЬ В ФАЗЕ</small><b>${left}</b><small>${left===1?'неделя':'недель'}</small></div><div class="fx-cycle-stat"><small>БЛИЖАЙШАЯ РАЗГРУЗКА</small><b>${nextDeload}</b><small>неделя программы</small></div><div class="fx-cycle-stat"><small>СЛЕДУЮЩАЯ ФАЗА</small><b style="font-size:11px">${p.next}</b><small>${p.to<52?'с '+(p.to+1)+' недели':'после оценки'}</small></div></div><div class="fx-help">Основные движения сохраняются для измеримого прогресса. Акцент, порядок и объём меняются по циклам; замена выполняется при плато, дискомфорте или по плану тренера.</div><div class="fx-phase-list">${PHASES.map(x=>`<div class="fx-phase-item ${x===p?'on':''}"><div><b>${x.name}</b><p>${x.focus} · ${x.days} тренировки в неделю</p></div><span>${x.from}–${x.to}</span></div>`).join('')}</div></section>`;
+ return `<section class="fx-engine-card" data-engine-program><div class="fx-engine-head"><div><div class="fx-eye">УМНАЯ ПРОГРАММА · 23 УПРАЖНЕНИЯ</div><h2>${p.name}</h2></div><span class="fx-engine-week">НЕДЕЛЯ ${w}</span></div><div class="fx-engine-note">${p.focus}. Тренировки чередуются между неделями; вспомогательные упражнения и акцент меняются каждые 4 недели.</div><div class="fx-cycle-grid"><div class="fx-cycle-stat"><small>ТЕКУЩИЙ ЦИКЛ</small><b>${cycle}</b><small>4 недели</small></div><div class="fx-cycle-stat"><small>ОСТАЛОСЬ В ФАЗЕ</small><b>${left}</b><small>${left===1?'неделя':'недель'}</small></div><div class="fx-cycle-stat"><small>БЛИЖАЙШАЯ РАЗГРУЗКА</small><b>${nextDeload}</b><small>неделя программы</small></div><div class="fx-cycle-stat"><small>СЛЕДУЮЩАЯ ФАЗА</small><b style="font-size:11px">${p.next}</b><small>${p.to<52?'с '+(p.to+1)+' недели':'после оценки'}</small></div></div><div class="fx-help">Основные движения сохраняются для измеримого прогресса. Кнопка ↻ позволяет выбрать безопасную замену из той же группы до конца текущего четырёхнедельного цикла.</div><div class="fx-phase-list">${PHASES.map(x=>`<div class="fx-phase-item ${x===p?'on':''}"><div><b>${x.name}</b><p>${x.focus} · ${x.days} тренировки в неделю</p></div><span>${x.from}–${x.to}</span></div>`).join('')}</div></section>`;
 }
 
 function estimatedMax(weight,reps){return weight>0&&reps>0?weight*(1+reps/30):0}
@@ -124,7 +148,7 @@ function analyticsCard(){
 function modal(id,date){
  const e=EX[id];if(!e)return;document.getElementById('fxEngineModal')?.remove();
  const last=read(SETS_KEY,[]).filter(x=>x.exercise===id).sort((a,b)=>String(a.date).localeCompare(String(b.date))).pop();
- const s=document.createElement('div');s.id='fxEngineModal';s.className='fx-sheet';s.innerHTML=`<div class="fx-editor"><div class="fx-eye">ЗАПИСЬ ПОДХОДА</div><h3>${e.name}</h3><form data-engine-set><input type="hidden" name="exercise" value="${id}"><input type="hidden" name="date" value="${date}"><div class="fx-form-grid"><label>Номер подхода<input name="set" type="number" inputmode="numeric" min="1" max="12" value="1" required></label><label>Рабочий вес, кг<input name="weight" type="number" inputmode="decimal" min="0" step="0.1" value="${last?.weight??''}" placeholder="0"></label></div><label>Повторения<input name="reps" type="number" inputmode="numeric" min="1" max="100" value="${last?.reps??''}" required></label><label>Насколько тяжело было?</label><div class="fx-effort"><label><input type="radio" name="effort" value="easy">Легко<br>ещё 3–4</label><label><input type="radio" name="effort" value="normal" checked>Нормально<br>ещё около 2</label><label><input type="radio" name="effort" value="hard">Тяжело<br>ещё примерно 1</label><label><input type="radio" name="effort" value="limit">Предел<br>запаса нет</label></div><div class="fx-help">Это запас повторов: сколько раз ты ещё смог бы поднять вес с правильной техникой.</div><button class="fx-save">СОХРАНИТЬ ПОДХОД</button><button type="button" class="fx-close" data-engine-close>ОТМЕНА</button></form></div>`;document.body.appendChild(s);
+ const measure=e.unit==='сек'?'Время, секунд':'Повторения';const s=document.createElement('div');s.id='fxEngineModal';s.className='fx-sheet';s.innerHTML=`<div class="fx-editor"><div class="fx-eye">ЗАПИСЬ ПОДХОДА</div><h3>${e.name}</h3><form data-engine-set><input type="hidden" name="exercise" value="${id}"><input type="hidden" name="date" value="${date}"><div class="fx-form-grid"><label>Номер подхода<input name="set" type="number" inputmode="numeric" min="1" max="12" value="1" required></label><label>Рабочий вес, кг<input name="weight" type="number" inputmode="decimal" min="0" step="0.1" value="${last?.weight??''}" placeholder="0"></label></div><label>${measure}<input name="reps" type="number" inputmode="numeric" min="1" max="300" value="${last?.reps??''}" required></label><label>Насколько тяжело было?</label><div class="fx-effort"><label><input type="radio" name="effort" value="easy">Легко<br>ещё 3–4</label><label><input type="radio" name="effort" value="normal" checked>Нормально<br>ещё около 2</label><label><input type="radio" name="effort" value="hard">Тяжело<br>ещё примерно 1</label><label><input type="radio" name="effort" value="limit">Предел<br>запаса нет</label></div><div class="fx-help">Оцени запас: сколько повторов ты ещё смог бы сделать с правильной техникой.</div><button class="fx-save">СОХРАНИТЬ ПОДХОД</button><button type="button" class="fx-close" data-engine-close>ОТМЕНА</button></form></div>`;document.body.appendChild(s);
  s.onclick=x=>{if(x.target===s||x.target.closest('[data-engine-close]'))s.remove()};
  s.querySelector('[data-engine-set]').onsubmit=x=>{x.preventDefault();const f=new FormData(x.currentTarget),a=read(SETS_KEY,[]);a.push({id:Date.now().toString(36),date:String(f.get('date')),exercise:String(f.get('exercise')),set:+f.get('set'),weight:+f.get('weight')||0,reps:+f.get('reps'),effort:String(f.get('effort'))});write(SETS_KEY,a);s.remove();refresh()};
 }
@@ -149,6 +173,7 @@ function draw(){
 function refresh(){const today=document.querySelector('#v234Fitness [data-engine-today]');if(today)today.outerHTML=todayCard(selectedDate(),workoutFor(selectedDate()));document.querySelectorAll('#v234Fitness [data-engine-program],#v234Fitness [data-engine-progress]').forEach(x=>x.remove());draw()}
 
 document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.matches('[data-log-exercise]'))modal(b.dataset.logExercise,b.dataset.logDate);else if(b.matches('[data-engine-status]')){setWorkoutStatus(selectedDate(),b.dataset.engineStatus);refresh()}});
+window.addEventListener('stack:fitness-library-change',refresh);
 const style=document.createElement('style');style.id='v2320EngineStyle';style.textContent=css+'@media(max-width:720px){.fx-engine-owned-program .v234-body>.fx-program,.fx-engine-owned-program .v234-body>.fx-program+.fx-note{display:none!important}}';document.head.appendChild(style);
 let queued=false;function schedule(){if(queued)return;queued=true;queueMicrotask(()=>{queued=false;draw()})}new MutationObserver(schedule).observe(document.documentElement,{childList:true,subtree:true});draw();console.info('STACK',BUILD);
 })();
