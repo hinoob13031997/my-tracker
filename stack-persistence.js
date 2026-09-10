@@ -1,7 +1,7 @@
-/* STACK v23.12 — data integrity + recovery guard. Main storage key/schema unchanged. */
+/* STACK v23.13 — data integrity + recovery guard. Main storage key/schema unchanged. */
 (()=>{'use strict';
-const BUILD='v23.12-fitness-day-picker';
-const VERSION='v23.12';
+const BUILD='v23.13-fitness-clarity';
+const VERSION='v23.13';
 const RECOVERY_KEY='stack_recovery_v2242';
 const MAX=8;
 const RECOVER_MARK='stack_v2250_recovered_once';
