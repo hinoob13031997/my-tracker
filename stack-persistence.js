@@ -1,7 +1,7 @@
-/* STACK v24.3 — data integrity + recovery guard. Main storage key/schema unchanged. */
+/* STACK v24.4 — data integrity + recovery guard. Main storage key/schema unchanged. */
 (()=>{'use strict';
-const BUILD='v24.3-semantic-today-icons';
-const VERSION='v24.3';
+const BUILD='v24.4-reversible-workout-sets';
+const VERSION='v24.4';
 const RECOVERY_KEY='stack_recovery_v2242';
 const MAX=8;
 const RECOVER_MARK='stack_v2250_recovered_once';
