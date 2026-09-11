@@ -1,6 +1,6 @@
-/* STACK v23.21 — intelligent training, exercise library and smart rotation. */
+/* STACK v23.22 — goal-aware training, exercise library and smart rotation. */
 (()=>{'use strict';
-const BUILD='v23.21-exercise-library';
+const BUILD='v23.22-goal-intelligence';
 const START=new Date(2026,7,10),DAY=86400000;
 const GOAL_KEY='stack_fitness_goal_v2318';
 const PROFILE_KEY='stack_fitness_profile_v2320';
@@ -80,6 +80,8 @@ function fromKey(s){const [y,m,d]=String(s).split('-').map(Number);return new Da
 function weekNo(d){return Math.max(1,Math.min(52,Math.floor((new Date(d.getFullYear(),d.getMonth(),d.getDate())-START)/DAY/7)+1))}
 function phaseFor(w){return PHASES.find(p=>w>=p.from&&w<=p.to)||PHASES[3]}
 function goal(){return read(GOAL_KEY,{start:56,target:70,training:'stack',nutrition:'stack'})}
+function goalDirection(){const g=goal(),start=Number(g.start)||0,target=Number(g.target)||0;return target>start?'gain':target<start?'loss':'maintain'}
+function phaseText(p){const d=goalDirection();if(d==='loss'){if(p.name==='Рост объёма')return{name:'Рабочий объём',focus:'Сохраняем мышцы и технику'};if(p.name==='Сила + масса')return{name:'Сила + сохранение мышц',focus:'Удерживаем рабочие веса'}}if(d==='maintain'){if(p.name==='Рост объёма')return{name:'Баланс объёма',focus:'Поддерживаем форму без перегруза'};if(p.name==='Сила + масса')return{name:'Сила + форма',focus:'Сохраняем силу и мышечный тонус'}}return{name:p.name,focus:p.focus}}
 function selectedDate(){const s=document.querySelector('#v234Fitness [data-day].on')?.dataset.day;return s?fromKey(s):new Date()}
 function workoutStatus(d){try{const v=localStorage.getItem('stack_fitness_workout_'+key(d));return v==='1'?'done':v==='skip'?'skip':''}catch(e){return''}}
 function setWorkoutStatus(d,v){try{localStorage.setItem('stack_fitness_workout_'+key(d),v==='done'?'1':v==='skip'?'skip':'0')}catch(e){}}
@@ -105,10 +107,11 @@ function workoutFor(d){
 
 function prescription(id,wo){
  const e=EX[id],p=wo.phase.name;
+ const d=goalDirection();
  if(wo.light)return id==='sideplank'?'2 × 20 сек':id==='core'?'2 лёгких подхода':'2 × 8 · лёгкий вес';
  if(p==='Адаптация')return e.base;
- if(p==='Рост объёма')return id==='sideplank'?'3 × 20–40 сек':id==='core'?'3 подхода':`4 × ${e.range[0]}–${e.range[1]}`;
- if(p==='Сила + масса')return ['squat','bench','rdl'].includes(id)?'4 × 5–7':'3 × 8–12';
+ if(p==='Рост объёма')return id==='sideplank'?'3 × 20–40 сек':id==='core'?'3 подхода':`${d==='gain'?4:3} × ${e.range[0]}–${e.range[1]}`;
+ if(p==='Сила + масса')return ['squat','bench','rdl'].includes(id)?`${d==='gain'?4:3} × 5–7`:'3 × 8–12';
  return id==='sideplank'?'3 × 20–40 сек':id==='core'?'3 подхода':`3 × ${e.range[0]}–${e.range[1]}`;
 }
 
@@ -124,14 +127,14 @@ function suggestion(id){
 }
 
 function todayCard(d,wo){
- const w=weekNo(d),p=phaseFor(w),st=workoutStatus(d),label=d.toLocaleDateString('ru-RU',{weekday:'long',day:'numeric',month:'long'});
- if(!wo)return `<section class="fx-engine-card" data-engine-today><div class="fx-engine-head"><div><div class="fx-eye">FITNESS · ВЫБРАННЫЙ ДЕНЬ</div><h2>День восстановления</h2></div><span class="fx-engine-week">НЕДЕЛЯ ${w}</span></div><div class="fx-engine-note">${label}. По текущему циклу силовой тренировки нет.</div><div class="fx-engine-chips"><span class="hot">${p.name}</span><span>${p.focus}</span></div></section>`;
- return `<section class="fx-engine-card" data-engine-today><div class="fx-engine-head"><div><div class="fx-eye">FITNESS · ВЫБРАННЫЙ ДЕНЬ</div><h2>${wo.light?'Разгрузка · ':''}${wo.name}</h2><div class="fx-engine-note">${label} · ${wo.light?'35–45':'45–65'} минут</div></div><span class="fx-engine-week">НЕДЕЛЯ ${w}</span></div><div class="fx-engine-chips"><span class="hot">${wo.phase.name}</span><span>ЦИКЛ ${wo.cycle}</span><span>${wo.light?'ОБЛЕГЧЁННАЯ НЕДЕЛЯ':'РАБОЧАЯ НЕДЕЛЯ'}</span></div>${wo.ids.map((id,i)=>{const e=EX[id],base=wo.baseIds[i];return `<div class="fx-engine-ex"><span class="fx-engine-num">${i+1}</span><div><b>${e.name}</b><small>${prescription(id,wo)}</small></div><button class="fx-engine-icon" data-info="${id}" aria-label="Как выполнять ${esc(e.name)}">i</button><button class="fx-engine-icon fx-engine-swap" data-swap-exercise="${id}" data-swap-base="${base}" data-swap-block="${wo.cycle}" aria-label="Заменить ${esc(e.name)}">↻</button><button class="fx-engine-icon fx-engine-log" data-log-exercise="${id}" data-log-date="${key(d)}" aria-label="Записать подходы ${esc(e.name)}">＋</button></div>`}).join('')}<div class="fx-help">${suggestion(wo.ids[0])}</div><div class="fx-engine-status"><button class="done ${st==='done'?'on':''}" data-engine-status="done">✓ ВЫПОЛНЕНА</button><button class="skip ${st==='skip'?'on':''}" data-engine-status="skip">○ ПРОПУЩЕНА</button><button class="clear ${!st?'on':''}" data-engine-status="">· БЕЗ ОТМЕТКИ</button></div></section>`;
+ const w=weekNo(d),p=phaseFor(w),pt=phaseText(p),st=workoutStatus(d),label=d.toLocaleDateString('ru-RU',{weekday:'long',day:'numeric',month:'long'});
+ if(!wo)return `<section class="fx-engine-card" data-engine-today><div class="fx-engine-head"><div><div class="fx-eye">FITNESS · ВЫБРАННЫЙ ДЕНЬ</div><h2>День восстановления</h2></div><span class="fx-engine-week">НЕДЕЛЯ ${w}</span></div><div class="fx-engine-note">${label}. По текущему циклу силовой тренировки нет.</div><div class="fx-engine-chips"><span class="hot">${pt.name}</span><span>${pt.focus}</span></div></section>`;
+ return `<section class="fx-engine-card" data-engine-today><div class="fx-engine-head"><div><div class="fx-eye">FITNESS · ВЫБРАННЫЙ ДЕНЬ</div><h2>${wo.light?'Разгрузка · ':''}${wo.name}</h2><div class="fx-engine-note">${label} · ${wo.light?'35–45':'45–65'} минут</div></div><span class="fx-engine-week">НЕДЕЛЯ ${w}</span></div><div class="fx-engine-chips"><span class="hot">${phaseText(wo.phase).name}</span><span>ЦИКЛ ${wo.cycle}</span><span>${wo.light?'ОБЛЕГЧЁННАЯ НЕДЕЛЯ':'РАБОЧАЯ НЕДЕЛЯ'}</span></div>${wo.ids.map((id,i)=>{const e=EX[id],base=wo.baseIds[i];return `<div class="fx-engine-ex"><span class="fx-engine-num">${i+1}</span><div><b>${e.name}</b><small>${prescription(id,wo)}</small></div><button class="fx-engine-icon" data-info="${id}" aria-label="Как выполнять ${esc(e.name)}">i</button><button class="fx-engine-icon fx-engine-swap" data-swap-exercise="${id}" data-swap-base="${base}" data-swap-block="${wo.cycle}" aria-label="Заменить ${esc(e.name)}">↻</button><button class="fx-engine-icon fx-engine-log" data-log-exercise="${id}" data-log-date="${key(d)}" aria-label="Записать подходы ${esc(e.name)}">＋</button></div>`}).join('')}<div class="fx-help">${suggestion(wo.ids[0])}</div><div class="fx-engine-status"><button class="done ${st==='done'?'on':''}" data-engine-status="done">✓ ВЫПОЛНЕНА</button><button class="skip ${st==='skip'?'on':''}" data-engine-status="skip">○ ПРОПУЩЕНА</button><button class="clear ${!st?'on':''}" data-engine-status="">· БЕЗ ОТМЕТКИ</button></div></section>`;
 }
 
 function programCard(){
- const w=weekNo(new Date()),p=phaseFor(w),left=p.to-w,nextDeload=w%4===0?w:w+(4-w%4),cycle=Math.floor((w-1)/4)+1;
- return `<section class="fx-engine-card" data-engine-program><div class="fx-engine-head"><div><div class="fx-eye">УМНАЯ ПРОГРАММА · 23 УПРАЖНЕНИЯ</div><h2>${p.name}</h2></div><span class="fx-engine-week">НЕДЕЛЯ ${w}</span></div><div class="fx-engine-note">${p.focus}. Тренировки чередуются между неделями; вспомогательные упражнения и акцент меняются каждые 4 недели.</div><div class="fx-cycle-grid"><div class="fx-cycle-stat"><small>ТЕКУЩИЙ ЦИКЛ</small><b>${cycle}</b><small>4 недели</small></div><div class="fx-cycle-stat"><small>ОСТАЛОСЬ В ФАЗЕ</small><b>${left}</b><small>${left===1?'неделя':'недель'}</small></div><div class="fx-cycle-stat"><small>БЛИЖАЙШАЯ РАЗГРУЗКА</small><b>${nextDeload}</b><small>неделя программы</small></div><div class="fx-cycle-stat"><small>СЛЕДУЮЩАЯ ФАЗА</small><b style="font-size:11px">${p.next}</b><small>${p.to<52?'с '+(p.to+1)+' недели':'после оценки'}</small></div></div><div class="fx-help">Основные движения сохраняются для измеримого прогресса. Кнопка ↻ позволяет выбрать безопасную замену из той же группы до конца текущего четырёхнедельного цикла.</div><div class="fx-phase-list">${PHASES.map(x=>`<div class="fx-phase-item ${x===p?'on':''}"><div><b>${x.name}</b><p>${x.focus} · ${x.days} тренировки в неделю</p></div><span>${x.from}–${x.to}</span></div>`).join('')}</div></section>`;
+ const w=weekNo(new Date()),p=phaseFor(w),pt=phaseText(p),left=p.to-w,nextDeload=w%4===0?w:w+(4-w%4),cycle=Math.floor((w-1)/4)+1;
+ return `<section class="fx-engine-card" data-engine-program><div class="fx-engine-head"><div><div class="fx-eye">УМНАЯ ПРОГРАММА · 23 УПРАЖНЕНИЯ</div><h2>${pt.name}</h2></div><span class="fx-engine-week">НЕДЕЛЯ ${w}</span></div><div class="fx-engine-note">${pt.focus}. Тренировки чередуются между неделями; вспомогательные упражнения и акцент меняются каждые 4 недели.</div><div class="fx-cycle-grid"><div class="fx-cycle-stat"><small>ТЕКУЩИЙ ЦИКЛ</small><b>${cycle}</b><small>4 недели</small></div><div class="fx-cycle-stat"><small>ОСТАЛОСЬ В ФАЗЕ</small><b>${left}</b><small>${left===1?'неделя':'недель'}</small></div><div class="fx-cycle-stat"><small>БЛИЖАЙШАЯ РАЗГРУЗКА</small><b>${nextDeload}</b><small>неделя программы</small></div><div class="fx-cycle-stat"><small>СЛЕДУЮЩАЯ ФАЗА</small><b style="font-size:11px">${phaseText(PHASES.find(x=>x.from===p.to+1)||p).name}</b><small>${p.to<52?'с '+(p.to+1)+' недели':'после оценки'}</small></div></div><div class="fx-help">Основные движения сохраняются для измеримого прогресса. Кнопка ↻ позволяет выбрать безопасную замену из той же группы до конца текущего четырёхнедельного цикла.</div><div class="fx-phase-list">${PHASES.map(x=>{const tx=phaseText(x);return`<div class="fx-phase-item ${x===p?'on':''}"><div><b>${tx.name}</b><p>${tx.focus} · ${x.days} тренировки в неделю</p></div><span>${x.from}–${x.to}</span></div>`}).join('')}</div></section>`;
 }
 
 function estimatedMax(weight,reps){return weight>0&&reps>0?weight*(1+reps/30):0}
