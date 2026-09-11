@@ -1,6 +1,6 @@
-/* STACK v24.0 — unified Today, Deals, Finance and More experience. */
+/* STACK v24.6 — unified Today, Deals, Finance and More experience. */
 (()=>{'use strict';
-const BUILD='v24.5-calendar-status-clarity';
+const BUILD='v24.6-fitness-flow-calendar-partial';
 const GOAL_KEY='stack_fitness_goal_v2318';
 const BODY_KEY='stack_fitness_log_v2310';
 const NUTRITION_KEY='stack_fitness_nutrition_v2310';
@@ -95,16 +95,18 @@ function fitnessData(goal,date){
 
 function nutritionData(goal,date){
   const key=dateKey(date),manual=read(NUTRITION_KEY,[]).filter(x=>x.date===key);
-  const fact=manual.reduce((sum,x)=>sum+(Number(x.kcal)||0),0);
+  const manualFact=manual.reduce((sum,x)=>sum+(Number(x.kcal)||0),0);
   if(goal.nutrition==='trainer'){
-    const marks=read(CUSTOM_MARKS,{}),done=goal.meals.filter(x=>marks[key+'-'+x.id]).length;
+    const marks=read(CUSTOM_MARKS,{}),eaten=goal.meals.filter(x=>marks[key+'-'+x.id]),done=eaten.length,fact=manualFact+eaten.reduce((sum,x)=>sum+(Number(x.kcal)||0),0);
     return{source:'РАЦИОН ДИЕТОЛОГА',done,total:goal.meals.length,fact,entries:manual.length};
   }
   const gain=goal.target>goal.start;
-  if(!gain)return{source:'ОРИЕНТИР STACK',done:0,total:0,fact,entries:manual.length};
+  if(!gain)return{source:'ОРИЕНТИР STACK',done:0,total:0,fact:manualFact,entries:manual.length};
+  const plan=globalThis.STACK_NUTRITION_PLAN?.snapshot?.(key);
+  if(plan)return{source:'РАЦИОН STACK',done:plan.done,total:plan.total,fact:manualFact+plan.fact.kcal,entries:manual.length};
   const marks=read(PLAN_MARKS,{}),variant=Math.max(0,Math.min(3,Number(localStorage.getItem(VARIANT_KEY))||0)),prefix=key+'-'+variant+'-';
   const done=Object.keys(marks).filter(x=>marks[x]&&x.startsWith(prefix)).length;
-  return{source:'РАЦИОН STACK',done,total:5,fact,entries:manual.length};
+  return{source:'РАЦИОН STACK',done,total:5,fact:manualFact,entries:manual.length};
 }
 
 function todayHTML(){
@@ -175,7 +177,7 @@ function moreHTML(){
     <button class="v24-more-action" data-v24-action="backup" style="--accent:#0eb1db;--glow:#0eb1db24"><i>⬡</i><b>Резервная копия</b><span>Скачать актуальную копию данных STACK</span></button>
     <button class="v24-more-action" data-v24-action="export" style="--accent:#0877f3;--glow:#0877f324"><i>⇧</i><b>Экспорт данных</b><span>Сохранить основной файл в формате JSON</span></button>
     <button class="v24-more-action" data-v24-action="import" style="--accent:#f12bb8;--glow:#f12bb824"><i>⇩</i><b>Импорт данных</b><span>Восстановить данные из выбранного файла</span></button>
-  </div><section class="v24-more-status"><div class="v24-eye">СОСТОЯНИЕ STACK</div><div class="v24-status-row"><span>Версия</span><b>v24.5</b></div><div class="v24-status-row"><span>Соединение</span><b>${online}</b></div><div class="v24-status-row"><span>PWA-кэш</span><b>${controlled}</b></div><div class="v24-status-row"><span>Защита данных</span><b>${globalThis.STACK_RECOVERY?'Активна':'Загружается'}</b></div><div class="v24-status-row"><span>Содержимое</span><b>${processes} процессов · ${tasks} задач · ${goals} целей</b></div><button class="v24-analytics-toggle" data-v24-action="analytics">Показать аналитику процессов</button></section></div>`;
+  </div><section class="v24-more-status"><div class="v24-eye">СОСТОЯНИЕ STACK</div><div class="v24-status-row"><span>Версия</span><b>v24.6</b></div><div class="v24-status-row"><span>Соединение</span><b>${online}</b></div><div class="v24-status-row"><span>PWA-кэш</span><b>${controlled}</b></div><div class="v24-status-row"><span>Защита данных</span><b>${globalThis.STACK_RECOVERY?'Активна':'Загружается'}</b></div><div class="v24-status-row"><span>Содержимое</span><b>${processes} процессов · ${tasks} задач · ${goals} целей</b></div><button class="v24-analytics-toggle" data-v24-action="analytics">Показать аналитику процессов</button></section></div>`;
 }
 
 function renderMore(){
