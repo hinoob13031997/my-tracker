@@ -1,7 +1,7 @@
-/* STACK v24.0 — data integrity + recovery guard. Main storage key/schema unchanged. */
+/* STACK v24.1 — data integrity + recovery guard. Main storage key/schema unchanged. */
 (()=>{'use strict';
-const BUILD='v24.0-unified-stack';
-const VERSION='v24.0';
+const BUILD='v24.1-stability-single-logic';
+const VERSION='v24.1';
 const RECOVERY_KEY='stack_recovery_v2242';
 const MAX=8;
 const RECOVER_MARK='stack_v2250_recovered_once';
@@ -17,7 +17,7 @@ async function writeVault(snapshot,reason){if(!sane(snapshot)||typeof idbOpen!==
 function vault(snapshot,reason){const copy=clone(snapshot);if(!sane(copy))return queue;queue=queue.then(()=>writeVault(copy,reason)).catch(()=>{});return queue}
 async function latestValidPayload(){const list=await loadVault();for(let i=list.length-1;i>=0;i--){try{const p=list[i]?.payload,v=JSON.parse(p);if(sane(v))return p}catch(e){}}return null}
 async function recoverCorruptMain(){const main=readMain();if(main.status!=='corrupt')return false;try{if(sessionStorage.getItem(RECOVER_MARK)==='1')return false}catch(e){}const payload=await latestValidPayload();if(!payload)return false;try{localStorage.setItem(KEY,payload);try{sessionStorage.setItem(RECOVER_MARK,'1')}catch(e){}console.warn('STACK recovered corrupt main state from recovery vault',BUILD);location.reload();return true}catch(e){return false}}
-function installSaveGuard(){try{if(typeof save!=='function'||save.__stackPersistenceGuard)return;const original=save;const wrapped=function(...args){const previous=readMain();try{if(previous.status==='ok'&&sane(previous.value)&&typeof state!=='undefined'&&sane(state))mergeExtras(state,previous.value)}catch(e){}if(previous.status==='ok'&&sane(previous.value))vault(previous.value,'before-save');if(typeof state!=='undefined'&&!sane(state)){console.error('STACK blocked invalid state write',BUILD);try{window.dispatchEvent(new CustomEvent('stack:data-write-blocked',{detail:{source:BUILD}}))}catch(e){}return}const result=original.apply(this,args);try{if(typeof state!=='undefined'&&sane(state))vault(state,'after-save')}catch(e){}return result};wrapped.__stackPersistenceGuard=true;save=wrapped}catch(e){}}
+function installSaveGuard(){try{if(typeof save!=='function'||save.__stackPersistenceGuard)return;const original=save;const wrapped=function(...args){const previous=readMain();try{if(previous.status==='ok'&&sane(previous.value)&&typeof state!=='undefined'&&sane(state))mergeExtras(state,previous.value)}catch(e){}if(previous.status==='ok'&&sane(previous.value))vault(previous.value,'before-save');if(typeof state!=='undefined'&&!sane(state)){console.error('STACK blocked invalid state write',BUILD);try{window.dispatchEvent(new CustomEvent('stack:data-write-blocked',{detail:{source:BUILD}}))}catch(e){}return}const result=original.apply(this,args);try{if(typeof state!=='undefined'&&sane(state))vault(state,'after-save')}catch(e){}try{window.dispatchEvent(new CustomEvent('stack:data-changed',{detail:{source:'persistence-save'}}))}catch(e){}return result};wrapped.__stackPersistenceGuard=true;save=wrapped}catch(e){}}
 function persist(){try{if(typeof state!=='undefined'&&sane(state))vault(state,'lifecycle')}catch(e){}}
 async function restoreLatest(){const payload=await latestValidPayload();if(!payload)throw new Error('No valid recovery snapshot');localStorage.setItem(KEY,payload);location.reload()}
 function installVersion(){let el=document.getElementById('stackVersion');if(!el){el=document.createElement('div');el.id='stackVersion';Object.assign(el.style,{textAlign:'center',font:'600 9px Arial, sans-serif',letterSpacing:'.08em',color:'#667084',opacity:'.72',padding:'12px 0 max(10px, env(safe-area-inset-bottom))',userSelect:'none',pointerEvents:'none'});document.body.appendChild(el)}el.textContent=VERSION;el.setAttribute('aria-label','Версия STACK '+VERSION)}

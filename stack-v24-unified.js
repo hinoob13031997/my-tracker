@@ -1,11 +1,12 @@
 /* STACK v24.0 — unified Today, Deals, Finance and More experience. */
 (()=>{'use strict';
-const BUILD='v24.0-unified-stack';
+const BUILD='v24.1-stability-single-logic';
 const GOAL_KEY='stack_fitness_goal_v2318';
 const BODY_KEY='stack_fitness_log_v2310';
 const NUTRITION_KEY='stack_fitness_nutrition_v2310';
 const PLAN_MARKS='stack_fitness_nutrition_plan_v2311';
 const CUSTOM_MARKS='stack_fitness_custom_nutrition_marks_v2319';
+const VARIANT_KEY='stack_fitness_nutrition_variant_v241';
 const START=new Date(2026,7,10),DAY=86400000;
 let lastToday='',lastDeals='',lastFinance='',lastMore='',queued=false;
 
@@ -70,23 +71,12 @@ function goalData(){
   return{...goal,start,target,current,pct,direction};
 }
 
-function stackWorkout(date){
-  const week=Math.max(1,Math.min(52,Math.floor((new Date(date.getFullYear(),date.getMonth(),date.getDate())-START)/DAY/7)+1));
-  const phase=week<=8?{name:'Адаптация',days:3}:week<=20?{name:'Рост объёма',days:4}:week<=36?{name:'Сила + масса',days:4}:{name:'Закрепление',days:3};
-  const day=date.getDay(),odd=week%2===1;
-  let code='';
-  if(phase.days===3){if(day===1)code=odd?'A':'B';if(day===3)code=odd?'B':'A';if(day===5)code=odd?'A':'B';if(week>=21&&week<=36&&code)code=code==='A'?'SA':'SB'}
-  else code=({1:'UA',2:'LA',4:'UB',5:'LB'})[day]||'';
-  const names={A:'Тренировка A',B:'Тренировка B',UA:'Верх тела · основная',LA:'Низ тела · основная',UB:'Верх тела · объёмная',LB:'Низ тела · объёмная',SA:'Сила · тренировка A',SB:'Сила · тренировка B'};
-  return{planned:Boolean(code),name:names[code]||'День восстановления',week,phase:phase.name,deload:week>1&&week%4===0,count:code?4:0};
-}
-
 function fitnessData(goal,date){
   let workout;
   if(goal.training==='trainer'){
     const day=['Вс','Пн','Вт','Ср','Чт','Пт','Сб'][date.getDay()],items=goal.workouts.filter(x=>(x.days||[]).includes(day));
     workout={planned:items.length>0,name:items[0]?.name||(items.length?'Тренировка тренера':'День восстановления'),week:null,phase:'План тренера',deload:false,count:items.reduce((sum,x)=>sum+(x.exercises?.length||0),0)};
-  }else workout=stackWorkout(date);
+  }else workout=globalThis.STACK_FITNESS?.summary?.(date)||{planned:false,name:'Программа временно недоступна',week:null,phase:'Fitness Engine',deload:false,count:0};
   let status='';try{const value=localStorage.getItem('stack_fitness_workout_'+dateKey(date));status=value==='1'?'done':value==='skip'?'skip':''}catch(_e){}
   return{...workout,status,source:goal.training==='trainer'?'МОЙ ПЛАН':'ПЛАН STACK'};
 }
@@ -100,9 +90,9 @@ function nutritionData(goal,date){
   }
   const gain=goal.target>goal.start;
   if(!gain)return{source:'ОРИЕНТИР STACK',done:0,total:0,fact,entries:manual.length};
-  const marks=read(PLAN_MARKS,{}),groups={};
-  Object.keys(marks).filter(x=>marks[x]&&x.startsWith(key+'-')).forEach(x=>{const variant=x.slice(key.length+1).split('-')[0];groups[variant]=(groups[variant]||0)+1});
-  return{source:'РАЦИОН STACK',done:Math.max(0,...Object.values(groups)),total:5,fact,entries:manual.length};
+  const marks=read(PLAN_MARKS,{}),variant=Math.max(0,Math.min(3,Number(localStorage.getItem(VARIANT_KEY))||0)),prefix=key+'-'+variant+'-';
+  const done=Object.keys(marks).filter(x=>marks[x]&&x.startsWith(prefix)).length;
+  return{source:'РАЦИОН STACK',done,total:5,fact,entries:manual.length};
 }
 
 function todayHTML(){
@@ -171,7 +161,7 @@ function moreHTML(){
     <button class="v24-more-action" data-v24-action="backup" style="--accent:#0eb1db;--glow:#0eb1db24"><i>⬡</i><b>Резервная копия</b><span>Скачать актуальную копию данных STACK</span></button>
     <button class="v24-more-action" data-v24-action="export" style="--accent:#0877f3;--glow:#0877f324"><i>⇧</i><b>Экспорт данных</b><span>Сохранить основной файл в формате JSON</span></button>
     <button class="v24-more-action" data-v24-action="import" style="--accent:#f12bb8;--glow:#f12bb824"><i>⇩</i><b>Импорт данных</b><span>Восстановить данные из выбранного файла</span></button>
-  </div><section class="v24-more-status"><div class="v24-eye">СОСТОЯНИЕ STACK</div><div class="v24-status-row"><span>Версия</span><b>v24.0</b></div><div class="v24-status-row"><span>Соединение</span><b>${online}</b></div><div class="v24-status-row"><span>PWA-кэш</span><b>${controlled}</b></div><div class="v24-status-row"><span>Защита данных</span><b>${globalThis.STACK_RECOVERY?'Активна':'Загружается'}</b></div><div class="v24-status-row"><span>Содержимое</span><b>${processes} процессов · ${tasks} задач · ${goals} целей</b></div><button class="v24-analytics-toggle" data-v24-action="analytics">Показать аналитику процессов</button></section></div>`;
+  </div><section class="v24-more-status"><div class="v24-eye">СОСТОЯНИЕ STACK</div><div class="v24-status-row"><span>Версия</span><b>v24.1</b></div><div class="v24-status-row"><span>Соединение</span><b>${online}</b></div><div class="v24-status-row"><span>PWA-кэш</span><b>${controlled}</b></div><div class="v24-status-row"><span>Защита данных</span><b>${globalThis.STACK_RECOVERY?'Активна':'Загружается'}</b></div><div class="v24-status-row"><span>Содержимое</span><b>${processes} процессов · ${tasks} задач · ${goals} целей</b></div><button class="v24-analytics-toggle" data-v24-action="analytics">Показать аналитику процессов</button></section></div>`;
 }
 
 function renderMore(){
@@ -225,9 +215,9 @@ function schedule(delay=40){if(queued)return;queued=true;setTimeout(()=>{queued=
 function hookCoreRender(){try{if(typeof renderAll==='function'&&!renderAll.__stackV24){const original=renderAll;renderAll=function(...args){const result=original.apply(this,args);schedule(25);return result};renderAll.__stackV24=true}}catch(_e){}}
 
 function boot(){
-  installStyle();hookCoreRender();document.addEventListener('click',handleClick);document.addEventListener('submit',()=>schedule(80));
+  installStyle();hookCoreRender();document.addEventListener('click',handleClick);document.addEventListener('click',()=>schedule(120));document.addEventListener('submit',()=>schedule(80));
   window.addEventListener('stack:data-changed',()=>schedule(50));window.addEventListener('stack:screen-change',()=>schedule(20));
-  window.addEventListener('storage',()=>schedule(40));window.addEventListener('online',()=>schedule(10));window.addEventListener('offline',()=>schedule(10));
+  window.addEventListener('storage',()=>schedule(40));window.addEventListener('stack:fx-history-changed',()=>schedule(40));window.addEventListener('stack:fitness-library-change',()=>schedule(40));window.addEventListener('online',()=>schedule(10));window.addEventListener('offline',()=>schedule(10));navigator.serviceWorker?.addEventListener('controllerchange',()=>schedule(10));
   renderAll24();setTimeout(renderAll24,180);setTimeout(renderAll24,1200);
   globalThis.STACK_V24=Object.freeze({build:BUILD,render:renderAll24});console.info('STACK',BUILD);
 }

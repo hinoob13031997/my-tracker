@@ -959,7 +959,7 @@ function migrateStoredState(x){
    savings:(x.savings&&typeof x.savings==='object')?{
      currency:['RUB','USD','EUR'].includes(x.savings.currency)?x.savings.currency:'RUB',
      selectedId:x.savings.selectedId||null,
-     goals:Array.isArray(x.savings.goals)?x.savings.goals.map((g,i)=>({
+     goals:Array.isArray(x.savings.goals)?x.savings.goals.map((g,i)=>({...(g&&typeof g==='object'?g:{}),
        id:g?.id||('g'+Date.now()+i),
        name:String(g?.name||'Цель '+(i+1)).slice(0,120),
        target:Math.max(0,+g?.target||0),
@@ -969,7 +969,7 @@ function migrateStoredState(x){
        currency:['RUB','USD','EUR'].includes(g?.currency)?g.currency:'RUB',
        color:/^#[0-9a-f]{6}$/i.test(String(g?.color||''))?g.color:PALETTE[i%PALETTE.length],
        icon:String(g?.icon||['island','shield','home','phone','car','study'][i%6]),
-       tx:Array.isArray(g?.tx)?g.tx.map(t=>({
+       tx:Array.isArray(g?.tx)?g.tx.map(t=>({...(t&&typeof t==='object'?t:{}),
          amount:+t?.amount||0,
          date:String(t?.date||'').slice(0,10),
          note:String(t?.note||'').slice(0,120)
@@ -1861,7 +1861,7 @@ function validateImportedState(x){
  clean.savings=(x.savings&&typeof x.savings==='object')?{
    currency:['RUB','USD','EUR'].includes(x.savings.currency)?x.savings.currency:'RUB',
    selectedId:x.savings.selectedId||null,
-   goals:Array.isArray(x.savings.goals)?x.savings.goals.map((g,i)=>({
+   goals:Array.isArray(x.savings.goals)?x.savings.goals.map((g,i)=>({...(g&&typeof g==='object'?g:{}),
      id:g?.id||('g'+Date.now()+i),
      name:String(g?.name||'Цель '+(i+1)).slice(0,120),
      target:Math.max(0,+g?.target||0),
@@ -1871,7 +1871,7 @@ function validateImportedState(x){
      currency:['RUB','USD','EUR'].includes(g?.currency)?g.currency:'RUB',
      color:/^#[0-9a-f]{6}$/i.test(String(g?.color||''))?g.color:PALETTE[i%PALETTE.length],
      icon:String(g?.icon||['island','shield','home','phone','car','study'][i%6]),
-     tx:Array.isArray(g?.tx)?g.tx.map(t=>({
+     tx:Array.isArray(g?.tx)?g.tx.map(t=>({...(t&&typeof t==='object'?t:{}),
        amount:+t?.amount||0,
        date:String(t?.date||'').slice(0,10),
        note:String(t?.note||'').slice(0,120)
@@ -1901,8 +1901,7 @@ renderAll();
 
 
 function persistNow(){
- try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}
- idbSaveState(state)
+ try{save()}catch(e){}
 }
 window.addEventListener('pagehide',persistNow);
 window.addEventListener('beforeunload',persistNow);
@@ -1935,4 +1934,37 @@ window.addEventListener('load',()=>restoreFromIndexedDB());
 
 
 </script>
+
+<!-- v24.0 marker retained for one-release service-worker transition: stack-v24-unified.js?v=24.0 -->
+<script src="./backup.js?v=24.1"></script>
+<script src="./stack-data.js?v=24.1"></script>
+<script src="./stack-finance.js?v=24.1"></script>
+<script src="./stack-fx.js?v=24.1"></script>
+<script src="./v22.js?v=24.1"></script>
+<script src="./v22.1.js?v=24.1"></script>
+<script src="./v22.2.js?v=24.1"></script>
+<script src="./v22.3-income.js?v=24.1"></script>
+<script src="./v22.12-ui-rebuild.js?v=24.1"></script>
+<script src="./v22.13-fx-history-safe.js?v=24.1"></script>
+<script src="./v22.14-fx-overview.js?v=24.1"></script>
+<script src="./v22.15-currency-dashboard.js?v=24.1"></script>
+<script src="./v22.16-fx-stability.js?v=24.1"></script>
+<script src="./v22.18-fx-actual.js?v=24.1"></script>
+<script src="./v22.20-finance-stable.js?v=24.1"></script>
+<script src="./stack-persistence.js?v=24.1"></script>
+<script src="./stack-v23-shell.js?v=24.1"></script>
+<script src="./stack-v23-deals.js?v=24.1"></script>
+<script src="./stack-v23-fitness.js?v=24.1"></script>
+<script src="./stack-v23-calendar-visual.js?v=24.1"></script>
+<script src="./stack-v23-fitness-pack.js?v=24.1"></script>
+<script src="./stack-v23-fitness-day-picker.js?v=24.1"></script>
+<script src="./stack-v23-fitness-month-label.js?v=24.1"></script>
+<script src="./stack-v23-fitness-info.js?v=24.1"></script>
+<script src="./stack-v23-fitness-progress.js?v=24.1"></script>
+<script src="./stack-v23-fitness-goals.js?v=24.1"></script>
+<script src="./stack-v23-fitness-engine.js?v=24.1"></script>
+<script src="./stack-v23-fitness-library.js?v=24.1"></script>
+<script src="./stack-v23-fitness-intelligence.js?v=24.1"></script>
+<script src="./stack-v23-stability.js?v=24.1"></script>
+<script src="./stack-v24-unified.js?v=24.1"></script>
 </body></html>

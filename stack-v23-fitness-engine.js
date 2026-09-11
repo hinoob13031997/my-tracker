@@ -1,6 +1,6 @@
 /* STACK v23.22 — goal-aware training, exercise library and smart rotation. */
 (()=>{'use strict';
-const BUILD='v23.22-goal-intelligence';
+const BUILD='v24.1-fitness-single-source';
 const START=new Date(2026,7,10),DAY=86400000;
 const GOAL_KEY='stack_fitness_goal_v2318';
 const PROFILE_KEY='stack_fitness_profile_v2320';
@@ -177,6 +177,8 @@ function refresh(){const today=document.querySelector('#v234Fitness [data-engine
 
 document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.matches('[data-log-exercise]'))modal(b.dataset.logExercise,b.dataset.logDate);else if(b.matches('[data-engine-status]')){setWorkoutStatus(selectedDate(),b.dataset.engineStatus);refresh()}});
 window.addEventListener('stack:fitness-library-change',refresh);
+function summary(date=new Date()){const week=weekNo(date),phase=phaseFor(week),text=phaseText(phase),workout=workoutFor(date);if(!workout)return Object.freeze({planned:false,name:'День восстановления',week,phase:text.name,deload:deload(week),count:0});return Object.freeze({planned:true,name:(workout.light?'Разгрузка · ':'')+workout.name,week,phase:text.name,deload:workout.light,count:workout.ids.length,cycle:workout.cycle})}
+globalThis.STACK_FITNESS=Object.freeze({build:BUILD,summary});
 const style=document.createElement('style');style.id='v2320EngineStyle';style.textContent=css+'@media(max-width:720px){.fx-engine-owned-program .v234-body>.fx-program,.fx-engine-owned-program .v234-body>.fx-program+.fx-note{display:none!important}}';document.head.appendChild(style);
-let queued=false;function schedule(){if(queued)return;queued=true;queueMicrotask(()=>{queued=false;draw()})}new MutationObserver(schedule).observe(document.documentElement,{childList:true,subtree:true});draw();console.info('STACK',BUILD);
+let queued=false;function schedule(){if(queued)return;queued=true;queueMicrotask(()=>{queued=false;draw()})}new MutationObserver(schedule).observe(document.getElementById('screenTracker')||document.body,{childList:true,subtree:true});draw();console.info('STACK',BUILD);
 })();
