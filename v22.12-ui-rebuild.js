@@ -6,7 +6,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&
 function loadDetails(){try{details=JSON.parse(localStorage.getItem(TK)||'{}')||{}}catch(e){details={}}}
 function saveDetails(){try{localStorage.setItem(TK,JSON.stringify(details))}catch(e){}}
 function persistedTasks(){try{let a=JSON.parse(localStorage.getItem(MAIN)||'{}')?.journal;return Array.isArray(a)?a:[]}catch(e){return[]}}
-function tasks(){return Array.isArray(globalThis.state?.journal)?globalThis.state.journal:persistedTasks()}
+function tasks(){try{if(typeof state!=='undefined'&&Array.isArray(state?.journal))return state.journal}catch(e){}return persistedTasks()}
 function taskId(t,i){if(!t.__v227id)t.__v227id='t'+Date.now().toString(36)+i;return t.__v227id}
 function isDone(t){let s=String(t?.status||'').toLowerCase();return s.includes('готов')||s.includes('выполн')}
 function priColor(p){p=String(p||'').toLowerCase();return p.includes('выс')?'#f12bb8':p.includes('низ')?'#68d43f':'#0877f3'}
