@@ -1,7 +1,7 @@
-/* STACK v24.7 — data integrity + recovery guard. Main storage key/schema unchanged. */
+/* STACK v24.8 — data integrity + recovery guard. Main storage key/schema unchanged. */
 (()=>{'use strict';
-const BUILD='v24.7-fitness-analytics-progression';
-const VERSION='v24.7';
+const BUILD='v24.8-mobile-readability';
+const VERSION='v24.8';
 const RECOVERY_KEY='stack_recovery_v2242';
 const MAX=8;
 const RECOVER_MARK='stack_v2250_recovered_once';
