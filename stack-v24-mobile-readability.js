@@ -1,10 +1,13 @@
-/* STACK v24.8 — iPhone readability and focus-zoom stability. Data keys are untouched. */
+/* STACK v24.8.1 — iPhone readability and nutrition-width stability. Data keys are untouched. */
 (()=>{'use strict';
-const BUILD='v24.8-mobile-readability';
+const BUILD='v24.8.1-mobile-readability';
 const css=`@media(max-width:720px){
 html{-webkit-text-size-adjust:100%}
 #v234Fitness,#v234Fitness *{box-sizing:border-box}
 #v234Fitness{width:100%;max-width:100%;min-width:0;overflow-x:clip}
+#v234Fitness .v234-tabs,#v234Fitness .v234-tabs button,#v234Fitness .v234-body{min-width:0;max-width:100%}
+#v234Fitness .v234-tabs button{white-space:normal;overflow-wrap:anywhere}
+#v234Fitness .v234-body{overflow-x:hidden}
 #v234Fitness .v234-sub{font-size:12px;line-height:1.4}
 #v234Fitness .v234-tabs button{font-size:11px;line-height:1.2}
 #v234Fitness .v234-kicker,#v234Fitness .fx-eye{font-size:10px;line-height:1.3}
@@ -23,11 +26,16 @@ html{-webkit-text-size-adjust:100%}
 #v234Fitness .fxi-box small{font-size:10.5px;line-height:1.4}
 #v234Fitness .fxi-warning{font-size:10.5px;line-height:1.45}
 #v234Fitness .fx-plan-head h2{font-size:21px}
+#v234Fitness .fx-plan,#v234Fitness .fx-custom-card,#v234Fitness .fxi-card{width:100%;min-width:0;max-width:100%}
+#v234Fitness .fx-plan-head{flex-wrap:wrap}
+#v234Fitness .fx-plan-head>div{min-width:0;flex:1 1 180px}
+#v234Fitness .fx-plan-switch{flex:0 0 auto}
 #v234Fitness .fx-plan-switch{min-height:44px;font-size:11px}
-#v234Fitness .fx-plan-targets span{padding:9px 2px;font-size:10px;line-height:1.25}
+#v234Fitness .fx-plan-targets span{min-width:0;padding:9px 2px;font-size:10px;line-height:1.25}
 #v234Fitness .fx-plan-targets b{font-size:14px}
 #v234Fitness .fx-plan-note{font-size:11.5px;line-height:1.5}
 #v234Fitness .fx-plan-meal{grid-template-columns:50px minmax(0,1fr) 44px;gap:9px;padding:13px 0}
+#v234Fitness .fx-plan-meal>*,#v234Fitness .fx-meal>*{min-width:0}
 #v234Fitness .fx-plan-meal time{font-size:12px}
 #v234Fitness .fx-plan-meal b{font-size:13px;line-height:1.3}
 #v234Fitness .fx-plan-meal p{font-size:12px;line-height:1.45;overflow-wrap:anywhere}
