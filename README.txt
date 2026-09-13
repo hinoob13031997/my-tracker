@@ -5,3 +5,5 @@ Core: Data Core 2.0 compatibility layer, Process Intelligence, cross-domain STAC
 Data migration policy: non-destructive. Existing localStorage keys remain compatible; v27 reads them through a unified schema-2 layer.
 
 Product position: personal management system — processes, tasks, finance, fitness and trajectory, not just a habit tracker.
+
+Release note: v27 keeps the compatibility filename stack-v26-deals-intelligence.js as the existing index loader; it dynamically loads stack-v27-core.js.
