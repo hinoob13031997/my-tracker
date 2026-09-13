@@ -1,7 +1,7 @@
-/* STACK v27.3.1 — data integrity + recovery guard. Main storage key/schema unchanged. */
+/* STACK v27.3.2 — data integrity + recovery guard. Main storage key/schema unchanged. */
 (()=>{'use strict';
-const BUILD='v27.3.1-nutrition-overflow';
-const VERSION='v27.3.1';
+const BUILD='v27.3.2-update-flow';
+const VERSION='v27.3.2';
 const RECOVERY_KEY='stack_recovery_v2242';
 const MAX=8;
 const RECOVER_MARK='stack_v2250_recovered_once';
