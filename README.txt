@@ -9,5 +9,3 @@ Product position: personal management system — processes, tasks, finance, fitn
 Release note: v27 keeps the compatibility filename stack-v26-deals-intelligence.js as the existing index loader; it dynamically loads stack-v27-core.js.
 
 PWA note: precache installation is resilient — one missing optional asset no longer aborts the entire service-worker install.
-
-Status: RC.
