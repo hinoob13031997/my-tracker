@@ -1,7 +1,7 @@
-/* STACK v27.1.1 — data integrity + recovery guard. Main storage key/schema unchanged. */
+/* STACK v27.2 — data integrity + recovery guard. Main storage key/schema unchanged. */
 (()=>{'use strict';
-const BUILD='v27.1.1-fitness-tabs-fix';
-const VERSION='v27.1.1';
+const BUILD='v27.2-cleanup';
+const VERSION='v27.2';
 const RECOVERY_KEY='stack_recovery_v2242';
 const MAX=8;
 const RECOVER_MARK='stack_v2250_recovered_once';
@@ -21,7 +21,6 @@ function installSaveGuard(){try{if(typeof save!=='function'||save.__stackPersist
 function persist(){try{if(typeof state!=='undefined'&&sane(state))vault(state,'lifecycle')}catch(e){}}
 async function restoreLatest(){const payload=await latestValidPayload();if(!payload)throw new Error('No valid recovery snapshot');localStorage.setItem(KEY,payload);location.reload()}
 function installVersion(){let el=document.getElementById('stackVersion');if(!el){el=document.createElement('div');el.id='stackVersion';Object.assign(el.style,{textAlign:'center',font:'600 9px Arial, sans-serif',letterSpacing:'.08em',color:'#667084',opacity:'.72',padding:'12px 0 max(10px, env(safe-area-inset-bottom))',userSelect:'none',pointerEvents:'none'});document.body.appendChild(el)}el.textContent=VERSION;el.setAttribute('aria-label','Версия STACK '+VERSION)}
-function loadFitnessTabsFix(){if(document.getElementById('stackFitnessTabsFixScript'))return;const s=document.createElement('script');s.id='stackFitnessTabsFixScript';s.src='./stack-v27-1-fitness-tabs.js?build=27.1.1';s.async=false;document.body.appendChild(s)}
-async function boot(){if(await recoverCorruptMain())return;const main=readMain();if(main.status==='ok'&&sane(main.value))vault(main.value,'boot-raw');installSaveGuard();persist();installVersion();loadFitnessTabsFix();window.addEventListener('pagehide',persist);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')persist()});globalThis.STACK_RECOVERY=Object.freeze({build:BUILD,list:loadVault,restoreLatest});console.info('STACK persistence guard',BUILD)}
+async function boot(){if(await recoverCorruptMain())return;const main=readMain();if(main.status==='ok'&&sane(main.value))vault(main.value,'boot-raw');installSaveGuard();persist();installVersion();window.addEventListener('pagehide',persist);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')persist()});globalThis.STACK_RECOVERY=Object.freeze({build:BUILD,list:loadVault,restoreLatest});console.info('STACK persistence guard',BUILD)}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{boot().catch(()=>{})},{once:true});else boot().catch(()=>{});
 })();
