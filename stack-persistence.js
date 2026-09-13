@@ -1,7 +1,7 @@
 /* STACK v25.0 — data integrity + recovery guard. Main storage key/schema unchanged. */
 (()=>{'use strict';
-const BUILD='v25.2-finance-input-analytics-correction';
-const VERSION='v25.2';
+const BUILD='v26.0-deals-process-intelligence';
+const VERSION='v26.0';
 const RECOVERY_KEY='stack_recovery_v2242';
 const MAX=8;
 const RECOVER_MARK='stack_v2250_recovered_once';
