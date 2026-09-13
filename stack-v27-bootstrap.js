@@ -16,7 +16,7 @@ function load(id,src,ready){return new Promise(resolve=>{
 async function boot(){
   shell();
   await load('stackV27CoreScript',`./stack-v27-core.js?build=${BUILD}`,()=>!!globalThis.STACK_CORE);
-  await load('stackV271FitnessTabsScript',`./stack-v27-1-fitness-tabs.js?build=${BUILD}`,()=>!!document.getElementById('stackV271FitnessTabs'));
+  await load('stackV271FitnessTabsScript',`./stack-v27-1-fitness-tabs.js?build=${BUILD}`,()=>!!document.getElementById('stackFitnessTabsFix'));
   shell();
   window.addEventListener('pageshow',shell);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)shell()});
