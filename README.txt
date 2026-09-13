@@ -10,4 +10,4 @@ Release note: v27 keeps the compatibility filename stack-v26-deals-intelligence.
 
 PWA note: precache installation is resilient — one missing optional asset no longer aborts the entire service-worker install.
 
-Status: ready for merge after branch/PR validation.
+Status: release candidate.
