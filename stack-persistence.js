@@ -1,13 +1,11 @@
-/* STACK v28.5 — data integrity + recovery guard. Main storage key/schema unchanged. */
+/* STACK v29.0 — data integrity + recovery guard. Main storage key/schema unchanged. */
 (()=>{'use strict';
-const BUILD='v28.5-sw-html-gate';
-const VERSION='v28.5';
+const BUILD='v29-shell-foundation';
+const VERSION='v29.0';
 const RECOVERY_KEY='stack_recovery_v2242';
 const MAX=8;
 const RECOVER_MARK='stack_v2250_recovered_once';
 let queue=Promise.resolve();
-function installStartupGate(){try{document.documentElement.classList.add('stack-minimal-gate');if(document.getElementById('stackMinimalStartupGate'))return;const s=document.createElement('style');s.id='stackMinimalStartupGate';s.textContent=`@media(max-width:720px){html.stack-minimal-gate:not(.stack-minimal-ready) body{overflow:hidden!important}html.stack-minimal-gate:not(.stack-minimal-ready) body::before{content:'';position:fixed;inset:0;z-index:2147483646;background:radial-gradient(circle at 50% -15%,#101142 0,#030817 35%,#01050b 72%)}html.stack-minimal-gate:not(.stack-minimal-ready) body::after{content:'STACK';position:fixed;left:0;right:0;top:42%;z-index:2147483647;text-align:center;color:#eef4ff;font:900 18px Arial,sans-serif;letter-spacing:.18em;text-shadow:0 0 18px #9133e477}}`;document.head.appendChild(s)}catch(_){}}
-installStartupGate();
 function clone(v){try{return JSON.parse(JSON.stringify(v))}catch(e){return null}}
 function serial(v){try{return JSON.stringify(v)}catch(e){return null}}
 function sane(v){return !!v&&typeof v==='object'&&!Array.isArray(v)&&serial(v)!==null}
