@@ -1,6 +1,6 @@
-/* STACK v29.3 — clean mobile shell: compact task creation + custom neon workout icon. */
+/* STACK v29.3.1 — hotfix: restore valid Today status parsing. */
 (()=>{'use strict';
-const BUILD='29.3.0';
+const BUILD='29.3.1';
 const MOBILE=()=>innerWidth<=720;
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const read=(k,f={})=>{try{return JSON.parse(localStorage.getItem(k)||'null')??f}catch(_){return f}};
@@ -11,7 +11,7 @@ let current='today';
 function scheduledProcesses(d=new Date()){
  const s=stateNow(),ps=Array.isArray(s?.processes)?s.processes:[],mi=typeof dateToMonthIndex==='function'?dateToMonthIndex(d):-1,day=d.getDate()-1,out=[];
  ps.forEach((p,i)=>{try{if(typeof isScheduledOnDate==='function'&&!isScheduledOnDate(i,d))return}catch(_){}
-  const mark=mi>=0?s?.months?.[mi]?.[i]?.[day]||'';
+  const mark=mi>=0?(s?.months?.[mi]?.[i]?.[day]||''):'';
   out.push({kind:'process',index:i,name:p?.name||`Процесс ${i+1}`,mark,color:p?.color||'#9133e4'});
  });return out;
 }
@@ -40,6 +40,6 @@ function syncHistory(id,mode){try{const payload={stackV29:id};if(mode==='replace
 function open(id,mode='push'){const item=NAV.find(x=>x[0]===id)||NAV[0];syncHistory(item[0],mode);if(item[0]==='today')renderToday();else openLegacy(item[0],item[3])}
 function cycleProcess(index){const d=new Date(),mi=typeof dateToMonthIndex==='function'?dateToMonthIndex(d):-1,s=liveState();if(mi<0||!s?.months?.[mi]?.[index]){open('deals');return}const day=d.getDate()-1,cur=s.months[mi][index][day]||'',next=cur===''?'✓':cur==='✓'?'○':cur==='○'?'—':'';s.months[mi][index][day]=next;try{if(typeof save==='function')save()}catch(_){}try{window.dispatchEvent(new CustomEvent('stack:data-changed',{detail:{source:'v29-shell'}}))}catch(_){}renderToday()}
 function wire(){const r=root();r.querySelectorAll('[data-v29-nav]').forEach(b=>b.onclick=()=>open(b.dataset.v29Nav,'push'));r.querySelectorAll('.v29-row').forEach(row=>{row.querySelector('.v29-open')?.addEventListener('click',()=>{const route=row.dataset.v29Route;if(route){open(route,'push');return}if(row.dataset.v29Kind==='process')open('deals','push')});row.querySelector('.v29-status')?.addEventListener('click',()=>{if(row.dataset.v29Kind==='process')cycleProcess(+row.dataset.v29Index);else open('deals','push')})})}
-function boot(){if(!MOBILE()){release();return}installStyle();document.title='STACK — Персональная система управления';document.querySelector('meta[name="stack-build"]')?.setAttribute('content','v29.3');let start='today';try{const fromHistory=history.state?.stackV29;if(NAV.some(x=>x[0]===fromHistory))start=fromHistory;else{const legacy=sessionStorage.getItem('stack_v23_screen');const found=NAV.find(x=>x[3]===legacy);if(found)start=found[0]}}catch(_){}open(start,'replace');window.addEventListener('popstate',e=>{const id=e.state?.stackV29;if(id&&NAV.some(x=>x[0]===id))open(id,'none')});window.addEventListener('stack:data-changed',()=>{if(current==='today')setTimeout(renderToday,0);if(current==='deals')setTimeout(simplifyDealsLegacy,30)});window.addEventListener('resize',()=>{if(!MOBILE()){document.body.classList.remove('v29-native-today');release()}});const mo=new MutationObserver(()=>{if(current==='deals')simplifyDealsLegacy()});mo.observe(document.body,{childList:true,subtree:true});Object.defineProperty(globalThis,'STACK_V29_SHELL',{value:Object.freeze({build:BUILD,open,refresh:()=>open(current,'none')}),configurable:true});console.info('STACK v29 shell',BUILD)}
+function boot(){if(!MOBILE()){release();return}installStyle();document.title='STACK — Персональная система управления';document.querySelector('meta[name="stack-build"]')?.setAttribute('content','v29.3.1');let start='today';try{const fromHistory=history.state?.stackV29;if(NAV.some(x=>x[0]===fromHistory))start=fromHistory;else{const legacy=sessionStorage.getItem('stack_v23_screen');const found=NAV.find(x=>x[3]===legacy);if(found)start=found[0]}}catch(_){}open(start,'replace');window.addEventListener('popstate',e=>{const id=e.state?.stackV29;if(id&&NAV.some(x=>x[0]===id))open(id,'none')});window.addEventListener('stack:data-changed',()=>{if(current==='today')setTimeout(renderToday,0);if(current==='deals')setTimeout(simplifyDealsLegacy,30)});window.addEventListener('resize',()=>{if(!MOBILE()){document.body.classList.remove('v29-native-today');release()}});const mo=new MutationObserver(()=>{if(current==='deals')simplifyDealsLegacy()});mo.observe(document.body,{childList:true,subtree:true});Object.defineProperty(globalThis,'STACK_V29_SHELL',{value:Object.freeze({build:BUILD,open,refresh:()=>open(current,'none')}),configurable:true});console.info('STACK v29 shell',BUILD)}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
