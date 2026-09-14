@@ -1,7 +1,7 @@
-/* STACK v29.0 — data integrity + recovery guard. Main storage key/schema unchanged. */
+/* STACK v29.1 — data integrity + recovery guard. Main storage key/schema unchanged. */
 (()=>{'use strict';
-const BUILD='v29-shell-foundation';
-const VERSION='v29.0';
+const BUILD='v29-1-icons-history';
+const VERSION='v29.1';
 const RECOVERY_KEY='stack_recovery_v2242';
 const MAX=8;
 const RECOVER_MARK='stack_v2250_recovered_once';
