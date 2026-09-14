@@ -1,7 +1,7 @@
-/* STACK v28.2 — data integrity + recovery guard. Main storage key/schema unchanged. */
+/* STACK v28.3 — data integrity + recovery guard. Main storage key/schema unchanged. */
 (()=>{'use strict';
-const BUILD='v28.2-runtime-minimal';
-const VERSION='v28.2';
+const BUILD='v28.3-startup-dedupe';
+const VERSION='v28.3';
 const RECOVERY_KEY='stack_recovery_v2242';
 const MAX=8;
 const RECOVER_MARK='stack_v2250_recovered_once';
