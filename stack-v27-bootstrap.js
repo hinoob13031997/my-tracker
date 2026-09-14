@@ -1,9 +1,9 @@
-/* STACK v28.4 — unified runtime bootstrap. Minimal shell loads first. */
+/* STACK v28.5 — unified runtime bootstrap. Minimal shell loads first. */
 (()=>{'use strict';
-const BUILD='28.4.0';
+const BUILD='28.5.0';
 function releaseFail(){document.documentElement.classList.remove('stack-minimal-loading');document.documentElement.classList.add('stack-minimal-ready')}
 function preflight(){document.documentElement.classList.add('stack-minimal-loading');if(!document.getElementById('stackMinimalPreflight')){const s=document.createElement('style');s.id='stackMinimalPreflight';s.textContent='@media(max-width:720px){html.stack-minimal-loading #screenToday>*{visibility:hidden!important}}';document.head.appendChild(s)}}
-function shell(){document.title='STACK — Персональная система управления';document.querySelector('meta[name="stack-build"]')?.setAttribute('content','v28.4');const brand=document.querySelector('.brand');if(brand)brand.textContent='STACK';const sub=document.querySelector('.sub');if(sub)sub.textContent='Действия → данные → траектория';document.querySelectorAll('.variant').forEach(el=>el.style.display='none')}
+function shell(){document.title='STACK — Персональная система управления';document.querySelector('meta[name="stack-build"]')?.setAttribute('content','v28.5');const brand=document.querySelector('.brand');if(brand)brand.textContent='STACK';const sub=document.querySelector('.sub');if(sub)sub.textContent='Действия → данные → траектория';document.querySelectorAll('.variant').forEach(el=>el.style.display='none')}
 function load(id,src,ready){return new Promise(resolve=>{if(ready?.()){resolve();return}const old=document.getElementById(id);if(old){if(old.dataset.ready==='1')resolve();else old.addEventListener('load',resolve,{once:true});return}const s=document.createElement('script');s.id=id;s.src=src;s.async=false;s.onload=()=>{s.dataset.ready='1';resolve()};s.onerror=()=>resolve();document.body.appendChild(s)})}
 async function boot(){shell();
   await load('stackV28MinimalScript',`./stack-v28-minimal.js?build=${BUILD}`,()=>!!globalThis.STACK_MINIMAL);
