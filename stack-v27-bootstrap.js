@@ -1,9 +1,9 @@
-/* STACK v27.5.2 — unified runtime bootstrap for shell identity and optional modules. */
+/* STACK v27.5.3 — unified runtime bootstrap for shell identity and optional modules. */
 (()=>{'use strict';
-const BUILD='27.5.2';
+const BUILD='27.5.3';
 function shell(){
   document.title='STACK — Персональная система управления';
-  document.querySelector('meta[name="stack-build"]')?.setAttribute('content','v27.5.2');
+  document.querySelector('meta[name="stack-build"]')?.setAttribute('content','v27.5.3');
   const brand=document.querySelector('.brand');if(brand)brand.textContent='STACK';
   const sub=document.querySelector('.sub');if(sub)sub.textContent='Персональная система управления · действия → данные → траектория';
   document.querySelectorAll('.variant').forEach(el=>el.style.display='none');
@@ -23,6 +23,7 @@ async function boot(){
   await load('stackV275QuickFoodsScript',`./stack-v27-5-quick-foods.js?build=${BUILD}`,()=>!!globalThis.STACK_QUICK_FOODS);
   await load('stackV2751NutritionSimplifyScript',`./stack-v27-5-1-nutrition-simplify.js?build=${BUILD}`,()=>!!globalThis.STACK_NUTRITION_SIMPLIFY);
   await load('stackV2752NutritionMinimalScript',`./stack-v27-5-2-nutrition-minimal.js?build=${BUILD}`,()=>!!globalThis.STACK_NUTRITION_MINIMAL);
+  await load('stackV2753RationScript',`./stack-v27-5-3-ration.js?build=${BUILD}`,()=>!!globalThis.STACK_RATION);
   shell();
   window.addEventListener('pageshow',shell);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)shell()});
