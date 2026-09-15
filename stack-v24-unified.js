@@ -183,6 +183,7 @@ function moreHTML(){
 function renderMore(){
   if(innerWidth>720)return;
   const screen=document.getElementById('screenAnalytics');if(!screen)return;
+  if(screen.dataset.stackAnalyticsOwner)return;
   screen.classList.add('v24-more-ready');
   const html=moreHTML(),sig=hash(html),old=document.getElementById('v24More');if(sig===lastMore&&old)return;
   lastMore=sig;if(old)old.outerHTML=html;else screen.insertAdjacentHTML('afterbegin',html);
