@@ -1,6 +1,15 @@
 <!doctype html>
 <html lang="ru">
 <head>
+<!-- STACK v29 shell markers, baked in so the very first page load (before the service
+     worker in sw.js is registered/active) also gets the new shell instead of a legacy-UI
+     flash. Mirrors GATE_STYLE + V29_HEAD in sw.js exactly — keep both in sync if the v29
+     script list or gate CSS changes; sw.js skips re-injecting once it sees this markup. -->
+<style id="stackV29NetworkGate">@media(max-width:720px){html:not(.stack-v29-ready) body{overflow:hidden!important}html:not(.stack-v29-ready) body::before{content:'';position:fixed;inset:0;z-index:2147483646;background:radial-gradient(circle at 50% -15%,#101142 0,#030817 35%,#01050b 72%)}html:not(.stack-v29-ready) body::after{content:'STACK';position:fixed;left:0;right:0;top:42%;z-index:2147483647;text-align:center;color:#eef4ff;font:900 18px Arial,sans-serif;letter-spacing:.18em;text-shadow:0 0 18px #9133e477}}</style>
+<script>window.__STACK_V29__=true;</script>
+<script defer src="./stack-v29-shell.js?build=29.18.0"></script>
+<script defer src="./stack-v29-deals-polish.js?build=29.18.0"></script>
+<script defer src="./stack-v29-analytics.js?build=29.18.0"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=5,viewport-fit=cover">
 <title>STACK • Рабочий трекер 2026/2027</title>
@@ -1951,7 +1960,7 @@ window.addEventListener('load',()=>restoreFromIndexedDB());
 <script src="./v22.16-fx-stability.js?v=24.8"></script>
 <script src="./v22.18-fx-actual.js?v=24.8"></script>
 <script src="./v22.20-finance-stable.js?v=24.8"></script>
-<script src="./stack-persistence.js?v=29.5"></script>
+<script src="./stack-persistence.js?v=29.18"></script>
 <script src="./stack-v23-shell.js?v=24.8"></script>
 <script src="./stack-v23-deals.js?v=29.5"></script>
 <script src="./stack-v23-fitness.js?v=24.8"></script>
