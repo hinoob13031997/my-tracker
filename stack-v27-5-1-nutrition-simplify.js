@@ -1,6 +1,13 @@
-/* STACK v27.5.1 — simplify Nutrition hierarchy without removing features or data. */
+/* STACK v27.5.7 — simplify Nutrition hierarchy without removing features or data.
+   v27.5.7: apply() ran on every mutation of .v234-body (its own MutationObserver)
+   and unconditionally rewrote .fx-eye/h2 textContent to the same string every
+   time — setting textContent, even to an identical value, still replaces the
+   text node, which re-triggered the same observer: an infinite render loop
+   (thousands of calls/sec) the entire time the Nutrition tab was open. That
+   was the real "screen jumps" cause, not just a one-time flash on open. Fixed
+   by only writing when the text actually needs to change. */
 (()=>{'use strict';
-const BUILD='27.5.1';
+const BUILD='27.5.7';
 let applying=false,observer=null;
 function active(){return innerWidth<=720&&document.querySelector('[data-v234="nutrition"]')?.classList.contains('on')}
 function button(label,open){const b=document.createElement('button');b.type='button';b.className='v2751-toggle';b.innerHTML=`<span>${label}</span><b>${open?'Скрыть':'Открыть'}</b>`;return b}
@@ -12,7 +19,7 @@ function apply(){if(applying||!active())return;applying=true;try{
  const plan=body.querySelector('#v274NutritionGoals');
  const form=body.querySelector('[data-nutrition]');
  const formCard=form?.closest('section.fx-card');
- if(formCard){formCard.classList.add('v2751-add-card');const eye=formCard.querySelector('.fx-eye');if(eye)eye.textContent='ДОБАВИТЬ ЕДУ';const h=formCard.querySelector('h2');if(h)h.textContent='Новая запись';if(plan&&formCard.previousElementSibling!==plan)plan.after(formCard)}
+ if(formCard){formCard.classList.add('v2751-add-card');const eye=formCard.querySelector('.fx-eye');if(eye&&eye.textContent!=='ДОБАВИТЬ ЕДУ')eye.textContent='ДОБАВИТЬ ЕДУ';const h=formCard.querySelector('h2');if(h&&h.textContent!=='Новая запись')h.textContent='Новая запись';if(plan&&formCard.previousElementSibling!==plan)plan.after(formCard)}
  // Today's detailed entries become secondary and collapsed by default.
  const today=document.getElementById('v273Nutrition');
  if(today){today.querySelector('.v273-head')?.classList.add('v2751-hide');makeCollapsible(today,'Сегодняшние записи','stack_v2751_today_open','.v273-list')}
