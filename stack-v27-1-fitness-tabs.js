@@ -1,4 +1,4 @@
-/* STACK v27.1.2 — mobile fitness tabs/nutrition layout hardening + tab-switch fade. */
+/* STACK v27.1.3 — mobile fitness tabs/nutrition layout hardening + tab-switch fade. */
 (()=>{'use strict';
 function install(){if(document.getElementById('stackFitnessTabsFix'))return;const s=document.createElement('style');s.id='stackFitnessTabsFix';s.textContent=`@media(max-width:720px){
 #v234Fitness,.v234-fit,.v234-tabs,.v234-body{min-width:0;max-width:100%;width:100%;box-sizing:border-box}
@@ -9,17 +9,17 @@ function install(){if(document.getElementById('stackFitnessTabsFix'))return;cons
 .fx-nut b,.fx-nut small{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 }
 @media(max-width:360px){.v234-tabs button{font-size:8px!important}.fx-nutrow{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
-#v234Fitness .v234-body{transition:opacity .16s ease,transform .16s ease}
-#v234Fitness .v234-body.v2712-tabswitch{opacity:.32;transform:translateY(2px)}
+#v234Fitness{transition:opacity .16s ease,transform .16s ease}
+#v234Fitness.v2712-tabswitch{opacity:.55;transform:translateY(2px)}
 `;document.head.appendChild(s)}
 function bindFade(){
 if(document.getElementById('stackFitnessTabFadeBound'))return;const marker=document.createElement('meta');marker.id='stackFitnessTabFadeBound';document.head.appendChild(marker);
 document.addEventListener('click',e=>{
 const btn=e.target.closest('#v234Fitness .v234-tabs [data-v234]');if(!btn)return;
-const body=document.querySelector('#v234Fitness .v234-body');if(!body)return;
-body.classList.add('v2712-tabswitch');
-clearTimeout(body.__v2712Timer);
-body.__v2712Timer=setTimeout(()=>body.classList.remove('v2712-tabswitch'),110);
+const root=document.getElementById('v234Fitness');if(!root)return;
+root.classList.add('v2712-tabswitch');
+clearTimeout(root.__v2712Timer);
+root.__v2712Timer=setTimeout(()=>root.classList.remove('v2712-tabswitch'),110);
 },true);
 }
 function boot(){install();bindFade()}
