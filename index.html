@@ -470,7 +470,6 @@ body{overflow-x:hidden}
 @media(max-width:720px){.mobile-kpi-hint{display:block;text-align:center;color:#5f697a;font-size:8px;margin:-3px 0 4px}}
 
 /* ===== MAJOR MOBILE APP UPGRADE ===== */
-.mobile-nav{display:none}
 .mobile-screen{display:block}
 .today-screen,.process-detail-modal,.process-modal{display:none}
 .today-screen.active,.process-detail-modal.active,.process-modal.active{display:block}
@@ -534,10 +533,6 @@ body{overflow-x:hidden}
 /* mobile nav */
 @media(max-width:720px){
   body{padding-bottom:76px}
-  .mobile-nav{position:fixed;display:grid;grid-template-columns:repeat(4,1fr);left:0;right:0;bottom:0;z-index:90;padding:7px max(8px,env(safe-area-inset-right)) max(7px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));background:rgba(2,7,15,.96);border-top:1px solid #172842;backdrop-filter:blur(12px)}
-  .mobile-nav button{min-height:52px;border:0;background:transparent;color:#738095;font-size:9px;display:grid;place-items:center;gap:2px}
-  .mobile-nav button span{font-size:18px}
-  .mobile-nav button.active{color:#f15ac9;text-shadow:0 0 6px #f12bb866}
   .mobile-screen{display:none}
   .mobile-screen.active{display:block}
   .today-screen{display:none}
@@ -620,9 +615,6 @@ body{overflow-x:hidden}
  .sav-ring{width:104px!important;height:104px!important}
  .sav-actions{position:relative;z-index:2}
  .sav-chart{height:235px!important}
-}
-@supports(padding:max(0px)){
- .mobile-nav{padding-bottom:max(7px,env(safe-area-inset-bottom))!important}
 }
 
 
@@ -810,12 +802,6 @@ body:has(#screenSavings.active) .app,body.savings-active .app{padding-top:max(6p
 <div class="form-row"><label>Название</label><input id="sgName"></div><div class="form-row"><label>Сумма цели</label><input id="sgTarget" type="number" min="0"></div><div class="form-row"><label>Уже накоплено</label><input id="sgStart" type="number" min="0"></div><div class="form-row"><label>План в месяц</label><input id="sgMonthly" type="number" min="0"></div><div class="form-row"><label>Срок</label><input id="sgDeadline" type="date"></div><div class="form-row"><label>Значок цели</label><div class="goal-icon-picker" id="sgIconPicker"></div></div>
 <div class="form-row"><label>Валюта</label><select id="sgCurrency"><option value="RUB">₽ Рубли</option><option value="USD">$ Доллары</option><option value="EUR">€ Евро</option></select></div><div class="sav-form-error" id="sgError"></div><button class="btn" id="sgSave" style="width:100%">Сохранить</button></div></div>
 <div class="app-modal" id="savTxModal"><div class="modal-card"><div class="modal-head"><strong id="savTxTitle">ПОПОЛНЕНИЕ</strong><button class="modal-close" data-close-sav="savTxModal">×</button></div><div class="form-row"><label>Сумма</label><input id="stAmount" type="number" min="0"></div><div class="form-row"><label>Дата</label><input id="stDate" type="date"></div><div class="form-row"><label>Комментарий</label><input id="stNote"></div><div class="sav-form-error" id="stError"></div><button class="btn" id="stSave" style="width:100%">Сохранить</button></div></div>
-<nav class="mobile-nav" id="mobileNav">
-    <button data-screen="screenToday" class="active"><span>●</span>Сегодня</button>
-    <button data-screen="screenTracker"><span>▦</span>Трекер</button>
-    <button data-screen="screenAnalytics"><span>⌁</span>Аналитика</button>
-    <button data-screen="screenSavings"><span>◉</span>Накопления</button><button data-screen="screenTasks"><span>✎</span>Задачи</button>
-  </nav>
 
   <div class="app-modal process-modal" id="processModal" role="dialog" aria-modal="true">
     <div class="modal-card">
@@ -1827,14 +1813,6 @@ document.getElementById('editFromDetail').onclick=()=>{
  const p=+document.getElementById('processDetailModal').dataset.p;
  document.getElementById('processDetailModal').classList.remove('active');openProcessModal(p)
 };
-document.querySelectorAll('#mobileNav button').forEach(b=>b.onclick=()=>{
- document.querySelectorAll('.mobile-screen,.today-screen').forEach(s=>s.classList.remove('active'));
- document.querySelectorAll('#mobileNav button').forEach(x=>x.classList.remove('active'));
- document.getElementById(b.dataset.screen)?.classList.add('active');b.classList.add('active');
- document.body.classList.toggle('savings-active',b.dataset.screen==='screenSavings');
- window.scrollTo({top:0,behavior:'smooth'})
-});
-
 document.getElementById('addProcess').onclick=addProcess;
 document.getElementById('addJournal').onclick=()=>{state.journal.push({priority:'Средний',status:'Не начато'});save();renderJournal()};
 document.getElementById('exportBtn').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(state,null,2)],{type:'application/json'}));a.download='STACK_backup_'+new Date().toISOString().slice(0,10)+'.json';a.click()};
