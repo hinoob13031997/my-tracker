@@ -1,6 +1,6 @@
 /* STACK v24.6 — fast set logging and workout completion flow. */
 (()=>{'use strict';
-const BUILD='v24.6-fitness-flow';
+const BUILD='v24.6.1-progress-panel-pilot';
 const START=new Date(2026,7,10),DAY=86400000;
 const GOAL_KEY='stack_fitness_goal_v2318';
 const PROFILE_KEY='stack_fitness_profile_v2320';
@@ -179,8 +179,8 @@ function modal(id,date){
  s.querySelector('[data-engine-set]').onsubmit=x=>{x.preventDefault();const action=x.submitter?.value||'next',f=new FormData(x.currentTarget),a=read(SETS_KEY,[]),row={id:Date.now().toString(36),date:String(f.get('date')),exercise:String(f.get('exercise')),set:+f.get('set'),weight:+f.get('weight')||0,reps:+f.get('reps'),effort:String(f.get('effort'))},existing=a.findIndex(v=>v.date===row.date&&v.exercise===row.exercise&&Number(v.set)===row.set);if(existing>=0){row.id=a[existing].id||row.id;a[existing]=row}else a.push(row);write(SETS_KEY,a);window.dispatchEvent(new CustomEvent('stack:data-changed',{detail:{source:'fitness-sets'}}));s.remove();refresh();const wo=workoutFor(fromKey(date)),complete=wo&&setProgress(id,date,wo).done;if(action==='next'&&!complete)setTimeout(()=>modal(id,date),60)};
 }
 
-function fixGoalCard(){
- const card=document.querySelector('#v234Fitness [data-goal-card]');if(!card)return;const v=goal(),body=read(BODY_KEY,[]).filter(x=>Number(x.body)>0).sort((a,b)=>String(a.date).localeCompare(String(b.date))),now=body.length?Number(body[body.length-1].body):Number(v.start),start=Number(v.start),target=Number(v.target),den=target-start,raw=den===0?100:(now-start)/den*100,pct=Math.max(0,Math.min(100,Math.round(raw))),left=Math.abs(target-now),direction=target>start?'Набор массы':target<start?'Снижение веса':'Поддержание веса';
+function fixGoalCard(scope){
+ const card=scope?.querySelector('[data-goal-card]');if(!card)return;const v=goal(),body=read(BODY_KEY,[]).filter(x=>Number(x.body)>0).sort((a,b)=>String(a.date).localeCompare(String(b.date))),now=body.length?Number(body[body.length-1].body):Number(v.start),start=Number(v.start),target=Number(v.target),den=target-start,raw=den===0?100:(now-start)/den*100,pct=Math.max(0,Math.min(100,Math.round(raw))),left=Math.abs(target-now),direction=target>start?'Набор массы':target<start?'Снижение веса':'Поддержание веса';
  const eye=card.querySelector('.fx-eye'),strong=card.querySelector('strong'),bar=card.querySelector('.fx-goal-track i'),meta=card.querySelector('.fx-goal-meta'),eyeText='МОЯ ЦЕЛЬ · '+direction.toUpperCase(),strongText=`${now} кг → ${target} кг`,metaText=`Старт ${start} кг · осталось ${left.toFixed(1).replace('.0','')} кг · прогресс оценивается по динамике веса`;if(eye&&eye.textContent!==eyeText)eye.textContent=eyeText;if(strong&&strong.textContent!==strongText)strong.textContent=strongText;if(bar&&bar.style.width!==pct+'%')bar.style.width=pct+'%';if(meta&&meta.textContent!==metaText)meta.textContent=metaText;
 }
 
@@ -190,7 +190,7 @@ function enhanceSettings(){
 }
 
 function draw(){
- const root=document.getElementById('v234Fitness'),body=root?.querySelector('.v234-body'),tab=root?.querySelector('[data-v234].on')?.dataset.v234;if(!root||!body||!tab)return;fixGoalCard();enhanceSettings();const v=goal();
+ const root=document.getElementById('v234Fitness'),tab=root?.querySelector('[data-v234].on')?.dataset.v234,body=root?.querySelector(tab==='progress'?'#v234Progress':'.v234-body');if(!root||!body||!tab)return;fixGoalCard(body);enhanceSettings();const v=goal();
  root.classList.toggle('fx-engine-owned-program',v.training==='stack'&&tab==='program');
  if(v.training==='stack'&&tab==='today'){const view=body.querySelector('#fxDayView'),old=view?.querySelector(':scope > .fx-card.fx-pad');if(view&&old&&!view.querySelector('[data-engine-today]'))old.outerHTML=todayCard(selectedDate(),workoutFor(selectedDate()));}
  if(v.training==='stack'&&tab==='program'&&!body.querySelector('[data-engine-program]')){const anchor=body.querySelector('[data-goal-card]');if(anchor)anchor.insertAdjacentHTML('afterend',programCard());else body.insertAdjacentHTML('afterbegin',programCard())}

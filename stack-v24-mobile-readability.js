@@ -1,13 +1,13 @@
 /* STACK v24.8.1 — iPhone readability and nutrition-width stability. Data keys are untouched. */
 (()=>{'use strict';
-const BUILD='v24.8.1-mobile-readability';
+const BUILD='v24.8.2-progress-panel-pilot';
 const css=`@media(max-width:720px){
 html{-webkit-text-size-adjust:100%}
 #v234Fitness,#v234Fitness *{box-sizing:border-box}
 #v234Fitness{width:100%;max-width:100%;min-width:0;overflow-x:clip}
-#v234Fitness .v234-tabs,#v234Fitness .v234-tabs button,#v234Fitness .v234-body{min-width:0;max-width:100%}
+#v234Fitness .v234-tabs,#v234Fitness .v234-tabs button,#v234Fitness .v234-body,#v234Fitness #v234Progress{min-width:0;max-width:100%}
 #v234Fitness .v234-tabs button{white-space:normal;overflow-wrap:anywhere}
-#v234Fitness .v234-body{overflow-x:hidden}
+#v234Fitness .v234-body,#v234Fitness #v234Progress{overflow-x:hidden}
 #v234Fitness .v234-sub{font-size:12px;line-height:1.4}
 #v234Fitness .v234-tabs button{font-size:11px;line-height:1.2}
 #v234Fitness .v234-kicker,#v234Fitness .fx-eye{font-size:10px;line-height:1.3}
