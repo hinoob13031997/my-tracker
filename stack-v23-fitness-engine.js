@@ -190,7 +190,7 @@ function enhanceSettings(){
 }
 
 function draw(){
- const root=document.getElementById('v234Fitness'),tab=root?.querySelector('[data-v234].on')?.dataset.v234,body=root?.querySelector(tab==='progress'?'#v234Progress':tab==='today'?'#v234Today':'.v234-body');if(!root||!body||!tab)return;fixGoalCard(body);enhanceSettings();const v=goal();
+ const root=document.getElementById('v234Fitness'),tab=root?.querySelector('[data-v234].on')?.dataset.v234,body=root?.querySelector(tab==='progress'?'#v234Progress':tab==='today'?'#v234Today':tab==='nutrition'?'#v234Nutrition':'.v234-body');if(!root||!body||!tab)return;fixGoalCard(body);enhanceSettings();const v=goal();
  root.classList.toggle('fx-engine-owned-program',v.training==='stack'&&tab==='program');
  if(v.training==='stack'&&tab==='today'){const view=body.querySelector('#fxDayView'),old=view?.querySelector(':scope > .fx-card.fx-pad');if(view&&old&&!view.querySelector('[data-engine-today]'))old.outerHTML=todayCard(selectedDate(),workoutFor(selectedDate()));}
  if(v.training==='stack'&&tab==='program'&&!body.querySelector('[data-engine-program]')){const anchor=body.querySelector('[data-goal-card]');if(anchor)anchor.insertAdjacentHTML('afterend',programCard());else body.insertAdjacentHTML('afterbegin',programCard())}
