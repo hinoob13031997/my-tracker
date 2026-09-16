@@ -1694,6 +1694,7 @@ function setSavingsSectionVisibility(hasGoal){
 }
 function setSavError(id,msg=''){const el=document.getElementById(id);if(!el)return;el.textContent=msg;el.classList.toggle('show',!!msg)}
 function syncSavingsCurrencyTabs(){document.querySelectorAll('#savCurrencyTabs [data-cur]').forEach(b=>b.classList.toggle('active',b.dataset.cur===state.savings.currency))}
+function savLegacyHidden(){return document.getElementById('screenSavings')?.classList.contains('f25-ready')}
 function renderSavings(){
  const cur=state.savings.currency,list=state.savings.goals.filter(g=>g.currency===cur),sel=selectedSavingsGoal();
  document.getElementById('savCurrency').value=cur;syncSavingsCurrencyTabs();setSavingsSectionVisibility(!!sel);
@@ -1819,7 +1820,7 @@ document.getElementById('pmMonthNext').onclick=()=>{const e=document.getElementB
 document.getElementById('pmLastDay').onchange=e=>{
  document.getElementById('pmMonthPrev').disabled=e.target.checked;document.getElementById('pmMonthNext').disabled=e.target.checked
 };
-savCurrency.onchange=e=>{state.savings.currency=e.target.value;state.savings.selectedId=null;save();renderSavings()};document.querySelectorAll('#savCurrencyTabs [data-cur]').forEach(b=>b.onclick=()=>{state.savings.currency=b.dataset.cur;state.savings.selectedId=null;save();renderSavings()});savAddGoal.onclick=()=>openSavingsGoal();savDeposit.onclick=()=>openSavingsTx(1);savWithdraw.onclick=()=>openSavingsTx(-1);savRange.onchange=()=>renderSavingsChart(selectedSavingsGoal());sgSave.onclick=saveSavingsGoal;stSave.onclick=saveSavingsTx;document.querySelectorAll('[data-close-sav]').forEach(b=>b.onclick=()=>document.getElementById(b.dataset.closeSav).classList.remove('active'));
+savCurrency.onchange=e=>{state.savings.currency=e.target.value;state.savings.selectedId=null;save();if(!savLegacyHidden())renderSavings()};document.querySelectorAll('#savCurrencyTabs [data-cur]').forEach(b=>b.onclick=()=>{state.savings.currency=b.dataset.cur;state.savings.selectedId=null;save();if(!savLegacyHidden())renderSavings()});savAddGoal.onclick=()=>openSavingsGoal();savDeposit.onclick=()=>openSavingsTx(1);savWithdraw.onclick=()=>openSavingsTx(-1);savRange.onchange=()=>renderSavingsChart(selectedSavingsGoal());sgSave.onclick=saveSavingsGoal;stSave.onclick=saveSavingsTx;document.querySelectorAll('[data-close-sav]').forEach(b=>b.onclick=()=>document.getElementById(b.dataset.closeSav).classList.remove('active'));
 document.getElementById('closeProcessModal').onclick=closeProcessModal;
 document.getElementById('saveProcessModal').onclick=saveProcessModal;
 document.getElementById('closeDetailModal').onclick=()=>document.getElementById('processDetailModal').classList.remove('active');
