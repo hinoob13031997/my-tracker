@@ -135,6 +135,7 @@ function todayHTML(){
 
 function renderToday(){
   if(innerWidth>720)return;
+  if(!document.body.classList.contains('v29-native-today'))return;
   const root=document.getElementById('screenToday');if(!root)return;
   const html=todayHTML(),sig=hash(html);if(sig===lastToday&&root.querySelector('.v24-page'))return;
   lastToday=sig;root.innerHTML=html;
@@ -147,6 +148,7 @@ function dealsHTML(){
 
 function renderDeals(){
   if(innerWidth>720)return;
+  if(!document.getElementById('screenTasks')?.classList.contains('active'))return;
   const shell=document.getElementById('v233shell'),tabs=shell?.querySelector('.v233-tabs');if(!shell||!tabs)return;
   const html=dealsHTML(),sig=hash(html);if(sig===lastDeals&&shell.querySelector('[data-v24-deals]'))return;
   lastDeals=sig;shell.querySelectorAll('[data-v24-deals],[data-v24-deal-actions]').forEach(x=>x.remove());tabs.insertAdjacentHTML('afterend',html);
@@ -162,7 +164,7 @@ function financeHTML(){
 
 function renderFinance(){
   if(innerWidth>720)return;
-  const screen=document.getElementById('screenSavings');if(!screen)return;
+  const screen=document.getElementById('screenSavings');if(!screen||!screen.classList.contains('active'))return;
   const html=financeHTML(),sig=hash(html),old=document.getElementById('v24FinancePulse');
   screen.classList.add('v24-finance-ready');
   if(sig===lastFinance&&old)return;lastFinance=sig;
@@ -182,7 +184,7 @@ function moreHTML(){
 
 function renderMore(){
   if(innerWidth>720)return;
-  const screen=document.getElementById('screenAnalytics');if(!screen)return;
+  const screen=document.getElementById('screenAnalytics');if(!screen||!screen.classList.contains('active'))return;
   if(screen.dataset.stackAnalyticsOwner)return;
   screen.classList.add('v24-more-ready');
   const html=moreHTML(),sig=hash(html),old=document.getElementById('v24More');if(sig===lastMore&&old)return;
