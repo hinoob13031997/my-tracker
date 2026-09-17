@@ -17,9 +17,15 @@ if(document.getElementById('stackFitnessTabFadeBound'))return;const marker=docum
 document.addEventListener('click',e=>{
 const btn=e.target.closest('#v234Fitness .v234-tabs [data-v234]');if(!btn)return;
 const root=document.getElementById('v234Fitness');if(!root)return;
+root.__v2712Observer?.disconnect();
+clearTimeout(root.__v2712IdleTimer);clearTimeout(root.__v2712CapTimer);
 root.classList.add('v2712-tabswitch');
-clearTimeout(root.__v2712Timer);
-root.__v2712Timer=setTimeout(()=>root.classList.remove('v2712-tabswitch'),110);
+const release=()=>{root.__v2712Observer?.disconnect();root.__v2712Observer=null;clearTimeout(root.__v2712IdleTimer);clearTimeout(root.__v2712CapTimer);root.classList.remove('v2712-tabswitch')};
+const arm=()=>{clearTimeout(root.__v2712IdleTimer);root.__v2712IdleTimer=setTimeout(release,90)};
+const name=btn.dataset.v234,panel=root.querySelector('#v234'+name.charAt(0).toUpperCase()+name.slice(1));
+if(panel){const mo=new MutationObserver(arm);mo.observe(panel,{childList:true,attributes:true,subtree:true,characterData:true});root.__v2712Observer=mo}
+arm();
+root.__v2712CapTimer=setTimeout(release,650);
 },true);
 }
 function boot(){install();bindFade()}
