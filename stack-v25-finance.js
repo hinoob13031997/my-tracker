@@ -20,7 +20,7 @@ function forecast(g){const left=Math.max(0,n(g?.target)-balance(g)),step=n(g?.mo
 function sourceText(s){return s==='actual'?'фактический курс':s==='history'||s==='CBR'?'курс на дату':'курс ожидает данных'}
 function totalRub(){return allGoals().filter(g=>g?.status!=='archived').reduce((s,g)=>s+balance(g)*rate(currency(g?.currency)),0)}
 function sourceClick(sel){document.querySelector(sel)?.click()}
-function selectCurrency(c){cur=c;sourceClick('#savCurrencyTabs [data-cur="'+c+'"]');schedule(70)}
+function selectCurrency(c){cur=c;sourceClick('#savCurrencyTabs [data-cur="'+c+'"]');render()}
 function selectGoal(id){document.querySelector('#savGoals [data-g="'+CSS.escape(id)+'"]')?.click();schedule(70)}
 function selectedGoal(){return goals(cur).find(g=>g.id===activeId())||goals(cur)[0]||null}
 function grid(items){return '<div class="f25-grid">'+items.map(x=>'<div><span>'+x[0]+'</span><b class="'+(x[2]||'')+'">'+x[1]+'</b></div>').join('')+'</div>'}
