@@ -18,7 +18,7 @@ function style(){if(document.getElementById('v2755NutritionReorderStyle'))return
 #v234Fitness #v234Nutrition.v2755-reordered>#v2752NutritionMinimal>.v2752-add{display:block!important}
 #v234Fitness #v234Nutrition.v2755-reordered>#v2752NutritionMinimal>.v2752-history{display:block!important}
 }`;document.head.appendChild(s)}
-function refresh(){setTimeout(()=>{globalThis.STACK_NUTRITION_GOALS?.refresh?.();globalThis.STACK_RATION?.refresh?.();globalThis.STACK_NUTRITION_MINIMAL?.refresh?.();setTimeout(reorder,20)},0)}
-function boot(){style();document.addEventListener('click',e=>{if(e.target.closest('[data-v234="nutrition"]'))setTimeout(refresh,0)});window.addEventListener('stack:data-changed',()=>setTimeout(reorder,30));document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(refresh,0)});setTimeout(refresh,40);Object.defineProperty(globalThis,'STACK_NUTRITION_REORDER',{value:Object.freeze({build:BUILD,refresh}),configurable:true});console.info('STACK nutrition reorder',BUILD)}
+function refresh(){globalThis.STACK_NUTRITION_GOALS?.refresh?.();globalThis.STACK_RATION?.refresh?.();globalThis.STACK_NUTRITION_MINIMAL?.refresh?.();reorder()}
+function boot(){style();document.addEventListener('click',e=>{if(e.target.closest('[data-v234="nutrition"]'))queueMicrotask(refresh)});window.addEventListener('stack:data-changed',()=>setTimeout(reorder,30));document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(refresh,0)});setTimeout(refresh,40);Object.defineProperty(globalThis,'STACK_NUTRITION_REORDER',{value:Object.freeze({build:BUILD,refresh}),configurable:true});console.info('STACK nutrition reorder',BUILD)}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
