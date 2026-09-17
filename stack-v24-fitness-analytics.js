@@ -1,6 +1,14 @@
-/* STACK v24.7 — Fitness Analytics & Progression Pack. Existing fitness keys are preserved. */
+/* STACK v24.7 — Fitness Analytics & Progression Pack. Existing fitness keys are preserved.
+   v24.7.2 — data-changed/library-change wiring now goes through
+   stack-v29-owner-kit.js when present (adds resize/focus/visibilitychange
+   coverage it lacked). This file runs synchronously at parse time (no
+   DOMContentLoaded gate, unlike the other owner modules), so the kit
+   isn't loaded yet at that point — only the trigger REGISTRATION is
+   deferred to DOMContentLoaded to actually see it; the initial draw()
+   call keeps its original synchronous timing. Its own queueMicrotask
+   schedule() and the MutationObserver on #screenTracker are unchanged. */
 (()=>{'use strict';
-const BUILD='v24.7.1-progress-panel-pilot';
+const BUILD='v24.7.2-owner-kit';
 const SETS_KEY='stack_fitness_sets_v2320';
 const BODY_KEY='stack_fitness_log_v2310';
 const META={
@@ -59,7 +67,7 @@ document.addEventListener('change',function(event){if(event.target.matches&&even
 const style=document.createElement('style');style.id='v247FitnessAnalyticsStyle';style.textContent=css;document.head.appendChild(style);
 let queued=false;function schedule(){if(queued)return;queued=true;queueMicrotask(function(){queued=false;draw()})}
 new MutationObserver(schedule).observe(document.getElementById('screenTracker')||document.body,{childList:true,subtree:true});
-window.addEventListener('stack:data-changed',schedule);
-window.addEventListener('stack:fitness-library-change',schedule);
+function registerTriggers(){const kit=globalThis.STACK_OWNER_KIT;if(kit)kit.onRenderTriggers(schedule,{extra:['stack:fitness-library-change']});else{window.addEventListener('stack:data-changed',schedule);window.addEventListener('stack:fitness-library-change',schedule)}}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',registerTriggers,{once:true});else registerTriggers();
 draw();globalThis.STACK_FITNESS_ANALYTICS=Object.freeze({build:BUILD,render:draw});console.info('STACK',BUILD);
 })();
