@@ -15,6 +15,6 @@ html,body{max-width:100%;overflow-x:hidden}
 @media(max-width:380px){#v234Fitness [data-nutrition] .grid,#v234Fitness [data-nutrition] [class*="grid"],.v273-grid{grid-template-columns:minmax(0,1fr)!important}.v273-head{grid-template-columns:minmax(0,1fr)!important}.v273-head button{width:100%;max-width:none}}
 `;document.head.appendChild(s)}
 function clamp(){if(innerWidth>720)return;const root=document.querySelector('#v234Fitness');if(!root)return;root.style.maxWidth='100%';root.style.minWidth='0';root.style.overflowX='hidden';document.querySelectorAll('#v234Fitness input,#v234Fitness select,#v234Fitness textarea').forEach(el=>{el.style.maxWidth='100%';el.style.minWidth='0';el.style.boxSizing='border-box'})}
-function boot(){style();clamp();window.addEventListener('resize',clamp,{passive:true});document.addEventListener('click',e=>{if(e.target.closest('[data-v234="nutrition"]'))setTimeout(clamp,0)});window.addEventListener('stack:data-changed',()=>setTimeout(clamp,0));console.info('STACK nutrition overflow fix',BUILD)}
+function boot(){style();clamp();window.addEventListener('resize',clamp,{passive:true});document.addEventListener('click',e=>{if(e.target.closest('[data-v234="nutrition"]'))queueMicrotask(clamp)});window.addEventListener('stack:data-changed',()=>setTimeout(clamp,0));console.info('STACK nutrition overflow fix',BUILD)}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();

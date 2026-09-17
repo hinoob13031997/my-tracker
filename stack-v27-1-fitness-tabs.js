@@ -1,4 +1,4 @@
-/* STACK v27.1.4 — mobile fitness tabs/nutrition layout hardening + tab-switch fade; #v234Progress panel added to width guards. */
+/* STACK v27.1.5 — mobile fitness tabs/nutrition layout hardening; #v234Progress panel added to width guards. */
 (()=>{'use strict';
 function install(){if(document.getElementById('stackFitnessTabsFix'))return;const s=document.createElement('style');s.id='stackFitnessTabsFix';s.textContent=`@media(max-width:720px){
 #v234Fitness,.v234-fit,.v234-tabs,.v234-body,#v234Progress,#v234Today,#v234Nutrition{min-width:0;max-width:100%;width:100%;box-sizing:border-box}
@@ -9,25 +9,7 @@ function install(){if(document.getElementById('stackFitnessTabsFix'))return;cons
 .fx-nut b,.fx-nut small{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 }
 @media(max-width:360px){.v234-tabs button{font-size:8px!important}.fx-nutrow{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
-#v234Fitness{transition:opacity .18s ease,transform .18s ease}
-#v234Fitness.v2712-tabswitch{transition:none;opacity:.28;transform:translateY(2px)}
 `;document.head.appendChild(s)}
-function bindFade(){
-if(document.getElementById('stackFitnessTabFadeBound'))return;const marker=document.createElement('meta');marker.id='stackFitnessTabFadeBound';document.head.appendChild(marker);
-document.addEventListener('click',e=>{
-const btn=e.target.closest('#v234Fitness .v234-tabs [data-v234]');if(!btn)return;
-const root=document.getElementById('v234Fitness');if(!root)return;
-root.__v2712Observer?.disconnect();
-clearTimeout(root.__v2712IdleTimer);clearTimeout(root.__v2712CapTimer);
-root.classList.add('v2712-tabswitch');
-const release=()=>{root.__v2712Observer?.disconnect();root.__v2712Observer=null;clearTimeout(root.__v2712IdleTimer);clearTimeout(root.__v2712CapTimer);root.classList.remove('v2712-tabswitch')};
-const arm=()=>{clearTimeout(root.__v2712IdleTimer);root.__v2712IdleTimer=setTimeout(release,90)};
-const name=btn.dataset.v234,panel=root.querySelector('#v234'+name.charAt(0).toUpperCase()+name.slice(1));
-if(panel){const mo=new MutationObserver(arm);mo.observe(panel,{childList:true,attributes:true,subtree:true,characterData:true});root.__v2712Observer=mo}
-arm();
-root.__v2712CapTimer=setTimeout(release,650);
-},true);
-}
-function boot(){install();bindFade()}
+function boot(){install()}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
