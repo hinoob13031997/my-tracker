@@ -1,7 +1,7 @@
 /* STACK v29.3 — data integrity + recovery guard. Main storage key/schema unchanged. */
 (()=>{'use strict';
 const BUILD='v29-3-task-plus-neon-workout';
-const VERSION='v29.43';
+const VERSION='v29.44';
 const RECOVERY_KEY='stack_recovery_v2242';
 const MAX=8;
 const RECOVER_MARK='stack_v2250_recovered_once';

@@ -3,9 +3,11 @@
    charts/trend chart and backup/export/import stay available but secondary
    (behind a toggle), reusing stack-v27-core.js's snapshot/insight/weekly
    and the existing weekly-review / 90-day-focus modal (data-v27-week /
-   data-v27-onboard) instead of duplicating that logic. */
+   data-v27-onboard) instead of duplicating that logic.
+   v29.17.1 — style/trigger wiring now goes through stack-v29-owner-kit.js
+   when present, with the original inline logic kept as a fallback. */
 (()=>{'use strict';
-const BUILD='29.17.0';
+const BUILD='29.17.1';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const MOBILE=()=>innerWidth<=720;
 let expanded=false,last='';
@@ -84,7 +86,7 @@ const css=`@media(max-width:720px){
 .v29a-tools>div{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 .v29a-tools button{min-height:44px;border:1px solid #29415f;border-radius:10px;background:#050e19;color:#c9d4e2;font-size:9px}
 }`;
-function install(){if(document.getElementById('stackV29AnalyticsStyle'))return;const s=document.createElement('style');s.id='stackV29AnalyticsStyle';s.textContent=css;document.head.appendChild(s)}
+function install(){const kit=globalThis.STACK_OWNER_KIT;if(kit){kit.installStyle('stackV29AnalyticsStyle',css);return}if(document.getElementById('stackV29AnalyticsStyle'))return;const s=document.createElement('style');s.id='stackV29AnalyticsStyle';s.textContent=css;document.head.appendChild(s)}
 function onClick(e){
  const t=e.target.closest?.('[data-v29a-toggle]');if(t){expanded=!expanded;last='';render();return}
  const r=e.target.closest?.('[data-v29a-route]');if(r){route(r.dataset.v29aRoute);return}
@@ -93,11 +95,9 @@ function onClick(e){
 function boot(){
  install();claim();render();
  document.addEventListener('click',onClick);
- window.addEventListener('stack:data-changed',()=>schedule());
- window.addEventListener('stack:data-ready',()=>schedule());
- window.addEventListener('resize',()=>schedule());
- window.addEventListener('focus',()=>schedule());
- document.addEventListener('visibilitychange',()=>{if(!document.hidden)schedule()});
+ const kit=globalThis.STACK_OWNER_KIT;
+ if(kit)kit.onRenderTriggers(()=>schedule());
+ else{window.addEventListener('stack:data-changed',()=>schedule());window.addEventListener('stack:data-ready',()=>schedule());window.addEventListener('resize',()=>schedule());window.addEventListener('focus',()=>schedule());document.addEventListener('visibilitychange',()=>{if(!document.hidden)schedule()})}
  setTimeout(()=>schedule(),700);
  setTimeout(()=>schedule(),1900);
  setTimeout(()=>schedule(),3500);
