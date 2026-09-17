@@ -9,8 +9,8 @@ function install(){if(document.getElementById('stackFitnessTabsFix'))return;cons
 .fx-nut b,.fx-nut small{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 }
 @media(max-width:360px){.v234-tabs button{font-size:8px!important}.fx-nutrow{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
-#v234Fitness{transition:opacity .16s ease,transform .16s ease}
-#v234Fitness.v2712-tabswitch{opacity:.55;transform:translateY(2px)}
+#v234Fitness{transition:opacity .18s ease,transform .18s ease}
+#v234Fitness.v2712-tabswitch{transition:none;opacity:.28;transform:translateY(2px)}
 `;document.head.appendChild(s)}
 function bindFade(){
 if(document.getElementById('stackFitnessTabFadeBound'))return;const marker=document.createElement('meta');marker.id='stackFitnessTabFadeBound';document.head.appendChild(marker);
