@@ -40,6 +40,66 @@ Code (разные чаты/вкладки), каждая на своей вет
   полностью закрыть и заново открыть приложение (обычный reload может не
   подхватить новый service worker).
 
+## v29.49–v29.51 — удалён `stack-v28-1-sections.js` (document-wide MutationObserver)
+
+`stack-v28-1-sections.js` «доводил» 4 раздела снаружи: на каждом изменении
+DOM во всём `document.body` → `setTimeout(apply,80)` (плюс `data-changed@30`,
+`resize`, клики по вкладкам) — ровно поздний `MutationObserver`, который
+запрещает CLAUDE.md. Его правила перенесены в owner'ов разделов (по
+разделу на коммит), файл удалён целиком.
+
+- **v29.49 Дела** → `stack-v23-deals.js` сам рендерит 2 вкладки (кнопки
+  «Календарь» в разметке больше нет — раньше она была, но скрыта
+  `display:none`), grid `repeat(2,minmax(0,1fr))` и подсказку
+  `.v281-deals-help` прямо в разметке `#v233shell`. Панель `#v233Calendar` и
+  `renderCalendar()` остались в коде, но недостижимы (вкладку ничто не
+  открывает; `stack-v23-calendar-visual.js` — только CSS) — кандидат на
+  удаление, если пользователь подтвердит, что календарь в «Делах» не нужен.
+- **v29.50 Финансы** → `stack-v25-finance.js`: вкладки только Обзор/Цели,
+  «+ Операция» — обычная кнопка с `data-f25-tab="operations"` (штатный
+  click-обработчик финансов), подсказка `.v281-finance-help` — всё в
+  `page()`. Вкладка «Аналитика» финансов как и раньше недостижима на
+  mobile (была скрыта).
+- **v29.51 Fitness** → подсказка `.v281-fitness-help` в разметке
+  `#v234Fitness` (`stack-v23-fitness.js`). Кнопки «Программа» в
+  `.v234-tabs` не существовало (правило ничего не делало); 3 колонки уже
+  гарантирует `stack-v27-1-fitness-tabs.js`. Дубль «ПИТАНИЕ · ПЛАН И ФАКТ»
+  (`[data-fxi-nutrition]`), который `stack-v23-fitness-intelligence.js`
+  вставлял в «Питание», а sections тут же прятал, больше не создаётся —
+  удалены `planFactCard`/`nutritionPlan`/`manualFact`/`addFact` и
+  неиспользуемая константа ключа (сам ключ `stack_fitness_nutrition_v2310`
+  используют nutrition-модули — данные не тронуты). План/факт показывает
+  `#v274NutritionGoals`.
+- **Аналитика**: правило `analytics()` работало с `#v24More`, который на
+  mobile вообще не создаётся (`stack-v24-unified.js` `renderMore()` выходит,
+  если `#screenAnalytics` уже занят v29-owner'ом) — мёртвое, удалено. Бэкап/
+  экспорт/импорт живут в `#v29Analytics`. `sessionStorage`-ключ
+  `stack_v281_settings` больше не используется (UI-состояние сессии).
+- `stack-v27-bootstrap.js`: убрана загрузка sections и вызов
+  `STACK_SECTIONS.refresh()` перед снятием gate; `sw.js` — убран из
+  `SCRIPT_PATHS`.
+
+**Проверено headless, каждый раздел vs baseline**: порядок детей, видимые
+вкладки, grid, тексты подсказок, overflow — идентичны; «+ Операция»
+открывает операции; подсказка Fitness есть в первом кадре после навигации;
+в «Питании» `[data-fxi-nutrition]` 1 → 0, мутаций на сохранение 11 → 6;
+тесты v29.47/48 по «Питанию» — без изменений; `stack-verify.js` PASS;
+desktop-загрузка (1280px) — 0 ошибок, как на `main` (`stack-verify.js` на
+desktop не работает by design — ждёт mobile `.v29-nav`).
+
+**Заметка**: `stack-v27-bootstrap.js` грузит v27-файлы с `?build=29.0.0`
+(своя константа, не BUILD из `sw.js`) — это не проблема: SW для
+не-навигационных запросов network-first с `cache:'no-store'`, кэш только
+как offline fallback (`ignoreSearch`).
+
+**Файлы**: `stack-v23-deals.js`, `stack-v25-finance.js`, `stack-v23-
+fitness.js`, `stack-v23-fitness-intelligence.js`, `stack-v27-bootstrap.js`,
+удалён `stack-v28-1-sections.js`; `sw.js` (BUILD → 29.51.0, CACHE →
+`stack-v29-51-sections-removed`), `stack-persistence.js` (VERSION → v29.51).
+
+**Серия v29.44–51 (общий kernel/owner'ы) закрыта.** Дальше — не обвязка, а
+видимое: перенос экранов в v29-shell и удаление legacy-разметки под ними.
+
 ## v29.48 — «Питание» полностью на kit: пост-процессоры без таймеров
 
 Завершение нутришн-части серии v29.44–47. Три пост-процессора с
@@ -80,12 +140,8 @@ no-op по той же причине (вкладка не активна при
 29.48.0, CACHE → `stack-v29-48-nutrition-no-timers`), `stack-persistence.js`
 (VERSION → v29.48). Kit не менялся. Данные/storage не менял.
 
-**Следующий шаг серии**: `stack-v28-1-sections.js` — document-wide
-`MutationObserver` на `document.body` + `setTimeout(apply,80)` (прямо тот
-паттерн, который CLAUDE.md запрещает). Правильно не переводить его на kit,
-а перенести его правила в owner-модули разделов и удалить наблюдатель —
-по разделу за шаг. После этого — остановить серию и вернуться к переносу
-экранов в v29-shell.
+**Следующий шаг серии** (сделан в v29.49–51, см. выше): удалить
+`stack-v28-1-sections.js`.
 
 ## v29.47 — общий kernel, шаг 4: 5 модулей «Питания» (data-changed путь)
 
