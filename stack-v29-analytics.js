@@ -7,7 +7,7 @@
    v29.17.1 — style/trigger wiring now goes through stack-v29-owner-kit.js
    when present, with the original inline logic kept as a fallback. */
 (()=>{'use strict';
-const BUILD='29.17.1';
+const BUILD='29.17.2';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const MOBILE=()=>innerWidth<=720;
 let expanded=false,last='';
@@ -88,7 +88,7 @@ const css=`@media(max-width:720px){
 }`;
 function install(){const kit=globalThis.STACK_OWNER_KIT;if(kit){kit.installStyle('stackV29AnalyticsStyle',css);return}if(document.getElementById('stackV29AnalyticsStyle'))return;const s=document.createElement('style');s.id='stackV29AnalyticsStyle';s.textContent=css;document.head.appendChild(s)}
 function onClick(e){
- const t=e.target.closest?.('[data-v29a-toggle]');if(t){expanded=!expanded;last='';render();return}
+ const t=e.target.closest?.('[data-v29a-toggle]');if(t){expanded=!expanded;last='';render();if(expanded&&typeof renderAll==='function')renderAll();return}
  const r=e.target.closest?.('[data-v29a-route]');if(r){route(r.dataset.v29aRoute);return}
  const b=e.target.closest?.('[data-v29a-tool]');if(b){tool(b.dataset.v29aTool);return}
 }

@@ -40,6 +40,43 @@ Code (разные чаты/вкладки), каждая на своей вет
   полностью закрыть и заново открыть приложение (обычный reload может не
   подхватить новый service worker).
 
+## v29.54 — mobile: legacy `renderAll()` не рисует блоки, скрытые v29-owner'ами (~4× быстрее)
+
+**Контекст/решение пользователя**: legacy-разметка в `index.html` (таблица
+процессов, графики Аналитики, старые Финансы) — ЕДИНСТВЕННЫЙ интерфейс на
+десктопе (>720px; v29-owner'ы только mobile). Удалять её нельзя. Пользователь
+выбрал вариант «только телефон»: на mobile перестать рисовать скрытое,
+десктоп не трогать. (Альтернативы, которые он отклонил: перевести v29 UI на
+десктоп, или отказаться от десктопа.)
+
+`index.html` `renderAll()`: `hiddenByOwners()` решает на каждом вызове:
+- группа Fitness (`renderTracker`, `renderMobileTracker`,
+  `renderProcessSummary`, `renderCalendar`, `renderMonthSummary`) — пропуск,
+  если есть `#v234Fitness` (его CSS прячет всё остальное в `#screenTracker`);
+- группа Аналитики (`renderKPIs`, `renderChart`, `renderTrendChart`,
+  `renderBars`, `renderDots`) — пропуск, если `#screenAnalytics` имеет
+  `v29a-ready` и НЕ `v29a-expanded` («Показать графики и историю» показывает
+  эти legacy-блоки на mobile!). `stack-v29-analytics.js` при раскрытии
+  вызывает `renderAll()`, чтобы графики были свежими.
+- **НЕ пропускаются**: `renderSavings` (owner Финансов кликает legacy
+  `#savGoals`/`#savCurrencyTabs` — ему нужна живая legacy-разметка),
+  `renderTodayScreen`, `renderMonthSelect`, `renderJournal`, `normalize`.
+- Порядок вызовов сохранён. На старте owner'ов ещё нет → первый рендер
+  полный, как раньше. Если owner не загрузился — его legacy рисуется.
+- Поворот/расширение окна: существующий debounced `resize` (120мс) теперь
+  зовёт `renderAll()`, если что-то пропускалось и ширина стала >720.
+
+Проверено: 12 скриншотов (9 mobile-экранов + Аналитика раскрыта/свёрнута +
+desktop 1280 fullPage) побайтно идентичны baseline; тест поворота —
+процесс, добавленный на mobile, есть в `#tracker`/`#mobileTracker` после
+расширения до 1280; `renderAll()` на mobile (Fitness+Аналитика открыты
+ранее) медиана 5.1→1.1 мс (x1), 18.4→4.4 мс (CPU x4); `stack-verify.js`
+PASS; `node --check` всех inline-скриптов `index.html`.
+
+**Файлы**: `index.html`, `stack-v29-analytics.js` (BUILD → 29.17.2),
+`sw.js` (BUILD → 29.54.0, CACHE → `stack-v29-54-skip-hidden-legacy-render`),
+`stack-persistence.js` (VERSION → v29.54). Данные не менял.
+
 ## v29.53 — `stack-v24-unified.js`: удалён мёртвый UI под v29-owner'ами (245 → 57 строк)
 
 Начало этапа «убирать legacy под новыми owner'ами». Инвентаризация
@@ -69,7 +106,8 @@ headless (что строится в DOM, но скрыто): `stack-v24-unified
 `stack-verify.js` PASS, 0 JS-ошибок. Ни один другой файл не использовал
 `data-v24-*`, `.v24-*` (кроме пульса) и `STACK_V24`.
 
-**Дальше по этапу** (инвентаризация v29.53, скрытая legacy-разметка):
+**Дальше по этапу** (инвентаризация v29.53, скрытая legacy-разметка;
+**уточнено в v29.54: это десктопный UI, не удалять — см. v29.54**):
 `#screenTracker > .neon` — 37.5 КБ (старая месячная таблица процессов,
 рендерит inline-скрипт `index.html`), `#screenAnalytics` — ~11 КБ
 (`#kpis`, `.analytics`, `.neon`), `#screenSavings` — ~4 КБ. Это код ядра в
