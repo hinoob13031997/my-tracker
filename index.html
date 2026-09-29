@@ -1780,11 +1780,25 @@ function saveSavingsTx(){
  setSavError('stError');const g=selectedSavingsGoal(),amt=Math.max(0,+stAmount.value||0);if(!g){setSavError('stError','Сначала создайте цель.');return}if(amt<=0){setSavError('stError','Введите сумму больше нуля.');return}if(savTxType<0&&amt>goalBalance(g)){setSavError('stError','Нельзя снять больше, чем сейчас накоплено.');return}if(!stDate.value){setSavError('stError','Укажите дату операции.');return}
  g.tx=g.tx||[];g.tx.push({amount:amt*savTxType,date:stDate.value,note:stNote.value.trim()});save();savTxModal.classList.remove('active');renderSavings()
 }
+// v29.54: on mobile the v29 owners hide these legacy blocks (#v234Fitness
+// hides the whole process tracker; collapsed v29 Analytics hides the legacy
+// charts), so skip rendering them there. Desktop and any screen whose owner
+// did not load keep the full render.
+let legacyRenderSkipped=false;
+function hiddenByOwners(){
+ if(innerWidth>720)return{tracker:false,analytics:false};
+ const a=document.getElementById('screenAnalytics');
+ return{tracker:!!document.getElementById('v234Fitness'),analytics:!!a&&a.classList.contains('v29a-ready')&&!a.classList.contains('v29a-expanded')};
+}
 function renderAll(){
  try{
    normalize();
-   renderTodayScreen();renderSavings();renderKPIs();renderChart();renderTrendChart();renderBars();renderDots();renderMonthSelect();renderTracker();
-   renderMobileTracker();renderProcessSummary();renderCalendar();renderMonthSummary();renderJournal();
+   const hidden=hiddenByOwners();legacyRenderSkipped=hidden.tracker||hidden.analytics;
+   renderTodayScreen();renderSavings();
+   if(!hidden.analytics){renderKPIs();renderChart();renderTrendChart();renderBars();renderDots();}
+   renderMonthSelect();
+   if(!hidden.tracker){renderTracker();renderMobileTracker();renderProcessSummary();renderCalendar();renderMonthSummary();}
+   renderJournal();
  }catch(err){
    console.error('STACK render error:',err);
    const root=document.getElementById('kpis');
@@ -1797,7 +1811,7 @@ document.getElementById('trendMode').onchange=renderTrendChart;
 let trendResizeTimer;
 window.addEventListener('resize',()=>{
  clearTimeout(trendResizeTimer);
- trendResizeTimer=setTimeout(renderTrendChart,120)
+ trendResizeTimer=setTimeout(()=>{if(legacyRenderSkipped&&innerWidth>720)renderAll();else renderTrendChart()},120)
 });
 
 document.querySelectorAll('#pmRepeatTypes .repeat-type').forEach(b=>b.onclick=()=>updateRepeatUI(b.dataset.repeat));
