@@ -40,6 +40,53 @@ Code (разные чаты/вкладки), каждая на своей вет
   полностью закрыть и заново открыть приложение (обычный reload может не
   подхватить новый service worker).
 
+## v29.48 — «Питание» полностью на kit: пост-процессоры без таймеров
+
+Завершение нутришн-части серии v29.44–47. Три пост-процессора с
+намеренными задержками переведены на `STACK_OWNER_KIT.onRenderTriggers`
+(с опцией `events`, без дефолтных `focus`/`visibilitychange` там, где их не
+было), fallback на старый код без kit:
+- `stack-v27-3-1-nutrition-overflow.js`: `resize` (был синхронный) +
+  `stack:data-changed` (был `setTimeout(clamp,0)`) → kit
+  `events:['stack:data-changed','resize']`.
+- `stack-v27-5-1-nutrition-simplify.js`: `data-changed@20мс` +
+  `resize@30мс` → kit; свой `MutationObserver` на `#v234Nutrition` теперь
+  вызывает `apply` прямо в колбэке (был `setTimeout(apply,0)`). Петли нет:
+  `apply()` идемпотентен (перемещает узлы только если порядок неверный,
+  `textContent` пишет только при отличии — фикс v27.5.7), наблюдатель
+  смотрит только `childList`, плюс guard `applying`; проверено — 0 мутаций в
+  покое.
+- `stack-v27-5-5-nutrition-reorder.js`: `data-changed@30мс` → kit
+  (`reorder`, регистрируется последним → после всех render-микрозадач),
+  `visibilitychange` → kit (`refresh`).
+- Удалены мёртвые стартовые `setTimeout(apply,40)` / `setTimeout(refresh,40)`:
+  Fitness всегда стартует на вкладке `'today'` (`let tab='today'` в
+  `stack-v23-fitness.js`, shell не делает deep-link в «Питание»), так что
+  `active()` в этот момент всегда `false` — они ничего не делали.
+
+Остались `setTimeout(render,0)` в `boot()` пяти render-модулей — тоже
+no-op по той же причине (вкладка не активна при старте), не трогал.
+
+**Проверено headless vs baseline**: вручную «сломал» порядок блоков
+(`#v273Nutrition`, `#v2753Ration` в начало панели) и отправил
+`stack:data-changed`. Baseline — первый кадр (`rAF`) рисуется с неверным
+порядком, исправляется только таймерами (к 100мс). v29.48 — порядок
+восстановлен уже в микрозадаче, первый кадр корректный. Плюс:
+`scripts/stack-verify.js` PASS, порядок 10 блоков идентичен, стресс 7
+переключений вкладок по 30мс — порядок цел, 0 мутаций body в покое 2с,
+0 JS-ошибок.
+
+**Файлы**: 3 nutrition-файла (BUILD → `*-owner-kit`), `sw.js` (BUILD →
+29.48.0, CACHE → `stack-v29-48-nutrition-no-timers`), `stack-persistence.js`
+(VERSION → v29.48). Kit не менялся. Данные/storage не менял.
+
+**Следующий шаг серии**: `stack-v28-1-sections.js` — document-wide
+`MutationObserver` на `document.body` + `setTimeout(apply,80)` (прямо тот
+паттерн, который CLAUDE.md запрещает). Правильно не переводить его на kit,
+а перенести его правила в owner-модули разделов и удалить наблюдатель —
+по разделу за шаг. После этого — остановить серию и вернуться к переносу
+экранов в v29-shell.
+
 ## v29.47 — общий kernel, шаг 4: 5 модулей «Питания» (data-changed путь)
 
 Продолжение серии v29.44–46. Проверил `stack-v23-fitness.js` (owner
