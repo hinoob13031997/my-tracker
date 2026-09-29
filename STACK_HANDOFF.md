@@ -40,6 +40,49 @@ Code (разные чаты/вкладки), каждая на своей вет
   полностью закрыть и заново открыть приложение (обычный reload может не
   подхватить новый service worker).
 
+## v29.47 — общий kernel, шаг 4: 5 модулей «Питания» (data-changed путь)
+
+Продолжение серии v29.44–46. Проверил `stack-v23-fitness.js` (owner
+`#v234Fitness`) — он вообще ни на что не подписан (рендерит один раз в
+`boot()`), переводить на kit нечего. Следующий кластер — «Питание».
+
+**Kit расширен опцией `events`** (`onRenderTriggers(fn,{events:[...]})`) —
+полностью заменяет набор событий по умолчанию. Нужно потому, что модулям
+«Питания» НЕЛЬЗЯ получать дефолтные `resize`/`focus`: на Android открытие
+клавиатуры даёт `resize`, и перерисовка панели с полями ввода во время
+набора — прямой риск. Поведение по умолчанию (Analytics/Finance/Deals/
+fitness-analytics) не изменилось.
+
+**Мигрированы** `stack-v27-3-nutrition.js`, `stack-v27-4-nutrition-goals.js`,
+`stack-v27-5-quick-foods.js`, `stack-v27-5-2-nutrition-minimal.js`,
+`stack-v27-5-3-ration.js`: их `stack:data-changed`/`visibilitychange` →
+`setTimeout(render,0)` заменены на `kit.onRenderTriggers(render,{events:
+['stack:data-changed','visibilitychange']})` (тот же набор событий, fallback
+на старый код без kit). Итог: data-changed путь стал таким же, как click-путь
+из v29.42 — микрозадачи в порядке `SCRIPT_PATHS` (minimal раньше ration —
+зависимость `anchor` сохранена). Все 5 `render()` уже были gated по
+`innerHTML!==html`. v27-файлы грузятся динамически через
+`stack-v27-bootstrap.js` после парсинга — kit к их `boot()` уже есть
+(ловушки из v29.46 нет; проверено: панель обновляется в микрозадаче).
+
+**Осознанно НЕ тронуты**: пост-процессоры с намеренными задержками —
+`stack-v27-3-1-nutrition-overflow.js` (clamp), `stack-v27-5-1-nutrition-
+simplify.js` (apply@20мс + свой MutationObserver), `stack-v27-5-5-
+nutrition-reorder.js` (reorder@30мс), а также `stack-v28-1-sections.js`
+(document-wide observer). Это следующий шаг серии, отдельно.
+
+Проверил: `node --check` чисто, `scripts/stack-verify.js` — PASS, плюс
+точечный headless-чек на «Питании» vs baseline: после `stack:data-changed`
+новая запись видна уже в микрозадаче (baseline — только после
+`setTimeout`), порядок 10 блоков идентичен, `resize`+`focus` дают те же 3
+мутации, что и на baseline (от simplify/overflow, не от этой правки),
+0 мутаций в покое, 0 JS-ошибок.
+
+**Файлы**: `stack-v29-owner-kit.js` (BUILD → 29.47.0), 5 nutrition-файлов
+(BUILD → `*-owner-kit`), `sw.js` (BUILD → 29.47.0, CACHE →
+`stack-v29-47-nutrition-owner-kit`), `stack-persistence.js` (VERSION →
+v29.47). Данные/storage не менял.
+
 ## v29.46 — общий kernel для owner-модулей, шаг 3: первый файл Fitness (`stack-v24-fitness-analytics.js`)
 
 Продолжение серии v29.44/45 (пользователь подтвердил: файл за файлом,
