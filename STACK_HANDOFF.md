@@ -40,6 +40,42 @@ Code (разные чаты/вкладки), каждая на своей вет
   полностью закрыть и заново открыть приложение (обычный reload может не
   подхватить новый service worker).
 
+## v29.53 — `stack-v24-unified.js`: удалён мёртвый UI под v29-owner'ами (245 → 57 строк)
+
+Начало этапа «убирать legacy под новыми owner'ами». Инвентаризация
+headless (что строится в DOM, но скрыто): `stack-v24-unified.js` рендерил 4
+вещи, живой из них была только одна:
+- `renderToday()` → `.v24-page` в `#screenToday` — рендерился ТОЛЬКО когда
+  у body есть `v29-native-today`, а именно тогда shell прячет весь `.app`
+  (`body.v29-native-today>.app{display:none}`) — 5.7 КБ невидимой разметки на
+  каждое событие. Удалён вместе с хелперами (`processData`, `goalData`,
+  `fitnessData`, `nutritionData`, `icon`, ключи fitness/nutrition — только
+  чтение), `setProcessMark`, `route()` и click-обработчиком
+  `data-v24-route/process/new-task`.
+- `renderFinance()` → `#v24FinancePulse` — скрыт owner'ом Финансов. Удалён
+  (класс `v24-finance-ready` больше не ставится — проверено: computed padding
+  `#screenSavings` тот же, `0 8px 86px`, его задаёт `f25-ready`).
+- `renderMore()`/`syncAnalyticsLabel()` → `#v24More` — выходил сразу, т.к.
+  `#screenAnalytics` занят `stack-v29-analytics.js`. Удалён.
+- Оставлен `renderDeals()` — пульс «ОТКРЫТО / НА СЕГОДНЯ / ПРОСРОЧЕНО» под
+  вкладками «Дел» — с теми же триггерами и задержками (click/submit/
+  data-changed/screen-change/storage + хук на legacy `renderAll`). Убраны
+  триггеры, кормившие только мёртвые экраны (fx-history, fitness-library,
+  online/offline, controllerchange).
+
+Проверено: скриншоты 9 экранов (5 разделов + Fitness Прогресс/Питание +
+Дела/Процессы + Финансы/Цели) побайтно идентичны baseline; пульс
+обновляется и через legacy `renderAll()`, и через `stack:data-changed`;
+`stack-verify.js` PASS, 0 JS-ошибок. Ни один другой файл не использовал
+`data-v24-*`, `.v24-*` (кроме пульса) и `STACK_V24`.
+
+**Дальше по этапу** (инвентаризация v29.53, скрытая legacy-разметка):
+`#screenTracker > .neon` — 37.5 КБ (старая месячная таблица процессов,
+рендерит inline-скрипт `index.html`), `#screenAnalytics` — ~11 КБ
+(`#kpis`, `.analytics`, `.neon`), `#screenSavings` — ~4 КБ. Это код ядра в
+`index.html` (`renderAll`), он же — источник данных/сохранения; удалять
+только рендер скрытых блоков, не логику state/save.
+
 ## v29.52 — удалён календарь в «Делах» (подтверждено пользователем)
 
 Пользователь подтвердил: календарь в «Делах» не нужен. Удалено всё, что
