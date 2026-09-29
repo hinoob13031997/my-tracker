@@ -1,6 +1,6 @@
 /* STACK v27.5.5 — reorder existing nutrition blocks only. No replacement cards. */
 (()=>{'use strict';
-const BUILD='27.5.5.1-nutrition-panel-unification';
+const BUILD='27.5.5.2-owner-kit';
 const active=()=>document.querySelector('[data-v234="nutrition"]')?.classList.contains('on');
 function nodes(){const body=document.querySelector('#v234Fitness #v234Nutrition');if(!body)return null;const goal=body.querySelector('[data-goal-card],.fx-goal');const plan=body.querySelector('#v274NutritionGoals');const ration=body.querySelector('#v2753Ration');const add=body.querySelector('#v2752NutritionMinimal');return{body,goal,plan,ration,add}}
 function reorder(){if(innerWidth>720||!active())return;document.getElementById('v2754NutritionOrder')?.remove();const x=nodes();if(!x)return;x.body.classList.remove('v2754-active');x.body.classList.add('v2755-reordered');const ordered=[x.goal,x.plan,x.ration,x.add].filter(Boolean);const children=[...x.body.children],current=ordered.filter(el=>children.includes(el)).sort((a,b)=>children.indexOf(a)-children.indexOf(b));if(ordered.every((el,i)=>el===current[i]))return;let cursor=x.body.firstChild;for(const el of ordered){if(el===cursor){cursor=cursor?.nextSibling;continue}x.body.insertBefore(el,cursor)} }
@@ -19,6 +19,6 @@ function style(){if(document.getElementById('v2755NutritionReorderStyle'))return
 #v234Fitness #v234Nutrition.v2755-reordered>#v2752NutritionMinimal>.v2752-history{display:block!important}
 }`;document.head.appendChild(s)}
 function refresh(){globalThis.STACK_NUTRITION_GOALS?.refresh?.();globalThis.STACK_RATION?.refresh?.();globalThis.STACK_NUTRITION_MINIMAL?.refresh?.();reorder()}
-function boot(){style();document.addEventListener('click',e=>{if(e.target.closest('[data-v234="nutrition"]'))queueMicrotask(refresh)});window.addEventListener('stack:data-changed',()=>setTimeout(reorder,30));document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(refresh,0)});setTimeout(refresh,40);Object.defineProperty(globalThis,'STACK_NUTRITION_REORDER',{value:Object.freeze({build:BUILD,refresh}),configurable:true});console.info('STACK nutrition reorder',BUILD)}
+function boot(){style();document.addEventListener('click',e=>{if(e.target.closest('[data-v234="nutrition"]'))queueMicrotask(refresh)});const kit=globalThis.STACK_OWNER_KIT;if(kit){kit.onRenderTriggers(reorder,{events:['stack:data-changed']});kit.onRenderTriggers(refresh,{events:['visibilitychange']})}else{window.addEventListener('stack:data-changed',()=>setTimeout(reorder,30));document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(refresh,0)})}Object.defineProperty(globalThis,'STACK_NUTRITION_REORDER',{value:Object.freeze({build:BUILD,refresh}),configurable:true});console.info('STACK nutrition reorder',BUILD)}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();

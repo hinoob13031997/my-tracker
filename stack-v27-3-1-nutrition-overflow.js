@@ -1,6 +1,6 @@
 /* STACK v27.3.1 — hard mobile overflow guard for Fitness → Nutrition. */
 (()=>{'use strict';
-const BUILD='27.3.1.1-nutrition-panel-unification';
+const BUILD='27.3.1.2-owner-kit';
 function style(){if(document.getElementById('v2731NutritionOverflow'))return;const s=document.createElement('style');s.id='v2731NutritionOverflow';s.textContent=`@media(max-width:720px){
 html,body{max-width:100%;overflow-x:hidden}
 #v234Fitness,#v234Fitness .v234-body,#v234Fitness #v234Nutrition,#v234Fitness [data-v234-panel="nutrition"],#v234Fitness [data-nutrition],#v234Fitness .v273-wrap{width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box!important;overflow-x:hidden!important}
@@ -15,6 +15,6 @@ html,body{max-width:100%;overflow-x:hidden}
 @media(max-width:380px){#v234Fitness [data-nutrition] .grid,#v234Fitness [data-nutrition] [class*="grid"],.v273-grid{grid-template-columns:minmax(0,1fr)!important}.v273-head{grid-template-columns:minmax(0,1fr)!important}.v273-head button{width:100%;max-width:none}}
 `;document.head.appendChild(s)}
 function clamp(){if(innerWidth>720)return;const root=document.querySelector('#v234Fitness');if(!root)return;root.style.maxWidth='100%';root.style.minWidth='0';root.style.overflowX='hidden';document.querySelectorAll('#v234Fitness input,#v234Fitness select,#v234Fitness textarea').forEach(el=>{el.style.maxWidth='100%';el.style.minWidth='0';el.style.boxSizing='border-box'})}
-function boot(){style();clamp();window.addEventListener('resize',clamp,{passive:true});document.addEventListener('click',e=>{if(e.target.closest('[data-v234="nutrition"]'))queueMicrotask(clamp)});window.addEventListener('stack:data-changed',()=>setTimeout(clamp,0));console.info('STACK nutrition overflow fix',BUILD)}
+function boot(){style();clamp();document.addEventListener('click',e=>{if(e.target.closest('[data-v234="nutrition"]'))queueMicrotask(clamp)});const kit=globalThis.STACK_OWNER_KIT;if(kit)kit.onRenderTriggers(clamp,{events:['stack:data-changed','resize']});else{window.addEventListener('resize',clamp,{passive:true});window.addEventListener('stack:data-changed',()=>setTimeout(clamp,0))}console.info('STACK nutrition overflow fix',BUILD)}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
