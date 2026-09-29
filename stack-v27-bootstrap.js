@@ -17,8 +17,7 @@ async function boot(){shell();
   await load('stackV2752NutritionMinimalScript',`./stack-v27-5-2-nutrition-minimal.js?build=${BUILD}`,()=>!!globalThis.STACK_NUTRITION_MINIMAL);
   await load('stackV2753RationScript',`./stack-v27-5-3-ration.js?build=${BUILD}`,()=>!!globalThis.STACK_RATION);
   await load('stackV2755NutritionReorderScript',`./stack-v27-5-5-nutrition-reorder.js?build=${BUILD}`,()=>!!globalThis.STACK_NUTRITION_REORDER);
-  await load('stackV281SectionsScript',`./stack-v28-1-sections.js?build=${BUILD}`,()=>!!globalThis.STACK_SECTIONS);
-  globalThis.STACK_SECTIONS?.refresh?.();shell();document.documentElement.classList.remove('stack-minimal-loading');
+  shell();document.documentElement.classList.remove('stack-minimal-loading');
   window.addEventListener('pageshow',shell);document.addEventListener('visibilitychange',()=>{if(!document.hidden)shell()});Object.defineProperty(globalThis,'STACK_BOOTSTRAP',{value:Object.freeze({build:BUILD,refresh:shell}),configurable:true});console.info('STACK bootstrap',BUILD)}
 preflight();
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{boot().catch(releaseFail)},{once:true});else boot().catch(releaseFail);
