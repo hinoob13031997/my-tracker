@@ -203,5 +203,5 @@ window.addEventListener('stack:fitness-library-change',refresh);window.addEventL
 function summary(date=new Date()){const week=weekNo(date),phase=phaseFor(week),text=phaseText(phase),workout=workoutFor(date);if(!workout)return Object.freeze({planned:false,name:'День восстановления',week,phase:text.name,deload:deload(week),count:0});return Object.freeze({planned:true,name:(workout.light?'Разгрузка · ':'')+workout.name,week,phase:text.name,deload:workout.light,count:workout.ids.length,cycle:workout.cycle})}
 globalThis.STACK_FITNESS=Object.freeze({build:BUILD,summary});
 const style=document.createElement('style');style.id='v2320EngineStyle';style.textContent=css+'@media(max-width:720px){.fx-engine-owned-program .v234-body>.fx-program,.fx-engine-owned-program .v234-body>.fx-program+.fx-note{display:none!important}}';document.head.appendChild(style);
-let queued=false;function schedule(){if(queued)return;queued=true;queueMicrotask(()=>{queued=false;draw()})}new MutationObserver(schedule).observe(document.getElementById('screenTracker')||document.body,{childList:true,subtree:true});draw();console.info('STACK',BUILD);
+let queued=false;function schedule(){if(queued)return;queued=true;queueMicrotask(()=>{queued=false;draw()})}globalThis.STACK_FITNESS_SCREEN?.onRender(draw,30);draw();console.info('STACK',BUILD);
 })();
