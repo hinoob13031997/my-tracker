@@ -330,6 +330,21 @@ async function run() {
     // own localStorage, so seeding data here never touches real user data.
     await runScenarios(page, baseUrl, note, fail);
 
+    // Desktop (v29.69): a wide top-level page shows the same app in a phone-width
+    // frame (index.html?frame=1) and does not run the app itself.
+    const desk = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' });
+    await desk.route('**/*', (route) => (route.request().url().startsWith(baseUrl) ? route.continue() : route.abort()));
+    const dp = await desk.newPage();
+    dp.on('pageerror', (e) => jsErrors.push('[desktop] ' + e.message));
+    await dp.goto(`${baseUrl}/index.html`, { waitUntil: 'commit', timeout: 20000 });
+    await dp.waitForTimeout(2500);
+    const frame = dp.frames().find((f) => /[?&]frame=1/.test(f.url()));
+    const parentRunsApp = await dp.evaluate(() => typeof state !== 'undefined');
+    const frameOk = frame ? await frame.evaluate(() => innerWidth <= 720 && !!document.querySelector('.v29-nav')) : false;
+    if (frameOk && !parentRunsApp) note('  desktop OK: app in phone-width frame, parent page runs no app code');
+    else fail(`desktop frame (frame=${!!frame}, frameOk=${frameOk}, parentRunsApp=${parentRunsApp})`);
+    await desk.close();
+
     if (jsErrors.length) {
       for (const e of jsErrors) fail('JS error: ' + e);
     } else {

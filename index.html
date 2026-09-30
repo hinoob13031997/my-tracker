@@ -1,6 +1,12 @@
 <!doctype html>
 <html lang="ru">
 <head>
+<!-- v29.69 desktop: the v29 interface is phone-width by design (every owner checks ≤720px). On a
+     computer (mouse pointer + screen wider than 720px; innerWidth is NOT usable here — before the
+     viewport meta is parsed a phone reports 980) the top-level page stops here and shows the same app in a phone-width frame
+     (index.html?frame=1), so desktop gets exactly the mobile UI and the same localStorage data —
+     instead of the old desktop layout. Only one copy of the app ever runs (the frame). -->
+<script>(function(){try{if(window.top!==window||/[?&]frame=1(&|$)/.test(location.search))return;if(!(screen.width>720&&matchMedia('(hover:hover) and (pointer:fine)').matches))return;window.stop();var src=location.pathname+(location.search?location.search+'&':'?')+'frame=1'+location.hash;document.documentElement.innerHTML='<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#01050b"><link rel="icon" href="./icon.svg"><title>STACK — Персональная система управления</title><style>html,body{margin:0;height:100%;overflow:hidden;background:radial-gradient(circle at 50% -10%,#11133f 0,#030817 45%,#01050b 80%)}body{display:flex;align-items:center;justify-content:center}iframe{display:block;width:min(430px,100vw);height:min(100vh,940px);border:1px solid #243653;border-radius:22px;background:#01050b;box-shadow:0 0 44px #0877f322,0 0 90px #9133e414}@media(max-height:940px){iframe{border-radius:0;border-top:0;border-bottom:0}}</style></head><body><iframe src="'+src.replace(/"/g,'&quot;')+'" title="STACK" allow="clipboard-write"></iframe></body>'}catch(e){}})();</script>
 <!-- STACK v29 shell markers, baked in so the very first page load (before the service
      worker in sw.js is registered/active) also gets the new shell instead of a legacy-UI
      flash. Mirrors GATE_STYLE + V29_HEAD in sw.js exactly — keep both in sync if the v29
