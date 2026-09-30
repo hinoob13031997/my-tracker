@@ -144,6 +144,16 @@ async function runScenarios(page, baseUrl, note, fail) {
     fail('scenario: no [data-goal-settings] button on Fitness/Today');
   }
 
+  // 3a. Exercise technique sheet image loads from assets/ (v29.65 moved it out of JS).
+  const info = await page.$('#v234Fitness [data-info]');
+  if (info) {
+    await info.click();
+    await page.waitForTimeout(800);
+    const img = await page.evaluate(() => { const i = document.querySelector('.fx-tech-img'); return i ? { src: i.getAttribute('src'), w: i.naturalWidth } : null; });
+    check(img && img.w > 0 && !/^data:/.test(img.src), `technique image loads from file (${img?.src} ${img?.w}px)`);
+    await page.evaluate(() => document.getElementById('fxSheet')?.remove());
+  }
+
   // 3b. Today task row: the right-hand control marks the task done and back (v29.64).
   await page.evaluate(() => {
     const d = new Date(), k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
