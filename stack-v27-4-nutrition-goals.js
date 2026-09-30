@@ -1,16 +1,18 @@
 /* STACK v27.4 — Nutrition goals, plan/fact and remaining today.
    v27.4.3 — the setup card names exactly which profile field blocks the STACK calculation;
    with manual targets the card still shows the STACK calculation next to them.
-   v27.4.4 — fact = manual entries + eaten ration meals (STACK_RATION, replaced meals excluded). */
+   v27.4.4 — fact = manual entries + eaten ration meals (STACK_RATION, replaced meals excluded).
+   v27.4.5 — fat is at least 25% of calories (was 0.9 g/kg ≈ 18% on a gain plan); carbs take the rest.
+   Keep in sync with targets() in stack-v23-fitness-intelligence.js. */
 (()=>{'use strict';
-const BUILD='27.4.4-ration-fact',NUTRITION_KEY='stack_fitness_nutrition_v2310',GOAL_KEY='stack_fitness_goal_v2318',PROFILE_KEY='stack_fitness_profile_v2320',BODY_KEY='stack_fitness_log_v2310',CUSTOM_KEY='stack_nutrition_targets_v274';
+const BUILD='27.4.5-fat-25pct',NUTRITION_KEY='stack_fitness_nutrition_v2310',GOAL_KEY='stack_fitness_goal_v2318',PROFILE_KEY='stack_fitness_profile_v2320',BODY_KEY='stack_fitness_log_v2310',CUSTOM_KEY='stack_nutrition_targets_v274';
 const read=(k,f)=>{try{const v=JSON.parse(localStorage.getItem(k)||'null');return v??f}catch(_){return f}};
 const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
 const n=v=>Number(v)||0,clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 function goal(){const g=read(GOAL_KEY,{});return{start:n(g.start)||56,target:n(g.target)||70}}
 function profile(){const p=read(PROFILE_KEY,{});return{height:n(p.height),age:n(p.age),sex:p.sex||'',days:n(p.days)===4?4:3}}
 function weight(g){const a=read(BODY_KEY,[]);const xs=(Array.isArray(a)?a:[]).filter(x=>n(x.body)>0).sort((a,b)=>String(a.date).localeCompare(String(b.date)));return xs.length?n(xs[xs.length-1].body):g.start}
-function calculated(){const g=goal(),p=profile(),w=weight(g);if(!p.height||!p.age||!['male','female'].includes(p.sex)||!w)return null;const dir=g.target>w?'gain':g.target<w?'loss':'maintain',bmr=10*w+6.25*p.height-5*p.age+(p.sex==='male'?5:-161),activity=p.days===4?1.55:1.45,delta=dir==='gain'?250:dir==='loss'?-400:0,floor=p.sex==='male'?1500:1300,kcal=Math.round(Math.max(floor,bmr*activity+delta)/50)*50,protein=Math.round(w*(dir==='loss'?2:1.8)),fat=Math.round(w*.9),carbs=Math.max(0,Math.round((kcal-protein*4-fat*9)/4));return{kcal,protein,fat,carbs,source:'Расчёт STACK'}}
+function calculated(){const g=goal(),p=profile(),w=weight(g);if(!p.height||!p.age||!['male','female'].includes(p.sex)||!w)return null;const dir=g.target>w?'gain':g.target<w?'loss':'maintain',bmr=10*w+6.25*p.height-5*p.age+(p.sex==='male'?5:-161),activity=p.days===4?1.55:1.45,delta=dir==='gain'?250:dir==='loss'?-400:0,floor=p.sex==='male'?1500:1300,kcal=Math.round(Math.max(floor,bmr*activity+delta)/50)*50,protein=Math.round(w*(dir==='loss'?2:1.8)),fat=Math.round(Math.max(w*.9,kcal*.25/9)),carbs=Math.max(0,Math.round((kcal-protein*4-fat*9)/4));return{kcal,protein,fat,carbs,source:'Расчёт STACK'}}
 function missing(){const p=profile(),m=[];if(!p.height)m.push('рост');if(!p.age)m.push('возраст');if(!['male','female'].includes(p.sex))m.push('пол');return m}
 function targets(){const c=read(CUSTOM_KEY,null);if(c&&n(c.kcal)>0)return{kcal:n(c.kcal),protein:n(c.protein),fat:n(c.fat),carbs:n(c.carbs),source:'Твои цели'};return calculated()}
 function fact(){const a=read(NUTRITION_KEY,[]),d=today(),m=(Array.isArray(a)?a:[]).filter(x=>x.date===d).reduce((s,x)=>({kcal:s.kcal+n(x.kcal),protein:s.protein+n(x.protein),fat:s.fat+n(x.fat),carbs:s.carbs+n(x.carbs)}),{kcal:0,protein:0,fat:0,carbs:0});let r=null;try{r=globalThis.STACK_RATION?.snapshot?.().fact||null}catch(_){}return r?{kcal:m.kcal+n(r.kcal),protein:m.protein+n(r.protein),fat:m.fat+n(r.fat),carbs:m.carbs+n(r.carbs)}:m}
