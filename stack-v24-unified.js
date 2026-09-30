@@ -1,11 +1,12 @@
 /* STACK v24.8 — Deals pulse (open / today / overdue) under the Deals tabs.
+   v29.55: task counters only on the «Задачи» tab — «Процессы» has its own stats row.
    v29.53: this file used to also render a v24 Today page, a Finance pulse
    and a "More" hub. All three were dead UI under the v29 owners (Today was
    rendered only while body.v29-native-today hides .app; #v24FinancePulse
    was hidden by stack-v25-finance.js; renderMore() bailed out whenever
    stack-v29-analytics.js owns #screenAnalytics) and were removed. */
 (()=>{'use strict';
-const BUILD='v24.8-deals-pulse-only';
+const BUILD='v24.8.1-deals-pulse-tasks-tab';
 let lastDeals='',queued=false;
 
 function dateKey(date=new Date()){return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`}
@@ -17,7 +18,7 @@ function installStyle(){
   if(document.getElementById('stackV24Style'))return;
   const style=document.createElement('style');
   style.id='stackV24Style';
-  style.textContent=`@media(max-width:720px){.v24-deals-pulse{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:-3px 0 10px}.v24-pulse{padding:9px 5px;border:1px solid #203957;border-radius:11px;background:#06101d;text-align:center}.v24-pulse b{display:block;font-size:16px}.v24-pulse span{font-size:7px;color:#7f8da2}.v24-pulse.alert b{color:#f06b85}}`;
+  style.textContent=`@media(max-width:720px){#screenTasks:not(.v233-mode-tasks) .v24-deals-pulse{display:none}.v24-deals-pulse{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:-3px 0 10px}.v24-pulse{padding:9px 5px;border:1px solid #203957;border-radius:11px;background:#06101d;text-align:center}.v24-pulse b{display:block;font-size:16px}.v24-pulse span{font-size:7px;color:#7f8da2}.v24-pulse.alert b{color:#f06b85}}`;
   document.head.appendChild(style);
 }
 
