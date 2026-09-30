@@ -207,6 +207,28 @@ async function runScenarios(page, baseUrl, note, fail) {
     return { t: t.kcal, sum };
   });
   check(ration.sum >= ration.t * 0.95 && ration.sum <= ration.t * 1.05, `ration day kcal within ±5% of target (${ration.sum} / ${ration.t})`);
+
+  // 5. Product swap keeps the day on target (v29.68).
+  const swapBtn = await page.$('[data-v2753-swap="1-1"]');
+  if (swapBtn) {
+    await swapBtn.click();
+    await page.waitForTimeout(300);
+    await page.click('#v2753SwapModal [data-pick]');
+    await page.waitForTimeout(400);
+    const after = await page.evaluate(() => {
+      const t = globalThis.STACK_NUTRITION_GOALS.targets(), m = globalThis.STACK_RATION.meals();
+      return { t: t.kcal, sum: m.reduce((s, x) => s + (x.kcal ?? x.kbju?.kcal ?? 0), 0), swaps: localStorage.getItem('stack_nutrition_swaps_v2968') };
+    });
+    check(!!after.swaps && after.sum >= after.t * 0.95 && after.sum <= after.t * 1.05, `product swap re-solves the day (${after.sum} / ${after.t}, ${after.swaps})`);
+  } else {
+    fail('scenario: no swappable product in the ration');
+  }
+
+  // 6. Today shows one nutrition line with today's fact (v29.68).
+  await page.click('.v29-nav [data-v29-nav="today"]');
+  await page.waitForTimeout(300);
+  const foodLine = await page.evaluate(() => document.querySelector('[data-v29-food] b')?.textContent || '');
+  check(/^\d+ \/ \d+ ккал$/.test(foodLine), `Today nutrition line (${foodLine})`);
 }
 
 async function run() {
