@@ -85,6 +85,96 @@ function serveRepo(root, port) {
 const SECTIONS = ['today', 'deals', 'fitness', 'finance', 'analytics'];
 const FITNESS_TABS = ['today', 'progress', 'nutrition'];
 
+async function openNutrition(page) {
+  await page.click('.v29-nav [data-v29-nav="fitness"]');
+  await page.waitForTimeout(400);
+  await page.click('.v234-tabs [data-v234="nutrition"]');
+  await page.waitForTimeout(600);
+}
+
+async function reload(page, baseUrl) {
+  await page.goto(`${baseUrl}/index.html`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+  await page.waitForTimeout(1600);
+  await page.waitForSelector('.v29-nav', { timeout: 15000 });
+}
+
+async function runScenarios(page, baseUrl, note, fail) {
+  const check = (ok, label) => (ok ? note(`  scenario OK: ${label}`) : fail(`scenario: ${label}`));
+
+  // 1. Today status control cycles ✓ → ○ → — → empty (CLAUDE.md status logic).
+  await page.click('.v29-nav [data-v29-nav="today"]');
+  await page.waitForTimeout(400);
+  const marks = [];
+  for (let i = 0; i < 4; i++) {
+    await page.click('.v29-row[data-v29-index="0"] .v29-status');
+    await page.waitForTimeout(250);
+    marks.push(await page.getAttribute('.v29-row[data-v29-index="0"] .v29-status', 'data-mark'));
+  }
+  check(marks.join('|') === '✓|○|—|', `Today status cycle (${marks.join('|') || 'empty'})`);
+
+  // 2. Today «Тренировка» mark and the Fitness day status are one fact (v29.55).
+  await page.evaluate(() => { state.processes[0].name = 'Тренировка'; save(); });
+  await reload(page, baseUrl);
+  await page.click('.v29-row[data-v29-index="0"] .v29-status');
+  await page.waitForTimeout(300);
+  const workoutKey = await page.evaluate(() => {
+    const d = new Date(), k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    return localStorage.getItem('stack_fitness_workout_' + k);
+  });
+  check(workoutKey === '1', `Today ✓ «Тренировка» → Fitness status (${workoutKey})`);
+  await page.click('.v29-row[data-v29-index="0"] .v29-open');
+  await page.waitForTimeout(500);
+  const fitnessOn = await page.evaluate(() => document.querySelector('#v234Fitness [data-engine-status].on,#v234Fitness [data-status].on')?.dataset.engineStatus ?? document.querySelector('#v234Fitness [data-status].on')?.dataset.status);
+  check(fitnessOn === 'done', `Fitness shows the Today mark (${fitnessOn})`);
+
+  // 3. Fitness goal settings sheet is actually visible and has profile fields (v29.55).
+  await page.click('.v234-tabs [data-v234="today"]');
+  await page.waitForTimeout(300);
+  const settings = await page.$('[data-goal-settings]');
+  if (settings) {
+    await settings.click();
+    await page.waitForTimeout(300);
+    const sheet = await page.evaluate(() => {
+      const s = document.getElementById('fxPlanEditor');
+      return s ? { visible: getComputedStyle(s).display !== 'none' && s.getBoundingClientRect().height > 0, profile: !!s.querySelector('.fx-profile-fields') } : null;
+    });
+    check(sheet?.visible && sheet?.profile, `Fitness «Цель и источники» sheet visible with profile fields (${JSON.stringify(sheet)})`);
+    await page.evaluate(() => document.getElementById('fxPlanEditor')?.remove());
+  } else {
+    fail('scenario: no [data-goal-settings] button on Fitness/Today');
+  }
+
+  // 4. Nutrition: profile → STACK targets; «Поел» counts into plan/fact;
+  //    a manual entry «вместо» a meal replaces it instead of double counting.
+  await page.evaluate(() => localStorage.setItem('stack_fitness_profile_v2320', JSON.stringify({ height: 180, age: 29, sex: 'male' })));
+  await reload(page, baseUrl);
+  await openNutrition(page);
+  const fact = () => page.evaluate(() => globalThis.STACK_NUTRITION_GOALS?.fact?.().kcal ?? null);
+  const hasTargets = await page.evaluate(() => !!globalThis.STACK_NUTRITION_GOALS?.targets?.());
+  check(hasTargets, 'Nutrition targets calculated from profile');
+  const planned = await page.evaluate(() => globalThis.STACK_RATION?.meals?.()[0]?.kbju?.kcal ?? null);
+  await page.click('[data-v2753-mark="0"]');
+  await page.waitForTimeout(400);
+  const afterEaten = await fact();
+  check(planned > 0 && Math.abs(afterEaten - planned) <= 1, `«Поел» → plan/fact (${afterEaten} vs meal ${planned})`);
+  await page.evaluate(() => {
+    const k = 'stack_fitness_nutrition_v2310', a = JSON.parse(localStorage.getItem(k) || '[]'), d = new Date();
+    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    a.push({ date, name: 'verify-replace', kcal: 500, protein: 20, fat: 20, carbs: 50, replaces: `${globalThis.STACK_RATION.snapshot().variant}-0` });
+    localStorage.setItem(k, JSON.stringify(a));
+    window.dispatchEvent(new CustomEvent('stack:data-changed', { detail: { source: 'stack-verify' } }));
+  });
+  await page.waitForTimeout(400);
+  const afterReplace = await fact();
+  check(afterReplace === 500, `manual entry «вместо» replaces the eaten meal (${afterReplace}, expected 500)`);
+  const ration = await page.evaluate(() => {
+    const t = globalThis.STACK_NUTRITION_GOALS.targets(), m = globalThis.STACK_RATION.meals();
+    const sum = m.reduce((s, x) => s + (x.kbju?.kcal || 0), 0);
+    return { t: t.kcal, sum };
+  });
+  check(ration.sum >= ration.t * 0.95 && ration.sum <= ration.t * 1.05, `ration day kcal within ±5% of target (${ration.sum} / ${ration.t})`);
+}
+
 async function run() {
   const { chromium } = loadPlaywright();
   const args = parseArgs(process.argv);
@@ -178,6 +268,11 @@ async function run() {
     const idleMutations = await page.evaluate(() => window.__stackVerifyMut);
     if (idleMutations > 0) fail(`${idleMutations} DOM mutations while idle on Fitness/Today (possible MutationObserver loop)`);
     else note(`  0 idle DOM mutations on Fitness/Today (2.5s) — no observer loop`);
+
+    // ---- Behaviour scenarios (bugs that shipped once and slipped past the
+    // navigation-only checks above). Each runs on this throwaway context's
+    // own localStorage, so seeding data here never touches real user data.
+    await runScenarios(page, baseUrl, note, fail);
 
     if (jsErrors.length) {
       for (const e of jsErrors) fail('JS error: ' + e);
