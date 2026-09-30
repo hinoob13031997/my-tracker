@@ -86,8 +86,8 @@ function goal(){return read(GOAL_KEY,{start:56,target:70,training:'stack',nutrit
 function goalDirection(){const g=goal(),start=Number(g.start)||0,target=Number(g.target)||0;return target>start?'gain':target<start?'loss':'maintain'}
 function phaseText(p){const d=goalDirection();if(d==='loss'){if(p.name==='Рост объёма')return{name:'Рабочий объём',focus:'Сохраняем мышцы и технику'};if(p.name==='Сила + масса')return{name:'Сила + сохранение мышц',focus:'Удерживаем рабочие веса'}}if(d==='maintain'){if(p.name==='Рост объёма')return{name:'Баланс объёма',focus:'Поддерживаем форму без перегруза'};if(p.name==='Сила + масса')return{name:'Сила + форма',focus:'Сохраняем силу и мышечный тонус'}}return{name:p.name,focus:p.focus}}
 function selectedDate(){const s=document.querySelector('#v234Fitness [data-day].on')?.dataset.day;return s?fromKey(s):new Date()}
-function workoutStatus(d){try{const v=localStorage.getItem('stack_fitness_workout_'+key(d));return v==='1'?'done':v==='skip'?'skip':''}catch(e){return''}}
-function setWorkoutStatus(d,v){try{localStorage.setItem('stack_fitness_workout_'+key(d),v==='done'?'1':v==='skip'?'skip':'0')}catch(e){}globalThis.STACK_V29_SHELL?.syncWorkout?.(d,v);}
+function workoutStatus(d){return globalThis.STACK_DATA.workoutStatus(d)}
+function setWorkoutStatus(d,v){globalThis.STACK_DATA.setWorkoutStatus(d,v)}
 function deload(w){return w>1&&w%4===0}
 
 function workoutFor(d){

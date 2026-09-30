@@ -40,6 +40,20 @@ Code (разные чаты/вкладки), каждая на своей вет
   полностью закрыть и заново открыть приложение (обычный reload может не
   подхватить новый service worker).
 
+## v29.66 — общая логика в `stack-data.js`
+
+- `STACK_DATA.workoutStatus(d)` / `setWorkoutStatus(d,v)` — единственные
+  чтение/запись `stack_fitness_workout_<date>`; запись сама вызывает
+  синхронизацию с процессом «Тренировка». Четыре копии (`stack-v23-fitness`,
+  `-day-picker`, `-goals`, `-engine`) теперь делегируют сюда.
+- `STACK_DATA.nutritionTargets({goal,profile,weight})` — единая формула КБЖУ
+  (была в `stack-v27-4…`→`stack-nutrition.js` и в
+  `stack-v23-fitness-intelligence.js`). Направление цели теперь везде —
+  цель vs текущий вес (intelligence раньше брал цель vs стартовый вес).
+- Мелкие хелперы (dateKey/read/esc) в модулях не переписывались массово —
+  `STACK_DATA.dateKey` есть для нового кода.
+Цели для профиля 180/29/муж/56 кг те же: 2500/101/69/369. BUILD 29.66.0.
+
 ## v29.65 — картинки техники упражнений вынесены из JS
 
 `stack-v23-fitness-info.js` содержал 8 webp в base64 (476 КБ — больше
