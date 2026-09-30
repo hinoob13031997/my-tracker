@@ -9,14 +9,7 @@ function load(id,src,ready){return new Promise(resolve=>{if(ready?.()){resolve()
 async function boot(){shell();
   await load('stackV27CoreScript',`./stack-v27-core.js?build=${BUILD}`,()=>!!globalThis.STACK_CORE);
   await load('stackV271FitnessTabsScript',`./stack-v27-1-fitness-tabs.js?build=${BUILD}`,()=>!!document.getElementById('stackFitnessTabsFix'));
-  await load('stackV273NutritionScript',`./stack-v27-3-nutrition.js?build=${BUILD}`,()=>!!document.getElementById('v273NutritionStyle'));
-  await load('stackV2731NutritionOverflowScript',`./stack-v27-3-1-nutrition-overflow.js?build=${BUILD}`,()=>!!document.getElementById('v2731NutritionOverflow'));
-  await load('stackV274NutritionGoalsScript',`./stack-v27-4-nutrition-goals.js?build=${BUILD}`,()=>!!globalThis.STACK_NUTRITION_GOALS);
-  await load('stackV275QuickFoodsScript',`./stack-v27-5-quick-foods.js?build=${BUILD}`,()=>!!globalThis.STACK_QUICK_FOODS);
-  await load('stackV2751NutritionSimplifyScript',`./stack-v27-5-1-nutrition-simplify.js?build=${BUILD}`,()=>!!globalThis.STACK_NUTRITION_SIMPLIFY);
-  await load('stackV2752NutritionMinimalScript',`./stack-v27-5-2-nutrition-minimal.js?build=${BUILD}`,()=>!!globalThis.STACK_NUTRITION_MINIMAL);
-  await load('stackV2753RationScript',`./stack-v27-5-3-ration.js?build=${BUILD}`,()=>!!globalThis.STACK_RATION);
-  await load('stackV2755NutritionReorderScript',`./stack-v27-5-5-nutrition-reorder.js?build=${BUILD}`,()=>!!globalThis.STACK_NUTRITION_REORDER);
+  await load('stackNutritionScript',`./stack-nutrition.js?build=${BUILD}`,()=>!!globalThis.STACK_NUTRITION);
   shell();document.documentElement.classList.remove('stack-minimal-loading');
   window.addEventListener('pageshow',shell);document.addEventListener('visibilitychange',()=>{if(!document.hidden)shell()});Object.defineProperty(globalThis,'STACK_BOOTSTRAP',{value:Object.freeze({build:BUILD,refresh:shell}),configurable:true});console.info('STACK bootstrap',BUILD)}
 preflight();

@@ -6,4 +6,4 @@ function allocated(total){let used=0;return SHARES.map((share,index)=>{const val
 function snapshot(day=date()){const d=DIETS[variant],log=read(),kcal=allocated(d.kcal),p=allocated(d.p),f=allocated(d.f),c=allocated(d.c),meals=d.m.map((m,i)=>({time:m[0],name:m[1],items:m[2],kcal:kcal[i],p:p[i],f:f[i],c:c[i],marked:!!log[day+'-'+variant+'-'+i]})),fact=meals.filter(x=>x.marked).reduce((s,x)=>({kcal:s.kcal+x.kcal,p:s.p+x.p,f:s.f+x.f,c:s.c+x.c}),{kcal:0,p:0,f:0,c:0});return{variant,target:{kcal:d.kcal,p:d.p,f:d.f,c:d.c},meals,fact,done:meals.filter(x=>x.marked).length,total:meals.length}}
 globalThis.STACK_NUTRITION_PLAN=Object.freeze({build:BUILD,snapshot});
 document.querySelector('#v234Fitness .v234-body .fx-plan')?.remove();
-console.info('STACK',BUILD,'(legacy .fx-plan card retired, data-only — see stack-v27-5-3-ration.js)');})();
+console.info('STACK',BUILD,'(legacy .fx-plan card retired, data-only — see stack-nutrition.js)');})();
