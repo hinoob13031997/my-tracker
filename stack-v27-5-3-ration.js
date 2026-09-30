@@ -8,9 +8,11 @@
    v27.5.3.5 — portions are solved for the whole day against all four targets (kcal, P, F, C) with
    realistic per-food limits and the meal kcal split as a soft goal. Before, grams only split each
    meal's calories in fixed shares, so a full day gave ~100% kcal but ~200% protein / ~150% fat /
-   ~60% carbs. */
+   ~60% carbs.
+   v27.5.3.6 — calories are the priority (they drive the weight trend); protein weighs less, since
+   a protein surplus is harmless while a calorie gap slows the planned gain. */
 (()=>{'use strict';
-const BUILD='27.5.3.5-macro-solver',MARKS='stack_fitness_nutrition_plan_v2311',VARIANT='stack_fitness_nutrition_variant_v241',NUT='stack_fitness_nutrition_v2310';
+const BUILD='27.5.3.6-kcal-first',MARKS='stack_fitness_nutrition_plan_v2311',VARIANT='stack_fitness_nutrition_variant_v241',NUT='stack_fitness_nutrition_v2310';
 const VARIANTS=[
  {name:'Вариант 1',meals:[['Завтрак','Овсянка · яйца · фрукт'],['Обед','Рис · курица · овощи'],['Перекус','Творог · банан · орехи'],['Ужин','Паста · говядина · овощи']]},
  {name:'Вариант 2',meals:[['Завтрак','Яйца · тосты · йогурт'],['Обед','Гречка · индейка · овощи'],['Перекус','Кефир · банан · арахисовая паста'],['Ужин','Картофель · рыба · салат']]},
@@ -48,7 +50,7 @@ function dayTargets(){const t=targets();if(t&&+t.kcal>0)return{kcal:+t.kcal,prot
 function solveDay(v,T){
  const foods=[];VARIANTS[v].meals.forEach((m,i)=>{const names=String(m[1]).split('·').map(x=>x.trim()).filter(Boolean),known=names.filter(n=>FOOD_DB[n.toLowerCase()]),tw=known.reduce((s,n)=>s+(FOOD_WEIGHT[n.toLowerCase()]||.2),0);names.forEach(n=>{const k=n.toLowerCase(),db=FOOD_DB[k];if(!db){foods.push({meal:i,name:n,db:null});return}const [lo,hi]=FOOD_LIMITS[k]||[20,400],g0=Math.min(hi,Math.max(lo,T.kcal*(RATIOS[i]||0)*(FOOD_WEIGHT[k]||.2)/tw/db.kcal*100));foods.push({meal:i,name:n,k,db,lo,hi,g0,g:g0})})});
  const x=foods.filter(f=>f.db),terms=[],day=(key,w)=>{if(T[key]>0)terms.push({c:x.map(f=>f.db[key]/100),t:T[key],w:w/(T[key]*T[key])})};
- day('kcal',4);day('protein',1);day('fat',1);day('carbs',1);
+ day('kcal',30);day('protein',.3);day('fat',1);day('carbs',1);
  RATIOS.forEach((r,i)=>{const t=T.kcal*r;if(t>0)terms.push({c:x.map(f=>f.meal===i?f.db.kcal/100:0),t,w:.25/(t*t)})});
  x.forEach((f,j)=>terms.push({c:x.map((_,q)=>q===j?1:0),t:f.g0,w:.01/(f.g0*f.g0)}));
  for(let it=0;it<300;it++)x.forEach((f,j)=>{let num=0,den=0;for(const tm of terms){const cj=tm.c[j];if(!cj)continue;let s=0;for(let q=0;q<x.length;q++)s+=tm.c[q]*x[q].g;num+=tm.w*cj*(s-tm.t);den+=tm.w*cj*cj}if(den)f.g=Math.min(f.hi,Math.max(f.lo,f.g-num/den))});
