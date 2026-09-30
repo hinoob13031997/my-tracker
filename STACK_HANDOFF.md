@@ -40,6 +40,22 @@ Code (разные чаты/вкладки), каждая на своей вет
   полностью закрыть и заново открыть приложение (обычный reload может не
   подхватить новый service worker).
 
+## v29.67 — Fitness: один владелец вместо шести MutationObserver
+
+Шесть модулей (day-picker, month-label, goals, engine, intelligence,
+analytics) дорисовывали экран через `MutationObserver` на `#screenTracker`
+(month-label — на всём `document`), будя друг друга на каждое изменение.
+Теперь `stack-v23-fitness.js` держит реестр `STACK_FITNESS_SCREEN.onRender(fn,
+order)` и запускает цепочку в фиксированном порядке (10 day-picker → 20 goals
+→ 30 engine → 40 intelligence → 50 analytics → 60 month-label) после своего
+`render()`, после click/submit/change на экране Fitness и на
+`stack:data-changed` / `stack:fitness-library-change` / `storage` /
+`visibilitychange`. Пока цепочка идёт, повторный `notify()` игнорируется —
+петля невозможна. **Имя `STACK_FITNESS` занято** движком (`summary`, его
+читает analytics) — не путать. Проверено: 12 состояний Fitness (дни, статус,
+техника, подход, замена, прогресс, вес, программа, питание, режим тренера)
+побайтно = `main`; `stack-verify.js` PASS. BUILD 29.67.0.
+
 ## v29.66 — общая логика в `stack-data.js`
 
 - `STACK_DATA.workoutStatus(d)` / `setWorkoutStatus(d,v)` — единственные

@@ -66,7 +66,7 @@ document.addEventListener('click',function(event){const button=event.target.clos
 document.addEventListener('change',function(event){if(event.target.matches&&event.target.matches('[data-fxa-exercise-select]')){selected=event.target.value;lastSignature='';draw()}});
 const style=document.createElement('style');style.id='v247FitnessAnalyticsStyle';style.textContent=css;document.head.appendChild(style);
 let queued=false;function schedule(){if(queued)return;queued=true;queueMicrotask(function(){queued=false;draw()})}
-new MutationObserver(schedule).observe(document.getElementById('screenTracker')||document.body,{childList:true,subtree:true});
+globalThis.STACK_FITNESS_SCREEN?.onRender(draw,50);
 function registerTriggers(){const kit=globalThis.STACK_OWNER_KIT;if(kit)kit.onRenderTriggers(schedule,{extra:['stack:fitness-library-change']});else{window.addEventListener('stack:data-changed',schedule);window.addEventListener('stack:fitness-library-change',schedule)}}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',registerTriggers,{once:true});else registerTriggers();
 draw();globalThis.STACK_FITNESS_ANALYTICS=Object.freeze({build:BUILD,render:draw});console.info('STACK',BUILD);
