@@ -63,6 +63,7 @@ Nutrition:
 - `stack_fitness_nutrition_variant_v241`
 - `stack_nutrition_targets_v274`
 - `stack_nutrition_quick_foods_v275`
+- `stack_nutrition_swaps_v2968` — замены продуктов в рационе (v29.68)
 
 Recovery: IndexedDB recovery vault через `stack-persistence.js`.
 
