@@ -144,6 +144,30 @@ async function runScenarios(page, baseUrl, note, fail) {
     fail('scenario: no [data-goal-settings] button on Fitness/Today');
   }
 
+  // 3b. Today task row: the right-hand control marks the task done and back (v29.64).
+  await page.evaluate(() => {
+    const d = new Date(), k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    state.journal.push({ task: 'verify-task', date: '', due: k, status: 'Не начато' }); save();
+  });
+  await reload(page, baseUrl);
+  await page.click('.v29-nav [data-v29-nav="today"]');
+  await page.waitForTimeout(300);
+  await page.click('.v29-row[data-v29-kind="task"] .v29-status');
+  await page.waitForTimeout(300);
+  const taskStatus = await page.evaluate(() => state.journal.find((t) => t.task === 'verify-task')?.status);
+  const taskStillShown = await page.$('.v29-row[data-v29-kind="task"] .v29-status[data-mark="✓"]');
+  check(taskStatus === 'Готово' && !!taskStillShown, `Today task status → «Готово», row stays (${taskStatus})`);
+
+  // 3c. Дела → Процессы «Отметки за день»: yesterday's mark is editable (v29.64).
+  await page.click('.v29-nav [data-v29-nav="deals"]');
+  await page.waitForTimeout(300);
+  await page.click('#v233shell [data-v233="processes"]');
+  await page.waitForTimeout(400);
+  await page.click('[data-mark-process="1"]');
+  await page.waitForTimeout(300);
+  const yesterdayMark = await page.evaluate(() => { const d = new Date(); d.setDate(d.getDate() - 1); return state.months?.[dateToMonthIndex(d)]?.[1]?.[d.getDate() - 1]; });
+  check(yesterdayMark === '✓', `past-day mark in «Процессы» (${yesterdayMark})`);
+
   // 4. Nutrition: profile → STACK targets; «Поел» counts into plan/fact;
   //    a manual entry «вместо» a meal replaces it instead of double counting.
   await page.evaluate(() => localStorage.setItem('stack_fitness_profile_v2320', JSON.stringify({ height: 180, age: 29, sex: 'male' })));
