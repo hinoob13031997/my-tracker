@@ -53,7 +53,7 @@ const css=`@media(max-width:720px){
 #v29Analytics,#v29Analytics *{box-sizing:border-box;min-width:0}
 .v29a-page{display:grid;gap:10px;padding:2px 2px 10px}
 .v29a-kicker{font-size:9px;letter-spacing:.1em;color:#8290a6;font-weight:900}
-.v29a-page h1{margin:3px 0 0;font-size:28px;line-height:1;color:#fff;text-shadow:0 0 18px #9133e455}
+.v29a-page h1{margin:3px 0 0;font-size:30px;line-height:1;color:#fff;text-shadow:0 0 18px #9133e455}
 .v29a-page header p{margin:6px 0 0;color:#8b9aae;font-size:11px}
 .v29a-hero{padding:15px;border:1px solid #563079;border-radius:18px;background:radial-gradient(circle at 90% 0,#9133e429,transparent 45%),linear-gradient(155deg,#071522,#030914)}
 .v29a-hero.bad{border-color:#773349}
