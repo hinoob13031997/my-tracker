@@ -12,6 +12,10 @@ function install(){
  #screenTasks.v233-mode-tasks #v2212Tasks .v2212-head{min-height:44px!important;height:44px!important;margin:0 0 8px!important;padding:0 2px!important;align-items:center!important;justify-content:flex-end!important}
  #screenTasks.v233-mode-tasks #v2212Tasks .v2212-add{width:44px!important;height:44px!important;min-width:44px!important;max-width:44px!important;min-height:44px!important;margin:0!important;padding:0!important;display:grid!important;place-items:center!important;border-radius:12px!important;line-height:1!important;font-size:25px!important}
  #screenTasks.v233-mode-tasks #v2212Tasks .v2212-add::after{content:none!important}
+ #screenTasks.v233-mode-tasks #v2212Tasks{display:grid!important;grid-template-columns:minmax(0,1fr) 44px;column-gap:8px;align-items:center}
+ #screenTasks.v233-mode-tasks #v2212Tasks>*{grid-column:1/-1}
+ #screenTasks.v233-mode-tasks #v2212Tasks>.v2212-filters{grid-column:1;grid-row:1;min-width:0!important;margin:0 0 8px!important}
+ #screenTasks.v233-mode-tasks #v2212Tasks.v2212-tasks>.v2212-head{grid-column:2;grid-row:1;width:44px;margin:0 0 8px!important;padding:0!important}
  #screenTasks .v2212-filters,#screenTasks .v2212-group,#screenTasks .v2212-list,#screenTasks .v2212-row{max-width:100%!important;min-width:0!important}
  .v2212-modal{padding:0!important;overflow:hidden!important}
  .v2212-card{box-sizing:border-box!important;width:100%!important;max-width:100vw!important;margin:0!important;padding:14px 12px max(20px,env(safe-area-inset-bottom))!important;overflow-x:hidden!important}
