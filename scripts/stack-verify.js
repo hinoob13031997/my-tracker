@@ -125,7 +125,10 @@ async function runScenarios(page, baseUrl, note, fail) {
   await page.click('.v29-row[data-v29-index="0"] .v29-open');
   await page.waitForTimeout(500);
   const fitnessOn = await page.evaluate(() => document.querySelector('#v234Fitness [data-engine-status].on,#v234Fitness [data-status].on')?.dataset.engineStatus ?? document.querySelector('#v234Fitness [data-status].on')?.dataset.status);
-  check(fitnessOn === 'done', `Fitness shows the Today mark (${fitnessOn})`);
+  // On rest days the plan has no workout and therefore no status buttons.
+  const restDay = await page.evaluate(() => !!document.querySelector('#v234Fitness [data-engine-today]') && !document.querySelector('#v234Fitness [data-engine-status]'));
+  if (restDay) console.log('  scenario SKIP: Fitness shows the Today mark (rest day in plan, no status buttons)');
+  else check(fitnessOn === 'done', `Fitness shows the Today mark (${fitnessOn})`);
 
   // 3. Fitness goal settings sheet is actually visible and has profile fields (v29.55).
   await page.click('.v234-tabs [data-v234="today"]');
