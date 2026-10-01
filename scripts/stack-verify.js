@@ -262,6 +262,9 @@ async function run() {
     const url = route.request().url();
     return url.startsWith(baseUrl) ? route.continue() : route.abort();
   });
+  // STACK_VERIFY_DATE=YYYY-MM-DD pins the app's clock so day-dependent
+  // scenarios (workout vs rest day) can be checked on any real weekday.
+  if (process.env.STACK_VERIFY_DATE) await context.clock.setFixedTime(new Date(`${process.env.STACK_VERIFY_DATE}T12:00:00`));
   const page = await context.newPage();
   const jsErrors = [];
   // Every external request (exchange-rate API, web fonts, favicon...) is
