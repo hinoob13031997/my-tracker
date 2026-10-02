@@ -94,6 +94,21 @@ html{-webkit-text-size-adjust:100%}
 #v234Fitness .fxa-kpi{padding:9px 8px}
 #v234Fitness .fxa-kpi b{font-size:17px}
 }`;
-function boot(){if(document.getElementById('stackV248Readability'))return;const style=document.createElement('style');style.id='stackV248Readability';style.textContent=css;document.head.appendChild(style);console.info('STACK',BUILD)}
+/* v29.74 type scale — one minimum for the whole mobile UI (was 7–10.5px): labels 11, meta 11.5, body 12, controls 11.5.
+   Roots are ids so the rules beat module-level styles; secondary grey is lifted to #9aa9bd. */
+const SCALE=(()=>{
+ const R={t:'#stackV29Root',d:'#screenTasks',f:'#v234Fitness',m:'#v25Finance',a:'#v29Analytics'};
+ const rule=(size,list,extra='')=>list.join(',')+`{font-size:${size}!important;${extra}}`;
+ const label=[`${R.t} .v29-kicker`,`${R.t} .v29-section-label`,`${R.d} .v233-kicker`,`${R.d} .v24-pulse span`,`${R.d} .v233-stat span`,`${R.d} .v233-marks-head span`,`${R.f} .v234-kicker`,`${R.f} .fx-eye`,`${R.f} .fxa-kpi span`,`${R.f} .fxi-goal-grid span`,`${R.f} .fxi-box span`,`${R.f} .v274-setup span`,`${R.f} .v2753-kicker`,`${R.m} .f25-kicker`,`${R.m} .f25-eye`,`${R.m} .f25-grid span`,`${R.m} .f25-inputs label`,`${R.a} .v29a-kicker`,`${R.a} .fx-eye`,`${R.a} .v29a-domain span`,`${R.a} .v29a-week span`,`${R.a} .v29a-tools span`];
+ const meta=[`${R.d} .v233-meta`,`${R.d} .v2212-meta span`,`${R.f} .v2753-kbju`,`${R.f} .v2753-note`,`${R.f} .v2753-day small`,`${R.f} .v274-setup p`,`${R.f} .v2753-top>span`,`${R.f} .v2752-history`,`${R.f} .fx-engine-ex small`,`${R.f} .fxa-kpi small`,`${R.f} .fxa-week span`,`${R.f} .fxi-box small`,`${R.f} .fx-goal-grid small`,`${R.m} .f25-goal small`,`${R.t} .v29-progress small`,`${R.a} .v29a-week small`,`${R.a} .v29a-verdict p`,`${R.a} .v29a-score small`];
+ const body=[`${R.f} .v2753-food`,`${R.f} .v2753-day`,`${R.f} .v2753-meal b`,`${R.f} .fxa-week b`];
+ const control=[`${R.d} .v2212-filters button`,`${R.d} .v233-process-add`,`${R.m} .f25-tabs button`,`${R.m} .f25-currencies button`,`${R.m} .f25-head button`,`${R.m} .v282-operation`,`${R.a} .v29a-onboard`,`${R.a} .v29a-toggle`,`${R.a} .v29a-tools button`,`${R.f} .v274-setup-actions button`,`${R.f} #v2753Ration .v2753-list article>button`,`${R.f} .v234-tabs button`];
+ const chip=[`${R.d} .v2212-pri`,`${R.d} .v233-pct`,`${R.f} .fx-goal-badge`,`${R.f} .fx-engine-chips span`,`${R.f} .fx-day-month`,`${R.f} .fx-engine-set-count`];
+ return '@media(max-width:720px){'
+  +rule('11px',label,'color:#9aa9bd')+rule('11.5px',meta,'color:#a8b5c7')+rule('12px',body)+rule('11.5px',control)+rule('11px',chip)
+  +rule('10px',[`${R.f} .fx-daystrip small`,'#stackVersion','#stackBackupToast'])
+  +rule('10.5px',['#stackV29Root .v29-nav button span'])
+  +'}'})();
+function boot(){if(document.getElementById('stackV248Readability'))return;const style=document.createElement('style');style.id='stackV248Readability';style.textContent=css;document.head.appendChild(style);const scale=document.createElement('style');scale.id='stackV2974TypeScale';scale.textContent=SCALE;document.head.appendChild(scale);console.info('STACK',BUILD)}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
