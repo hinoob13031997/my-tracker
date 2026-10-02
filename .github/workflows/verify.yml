@@ -1,0 +1,39 @@
+name: verify
+
+# Same checks CLAUDE.md asks for by hand: syntax of every script, then the headless
+# walkthrough (5 sections, Fitness tabs, behaviour scenarios, overflow, JS errors).
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Syntax check (node --check)
+        run: |
+          set -e
+          for f in *.js scripts/*.js; do node --check "$f"; done
+
+      - name: Install Playwright + Chromium
+        run: |
+          mkdir -p "$RUNNER_TEMP/pw"
+          cd "$RUNNER_TEMP/pw"
+          npm init -y > /dev/null
+          npm i playwright
+          npx playwright install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Headless verification
+        run: node scripts/stack-verify.js
+        env:
+          # pin the app's clock: workout vs rest day scenarios must not depend on the weekday CI runs on
+          STACK_VERIFY_DATE: '2026-10-02'

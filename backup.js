@@ -35,7 +35,7 @@ function saveBackup(snapshot){
 }
 async function backupPrevious(){try{if(typeof KEY==='undefined')return;const raw=localStorage.getItem(KEY);if(!raw)return;await saveBackup(JSON.parse(raw))}catch(e){}}
 function downloadBackup(){
-  try{if(typeof state==='undefined')throw new Error('state unavailable');const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'}),a=document.createElement('a'),stamp=new Date().toISOString().replace(/[:.]/g,'-');a.href=URL.createObjectURL(blob);a.download=`STACK_backup_${stamp}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);saveBackup(state);toast('✓ Резервная копия создана')}catch(e){toast('Не удалось создать копию',true)}
+  try{if(typeof state==='undefined')throw new Error('state unavailable');const D=globalThis.STACK_DATA,blob=new Blob([JSON.stringify(D?.exportFull?D.exportFull(state):state,null,2)],{type:'application/json'}),a=document.createElement('a'),stamp=new Date().toISOString().replace(/[:.]/g,'-');a.href=URL.createObjectURL(blob);a.download=`STACK_backup_${stamp}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);saveBackup(state);toast('✓ Резервная копия создана')}catch(e){toast('Не удалось создать копию',true)}
 }
 function installButton(){if(document.getElementById('stackBackupBtn'))return;const actions=document.querySelector('.actions');if(!actions)return;const btn=document.createElement('button');btn.className='btn';btn.id='stackBackupBtn';btn.type='button';btn.textContent='Резервная копия';btn.setAttribute('aria-label','Создать резервную копию данных STACK');btn.addEventListener('click',downloadBackup);actions.insertBefore(btn,actions.firstChild)}
 function wrapSave(){

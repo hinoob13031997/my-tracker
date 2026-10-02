@@ -22,7 +22,7 @@ async function fetchHistorical(date,c){
 }
 function fallbackEntry(date,c,kind){
   const r=Number(F()?.currentRate?.(c))||0;
-  return r?{rate:r,source:'current-fallback',rateDate:new Date().toISOString().slice(0,10),date:date||'',currency:c,kind:kind||'tx'}:null
+  return r?{rate:r,source:'current-fallback',rateDate:globalThis.STACK_DATA?.dateKey?.()||new Date().toISOString().slice(0,10),date:date||'',currency:c,kind:kind||'tx'}:null
 }
 function emitComplete(detail){
   try{window.dispatchEvent(new CustomEvent('stack:fx-repair-complete',{detail}))}catch(e){}

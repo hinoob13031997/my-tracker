@@ -232,6 +232,54 @@ async function runScenarios(page, baseUrl, note, fail) {
   await page.waitForTimeout(300);
   const foodLine = await page.evaluate(() => document.querySelector('[data-v29-food] b')?.textContent || '');
   check(/^\d+ \/ \d+ ккал$/.test(foodLine), `Today nutrition line (${foodLine})`);
+
+  // 7. Full backup round trip (v29.76): the export holds every stack_* key and the
+  //    real import path restores them, including the task card id that links a
+  //    task to its description/checklist.
+  const seeded = await page.evaluate(() => {
+    const d = STACK_DATA.dateKey();
+    state.journal.push({ date: d, task: 'verify backup task', due: d, priority: 'Средний', status: 'Не начато', note: '', __v227id: 'tverifybackup' });
+    save();
+    localStorage.setItem('stack_task_details_v227', JSON.stringify({ tverifybackup: { description: 'verify description', checklist: [{ text: 'a', done: true }] } }));
+    localStorage.setItem('stack_fitness_workout_2026-01-02', 'skip');
+    localStorage.setItem('stack_fx_cbr_v1', JSON.stringify({ USD: 99 }));
+    const full = STACK_DATA.exportFull(state);
+    const snap = {};
+    for (const k of Object.keys(full.storage)) snap[k] = full.storage[k];
+    return { full, snap };
+  });
+  const keys = Object.keys(seeded.full.storage);
+  check(seeded.full.format === 'stack-full-backup' && seeded.full.state.journal.some((t) => t.__v227id === 'tverifybackup'), 'export is a full backup with the main state');
+  check(['stack_task_details_v227', 'stack_fitness_nutrition_v2310', 'stack_fitness_workout_2026-01-02'].every((k) => keys.includes(k)), `export carries Fitness/nutrition/task-detail keys (${keys.join(', ')})`);
+  check(!keys.includes('stack_neon_mix9_calendar_v1') && !keys.includes('stack_fx_cbr_v1'), 'export leaves the main key out of storage and skips the FX cache');
+  await page.evaluate(() => {
+    for (const k of ['stack_task_details_v227', 'stack_fitness_nutrition_v2310', 'stack_fitness_workout_2026-01-02']) localStorage.removeItem(k);
+    window.__stackVerifyPreImport = 1;
+  });
+  const onDialog = (dialog) => dialog.accept().catch(() => {});
+  page.on('dialog', onDialog);
+  await page.setInputFiles('#fileInput', { name: 'backup.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(seeded.full)) });
+  await page.waitForFunction(() => !window.__stackVerifyPreImport, null, { timeout: 15000 });
+  page.off('dialog', onDialog);
+  await page.waitForSelector('.v29-nav', { timeout: 15000 });
+  await page.waitForTimeout(800);
+  const restored = await page.evaluate((snap) => ({
+    same: Object.keys(snap).every((k) => localStorage.getItem(k) === snap[k]),
+    taskId: state.journal.some((t) => t.task === 'verify backup task' && t.__v227id === 'tverifybackup'),
+    details: JSON.parse(localStorage.getItem('stack_task_details_v227') || '{}').tverifybackup?.description,
+  }), seeded.snap);
+  check(restored.same && restored.taskId && restored.details === 'verify description', `import restores every key and keeps the task card id (${JSON.stringify(restored)})`);
+
+  // 7b. Files written by older builds (the bare state object, no `format`) still import, without a reload.
+  const legacyState = { ...seeded.full.state, goal: 0.7 };
+  const legacyDialogs = [];
+  const onLegacyDialog = (dialog) => { legacyDialogs.push(dialog.type()); dialog.accept().catch(() => {}); };
+  page.on('dialog', onLegacyDialog);
+  await page.setInputFiles('#fileInput', { name: 'legacy.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(legacyState)) });
+  await page.waitForTimeout(800);
+  page.off('dialog', onLegacyDialog);
+  const legacy = await page.evaluate(() => ({ goal: state.goal, taskId: state.journal.some((t) => t.__v227id === 'tverifybackup') }));
+  check(legacy.goal === 0.7 && legacy.taskId && legacyDialogs.join() === 'alert', `legacy state-only file still imports (goal ${legacy.goal}, dialogs: ${legacyDialogs.join() || 'none'})`);
 }
 
 async function run() {
@@ -350,6 +398,26 @@ async function run() {
     if (frameOk && !parentRunsApp) note('  desktop OK: app in phone-width frame, parent page runs no app code');
     else fail(`desktop frame (frame=${!!frame}, frameOk=${frameOk}, parentRunsApp=${parentRunsApp})`);
     await desk.close();
+
+    // Local day, not the UTC day (v29.76): at 01:30 in Moscow the UTC date is still yesterday,
+    // which put «+ Операция» on the previous day (and, on the 1st, in the previous month).
+    const tz = await browser.newContext({ viewport: { width: args.width, height: args.height }, isMobile: true, hasTouch: true, serviceWorkers: 'block', timezoneId: 'Europe/Moscow' });
+    await tz.route('**/*', (route) => (route.request().url().startsWith(baseUrl) ? route.continue() : route.abort()));
+    await tz.clock.setFixedTime(new Date('2026-10-01T22:30:00Z'));
+    const tp = await tz.newPage();
+    tp.on('pageerror', (e) => jsErrors.push('[timezone] ' + e.message));
+    await tp.goto(`${baseUrl}/index.html`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+    await tp.waitForSelector('.v29-nav', { timeout: 15000 });
+    const txDate = await tp.evaluate(() => {
+      state.savings.goals.push({ id: 'gverify', name: 'verify', target: 1000, start: 0, monthly: 0, deadline: '', currency: 'RUB', color: '#0877f3', icon: 'home', tx: [] });
+      state.savings.selectedId = 'gverify';
+      state.savings.currency = 'RUB';
+      openSavingsTx(1);
+      return stDate.value;
+    });
+    if (txDate === '2026-10-02') note('  scenario OK: «+ Операция» defaults to the local day at 01:30 MSK (2026-10-02)');
+    else fail(`scenario: «+ Операция» default date at 01:30 MSK is ${txDate}, expected 2026-10-02`);
+    await tz.close();
 
     if (jsErrors.length) {
       for (const e of jsErrors) fail('JS error: ' + e);

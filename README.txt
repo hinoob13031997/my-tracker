@@ -1,13 +1,17 @@
-STACK v27.0 — Intelligence Foundation
+STACK — персональная система управления жизнью и работой (PWA).
+Процессы, задачи, Fitness, питание, финансы, аналитика.
 
-Core: Data Core 2.0 compatibility layer, Process Intelligence, cross-domain STACK Score, STACK Insight, Weekly Review, 90-day focus onboarding, recovery guard and unified PWA build 27.0.0.
+Прод: GitHub Pages, ветка main, корень репозитория.
+Версия: BUILD в sw.js и VERSION в stack-persistence.js (меняются вместе при каждом изменении JS).
 
-Data migration policy: non-destructive. Existing localStorage keys remain compatible; v27 reads them through a unified schema-2 layer.
+Данные хранятся только на устройстве (localStorage + IndexedDB), на сервер ничего не уходит.
+Резервная копия: Аналитика → «Данные» → «Резервная копия» или «Экспорт» — один файл
+со всеми данными приложения (процессы, задачи, финансы, Fitness, питание).
+Импорт принимает и такие файлы, и копии старых версий.
 
-Product position: personal management system — processes, tasks, finance, fitness and trajectory, not just a habit tracker.
-
-Release note: v27 keeps the compatibility filename stack-v26-deals-intelligence.js as the existing index loader; it dynamically loads stack-v27-core.js.
-
-PWA note: precache installation is resilient — one missing optional asset no longer aborts the entire service-worker install.
-
-Release candidate prepared on stack-v27-intelligence.
+Для разработки:
+- CLAUDE.md — правила проекта, архитектура v29, контракты данных.
+- STACK_HANDOFF.md — журнал последних изменений между сессиями.
+- Проверка: node --check <файл>.js, затем node scripts/stack-verify.js (нужен Playwright).
+  То же самое выполняет CI (.github/workflows/verify.yml) на каждый PR.
+- Выпуск: PR в main (squash) → GitHub Pages; после мержа полностью закрыть и открыть приложение.

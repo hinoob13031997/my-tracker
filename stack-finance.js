@@ -1,7 +1,7 @@
 /* STACK Finance Engine v1 — pure calculations on STACK_DATA. No DOM, no writes. */
 (()=>{'use strict';
 const D=()=>globalThis.STACK_DATA;
-function monthKey(v){return /^\d{4}-\d{2}$/.test(String(v||''))?String(v):new Date().toISOString().slice(0,7)}
+function monthKey(v){return /^\d{4}-\d{2}$/.test(String(v||''))?String(v):(D()?.dateKey?.()||new Date().toISOString().slice(0,10)).slice(0,7)}
 function incomeMonth(k){k=monthKey(k);const x=D()?.income?.()||{};const income=Number(x.values?.[k])||0,expenses=Number(x.expenses?.[k])||0,reserve=Number(x.reserve?.[k])||0;return {key:k,income,expenses,reserve,free:Math.max(0,income-expenses-reserve)}}
 function savedNative(currency,k){return Number(D()?.savedNative?.(currency,monthKey(k)))||0}
 function savedRub(k){return savedNative('RUB',k)}

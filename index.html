@@ -1780,7 +1780,7 @@ function saveSavingsGoal(){
 }
 function openSavingsTx(t){
  setSavError('stError');if(!selectedSavingsGoal()){alert('Сначала создайте цель');return}
- savTxType=t;savTxTitle.textContent=t>0?'ПОПОЛНЕНИЕ':'СНЯТИЕ';stAmount.value='';stNote.value='';stDate.value=new Date().toISOString().slice(0,10);savTxModal.classList.add('active')
+ savTxType=t;savTxTitle.textContent=t>0?'ПОПОЛНЕНИЕ':'СНЯТИЕ';stAmount.value='';stNote.value='';stDate.value=window.STACK_DATA?.dateKey?.()||new Date().toISOString().slice(0,10);savTxModal.classList.add('active')
 }
 function saveSavingsTx(){
  setSavError('stError');const g=selectedSavingsGoal(),amt=Math.max(0,+stAmount.value||0);if(!g){setSavError('stError','Сначала создайте цель.');return}if(amt<=0){setSavError('stError','Введите сумму больше нуля.');return}if(savTxType<0&&amt>goalBalance(g)){setSavError('stError','Нельзя снять больше, чем сейчас накоплено.');return}if(!stDate.value){setSavError('stError','Укажите дату операции.');return}
@@ -1836,7 +1836,7 @@ document.getElementById('editFromDetail').onclick=()=>{
 };
 document.getElementById('addProcess').onclick=addProcess;
 document.getElementById('addJournal').onclick=()=>{state.journal.push({priority:'Средний',status:'Не начато'});save();renderJournal()};
-document.getElementById('exportBtn').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(state,null,2)],{type:'application/json'}));a.download='STACK_backup_'+new Date().toISOString().slice(0,10)+'.json';a.click()};
+document.getElementById('exportBtn').onclick=()=>{const D=window.STACK_DATA,a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(D?.exportFull?D.exportFull(state):state,null,2)],{type:'application/json'}));a.download='STACK_backup_'+(D?.dateKey?D.dateKey():new Date().toISOString().slice(0,10))+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
 
 function validateImportedState(x){
  if(!x||typeof x!=='object')throw new Error('Неверный формат');
@@ -1863,7 +1863,9 @@ function validateImportedState(x){
    due:String(j?.due??'').slice(0,10),
    priority:['Высокий','Средний','Низкий'].includes(j?.priority)?j.priority:'Средний',
    status:['Не начато','В работе','Готово'].includes(j?.status)?j.status:'Не начато',
-   note:String(j?.note??'').slice(0,500)
+   note:String(j?.note??'').slice(0,500),
+   /* id of the task card in stack_task_details_v227 (description, checklist): dropping it orphaned them */
+   ...(typeof j?.__v227id==='string'&&j.__v227id?{__v227id:j.__v227id.slice(0,40)}:{})
  })):[];
  
  clean.savings=(x.savings&&typeof x.savings==='object')?{
@@ -1891,16 +1893,23 @@ function validateImportedState(x){
 
 document.getElementById('importBtn').onclick=()=>document.getElementById('fileInput').click();
 document.getElementById('fileInput').onchange=e=>{
- const f=e.target.files[0];if(!f)return;
+ const input=e.target,f=input.files[0];if(!f)return;
  const r=new FileReader();
  r.onload=()=>{
+   input.value='';
    try{
-     const parsed=JSON.parse(r.result);
-     state=validateImportedState(parsed);
+     const parsed=JSON.parse(r.result),D=window.STACK_DATA,full=D?.isFullBackup?.(parsed)?parsed:null;
+     /* validate first: a bad file must not touch any stored data */
+     const next=validateImportedState(full?full.state:parsed);
+     if(full&&!confirm('Импорт заменит текущие данные (задачи, финансы, Fitness, питание) данными из файла. Продолжить?'))return;
+     if(full)D.importStorage(full.storage);
+     state=next;
      normalize();save();loadFxCache();
 const startupMonth=dateToMonthIndex(new Date());
 if(startupMonth>=0 && !sessionStorage.getItem('stack_month_manual'))state.currentMonth=startupMonth;
-renderAll();alert('Импорт выполнен')
+renderAll();alert('Импорт выполнен');
+     /* every module caches its own keys: a full restore re-reads them all; wait for the IndexedDB copy so it cannot resurrect old data */
+     if(full)idbSaveState(state).finally(()=>location.reload())
    }catch(err){alert('Ошибка файла: '+(err?.message||'неверный формат'))}
  };
  r.readAsText(f)
