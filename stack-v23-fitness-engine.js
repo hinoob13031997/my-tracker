@@ -191,7 +191,6 @@ function enhanceSettings(){
 
 function draw(){
  const root=document.getElementById('v234Fitness'),tab=root?.querySelector('[data-v234].on')?.dataset.v234,body=root?.querySelector(tab==='progress'?'#v234Progress':tab==='today'?'#v234Today':tab==='nutrition'?'#v234Nutrition':'.v234-body');if(!root||!body||!tab)return;fixGoalCard(body);enhanceSettings();const v=goal();
- root.classList.toggle('fx-engine-owned-program',v.training==='stack'&&tab==='program');
  if(v.training==='stack'&&tab==='today'){const view=body.querySelector('#fxDayView'),old=view?.querySelector(':scope > .fx-card.fx-pad');if(view&&old&&!view.querySelector('[data-engine-today]'))old.outerHTML=todayCard(selectedDate(),workoutFor(selectedDate()));}
  if(v.training==='stack'&&tab==='program'&&!body.querySelector('[data-engine-program]')){const anchor=body.querySelector('[data-goal-card]');if(anchor)anchor.insertAdjacentHTML('afterend',programCard());else body.insertAdjacentHTML('afterbegin',programCard())}
  if(tab==='progress'&&!body.querySelector('[data-engine-progress]')){const anchor=body.querySelector('[data-goal-card]');if(anchor)anchor.insertAdjacentHTML('afterend',analyticsCard());else body.insertAdjacentHTML('afterbegin',analyticsCard())}
@@ -202,6 +201,6 @@ document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)r
 window.addEventListener('stack:fitness-library-change',refresh);window.addEventListener('stack:data-changed',e=>{if(e.detail?.source==='v29-shell')refresh()});
 function summary(date=new Date()){const week=weekNo(date),phase=phaseFor(week),text=phaseText(phase),workout=workoutFor(date);if(!workout)return Object.freeze({planned:false,name:'День восстановления',week,phase:text.name,deload:deload(week),count:0});return Object.freeze({planned:true,name:(workout.light?'Разгрузка · ':'')+workout.name,week,phase:text.name,deload:workout.light,count:workout.ids.length,cycle:workout.cycle})}
 globalThis.STACK_FITNESS=Object.freeze({build:BUILD,summary});
-const style=document.createElement('style');style.id='v2320EngineStyle';style.textContent=css+'@media(max-width:720px){.fx-engine-owned-program .v234-body>.fx-program,.fx-engine-owned-program .v234-body>.fx-program+.fx-note{display:none!important}}';document.head.appendChild(style);
+const style=document.createElement('style');style.id='v2320EngineStyle';style.textContent=css;document.head.appendChild(style);
 let queued=false;function schedule(){if(queued)return;queued=true;queueMicrotask(()=>{queued=false;draw()})}globalThis.STACK_FITNESS_SCREEN?.onRender(draw,30);draw();console.info('STACK',BUILD);
 })();
