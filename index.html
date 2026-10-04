@@ -806,9 +806,9 @@ body:has(#screenSavings.active) .app,body.savings-active .app{padding-top:max(6p
 
   
 <div class="app-modal" id="savGoalModal"><div class="modal-card"><div class="modal-head"><strong>ЦЕЛЬ НАКОПЛЕНИЯ</strong><button class="modal-close" data-close-sav="savGoalModal">×</button></div>
-<div class="form-row"><label>Название</label><input id="sgName"></div><div class="form-row"><label>Сумма цели</label><input id="sgTarget" type="number" min="0"></div><div class="form-row"><label>Уже накоплено</label><input id="sgStart" type="number" min="0"></div><div class="form-row"><label>План в месяц</label><input id="sgMonthly" type="number" min="0"></div><div class="form-row"><label>Срок</label><input id="sgDeadline" type="date"></div><div class="form-row"><label>Значок цели</label><div class="goal-icon-picker" id="sgIconPicker"></div></div>
+<div class="form-row"><label>Название</label><input id="sgName" maxlength="120"></div><div class="form-row"><label>Сумма цели</label><input id="sgTarget" type="number" min="0"></div><div class="form-row"><label>Уже накоплено</label><input id="sgStart" type="number" min="0"></div><div class="form-row"><label>План в месяц</label><input id="sgMonthly" type="number" min="0"></div><div class="form-row"><label>Срок</label><input id="sgDeadline" type="date"></div><div class="form-row"><label>Значок цели</label><div class="goal-icon-picker" id="sgIconPicker"></div></div>
 <div class="form-row"><label>Валюта</label><select id="sgCurrency"><option value="RUB">₽ Рубли</option><option value="USD">$ Доллары</option><option value="EUR">€ Евро</option></select></div><div class="sav-form-error" id="sgError"></div><button class="btn" id="sgSave" style="width:100%">Сохранить</button></div></div>
-<div class="app-modal" id="savTxModal"><div class="modal-card"><div class="modal-head"><strong id="savTxTitle">ПОПОЛНЕНИЕ</strong><button class="modal-close" data-close-sav="savTxModal">×</button></div><div class="form-row"><label>Сумма</label><input id="stAmount" type="number" min="0"></div><div class="form-row"><label>Дата</label><input id="stDate" type="date"></div><div class="form-row"><label>Комментарий</label><input id="stNote"></div><div class="sav-form-error" id="stError"></div><button class="btn" id="stSave" style="width:100%">Сохранить</button></div></div>
+<div class="app-modal" id="savTxModal"><div class="modal-card"><div class="modal-head"><strong id="savTxTitle">ПОПОЛНЕНИЕ</strong><button class="modal-close" data-close-sav="savTxModal">×</button></div><div class="form-row"><label>Сумма</label><input id="stAmount" type="number" min="0"></div><div class="form-row"><label>Дата</label><input id="stDate" type="date"></div><div class="form-row"><label>Комментарий</label><input id="stNote" maxlength="120"></div><div class="sav-form-error" id="stError"></div><button class="btn" id="stSave" style="width:100%">Сохранить</button></div></div>
 
   <div class="app-modal process-modal" id="processModal" role="dialog" aria-modal="true">
     <div class="modal-card">
@@ -861,6 +861,8 @@ const STACK_BUILD='v20-final-2026-08-26';
 
 
 const MONTHS=[['Август 2026',2026,7,31],['Сентябрь 2026',2026,8,30],['Октябрь 2026',2026,9,31],['Ноябрь 2026',2026,10,30],['Декабрь 2026',2026,11,31],['Январь 2027',2027,0,31],['Февраль 2027',2027,1,28],['Март 2027',2027,2,31],['Апрель 2027',2027,3,30],['Май 2027',2027,4,31],['Июнь 2027',2027,5,30],['Июль 2027',2027,6,31]];
+/* Caps applied on load/import. They must never be lower than what the UI accepts: the old 1000-task cap dropped the newest tasks (the journal grows at the end), and 120/500-char cuts silently shortened saved notes. */
+const JOURNAL_MAX=10000,TASK_NOTE_MAX=5000;
 const PALETTE=['#f12bb8','#9133e4','#0877f3','#0eb1db','#68a83f','#db6834','#7361dd','#24a77c','#c94f8e','#3d8bd6','#96ad3f','#b866d5'];
 const KEY='stack_neon_mix9_calendar_v1';
 function esc(v){
@@ -956,7 +958,7 @@ function migrateStoredState(x){
    currentMonth:Number.isInteger(+x.currentMonth)?Math.max(0,Math.min(11,+x.currentMonth)):0,
    processes,
    months:[],
-   journal:Array.isArray(x.journal)?x.journal.slice(0,1000):[],
+   journal:Array.isArray(x.journal)?x.journal.slice(0,JOURNAL_MAX):[],
    savings:(x.savings&&typeof x.savings==='object')?{
      currency:['RUB','USD','EUR'].includes(x.savings.currency)?x.savings.currency:'RUB',
      selectedId:x.savings.selectedId||null,
@@ -1857,13 +1859,13 @@ function validateImportedState(x){
    const srcArr=Array.isArray(x.months?.[mi]?.[pi])?x.months[mi][pi]:[];
    return Array.from({length:m[3]},(_,d)=>validMark(srcArr[d])?srcArr[d]:'')
  }));
- clean.journal=Array.isArray(x.journal)?x.journal.slice(0,1000).map(j=>({
+ clean.journal=Array.isArray(x.journal)?x.journal.slice(0,JOURNAL_MAX).map(j=>({
    date:String(j?.date??'').slice(0,10),
    task:String(j?.task??'').slice(0,300),
    due:String(j?.due??'').slice(0,10),
    priority:['Высокий','Средний','Низкий'].includes(j?.priority)?j.priority:'Средний',
    status:['Не начато','В работе','Готово'].includes(j?.status)?j.status:'Не начато',
-   note:String(j?.note??'').slice(0,500),
+   note:String(j?.note??'').slice(0,TASK_NOTE_MAX),
    /* id of the task card in stack_task_details_v227 (description, checklist): dropping it orphaned them */
    ...(typeof j?.__v227id==='string'&&j.__v227id?{__v227id:j.__v227id.slice(0,40)}:{})
  })):[];

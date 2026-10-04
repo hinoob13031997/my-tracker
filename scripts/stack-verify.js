@@ -280,6 +280,25 @@ async function runScenarios(page, baseUrl, note, fail) {
   page.off('dialog', onLegacyDialog);
   const legacy = await page.evaluate(() => ({ goal: state.goal, taskId: state.journal.some((t) => t.__v227id === 'tverifybackup') }));
   check(legacy.goal === 0.7 && legacy.taskId && legacyDialogs.join() === 'alert', `legacy state-only file still imports (goal ${legacy.goal}, dialogs: ${legacyDialogs.join() || 'none'})`);
+
+  // 8. Nothing the UI accepted is cut silently (v29.77): the journal used to be capped at 1000 on load —
+  //    the newest tasks (appended last) vanished — and long notes were shortened on load/import.
+  await page.evaluate(() => {
+    for (let i = 0; i < 1100; i++) state.journal.push({ date: '2026-10-04', task: 'bulk ' + i, due: '', priority: 'Средний', status: 'Не начато', note: 'n'.repeat(700) });
+    save();
+  });
+  await reload(page, baseUrl);
+  const bulk = await page.evaluate(() => {
+    const viaImport = validateImportedState(JSON.parse(JSON.stringify(state)));
+    return {
+      loaded: state.journal.length, last: state.journal[state.journal.length - 1].task, note: state.journal[state.journal.length - 1].note.length,
+      imported: viaImport.journal.length, importedNote: viaImport.journal[viaImport.journal.length - 1].note.length,
+      limits: [document.getElementById('sgName').maxLength, document.getElementById('stNote').maxLength],
+    };
+  });
+  check(bulk.loaded >= 1100 && bulk.last === 'bulk 1099' && bulk.note === 700, `1100+ tasks survive a reload, newest included (${bulk.loaded}, last «${bulk.last}»)`);
+  check(bulk.imported === bulk.loaded && bulk.importedNote === 700, `import keeps all tasks and the full 700-char note (${bulk.imported}, ${bulk.importedNote})`);
+  check(bulk.limits.join() === '120,120', `goal name / transaction note inputs stop at the length that is kept on load (${bulk.limits.join()})`);
 }
 
 async function run() {
