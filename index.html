@@ -861,6 +861,11 @@ const STACK_BUILD='v20-final-2026-08-26';
 
 
 const MONTHS=[['Август 2026',2026,7,31],['Сентябрь 2026',2026,8,30],['Октябрь 2026',2026,9,31],['Ноябрь 2026',2026,10,30],['Декабрь 2026',2026,11,31],['Январь 2027',2027,0,31],['Февраль 2027',2027,1,28],['Март 2027',2027,2,31],['Апрель 2027',2027,3,30],['Май 2027',2027,4,31],['Июнь 2027',2027,5,30],['Июль 2027',2027,6,31]];
+/* The calendar starts in Aug 2026 (index 0 never moves) and ended in Jul 2027: from 1 Aug 2027 dateToMonthIndex() was -1 and no mark could be saved.
+   Months are only ever APPENDED, so every existing index and all stored data stay where they are: up to CALENDAR_LOOKAHEAD months past today, or as many as a loaded/imported state already holds. */
+const MONTH_NAMES_RU=['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'],CALENDAR_LOOKAHEAD=3,CALENDAR_MAX_MONTHS=600;/* 50 years: a sanity bound for a damaged file, never reached in use */
+function extendMonthsTo(count){count=Math.min(count,CALENDAR_MAX_MONTHS);while(MONTHS.length<count){const i=MONTHS.length,y=2026+Math.floor((7+i)/12),m=(7+i)%12;MONTHS.push([MONTH_NAMES_RU[m]+' '+y,y,m,new Date(y,m+1,0).getDate()])}}
+extendMonthsTo((new Date().getFullYear()-2026)*12+new Date().getMonth()-7+1+CALENDAR_LOOKAHEAD);
 /* Caps applied on load/import. They must never be lower than what the UI accepts: the old 1000-task cap dropped the newest tasks (the journal grows at the end), and 120/500-char cuts silently shortened saved notes. */
 const JOURNAL_MAX=10000,TASK_NOTE_MAX=5000;
 const PALETTE=['#f12bb8','#9133e4','#0877f3','#0eb1db','#68a83f','#db6834','#7361dd','#24a77c','#c94f8e','#3d8bd6','#96ad3f','#b866d5'];
@@ -943,6 +948,7 @@ function load(){
 function migrateStoredState(x){
  const base=fresh();
  if(!x||typeof x!=='object')return base;
+ if(Array.isArray(x.months))extendMonthsTo(x.months.length);
  const processes=Array.isArray(x.processes)&&x.processes.length
    ? x.processes.slice(0,500).map((p,i)=>({
        name:String(p?.name??'').slice(0,120),
@@ -955,7 +961,7 @@ function migrateStoredState(x){
    : base.processes;
  const clean={
    goal:Number.isFinite(+x.goal)?Math.max(0,Math.min(1,+x.goal)):.8,
-   currentMonth:Number.isInteger(+x.currentMonth)?Math.max(0,Math.min(11,+x.currentMonth)):0,
+   currentMonth:Number.isInteger(+x.currentMonth)?Math.max(0,Math.min(MONTHS.length-1,+x.currentMonth)):0,
    processes,
    months:[],
    journal:Array.isArray(x.journal)?x.journal.slice(0,JOURNAL_MAX):[],
@@ -990,6 +996,7 @@ function normalize(){
  if(!state||typeof state!=='object')state=fresh();
  if(!Array.isArray(state.processes)||!state.processes.length)state.processes=fresh().processes;
  if(!Array.isArray(state.months))state.months=[];
+ extendMonthsTo(state.months.length);
  state.months=MONTHS.map((m,mi)=>{
    const oldMonth=Array.isArray(state.months[mi])?state.months[mi]:[];
    return state.processes.map((_,pi)=>{
@@ -1197,6 +1204,8 @@ function renderTodayScreen(){
  });
  root.querySelectorAll('[data-open-detail]').forEach(x=>x.onclick=()=>openProcessDetail(+x.dataset.openDetail))
 }
+/* Year charts show 12 months: Aug 2026–Jul 2027 first, then the 12 months ending at the current one. */
+function chartMonths(){const end=Math.min(MONTHS.length-1,Math.max(11,dateToMonthIndex(new Date())));return Array.from({length:12},(_,k)=>end-11+k)}
 function processDetailData(p){
  const rates=MONTHS.map((_,m)=>pm(m,p));
  const active=rates.filter(v=>v!==null);
@@ -1220,13 +1229,14 @@ function openProcessDetail(p){
  renderProcessDetailChart(p,d.rates);
  modal.classList.add('active')
 }
-function renderProcessDetailChart(p,rates){
+function renderProcessDetailChart(p,allRates){
+ const idx=chartMonths(),rates=idx.map(i=>allRates[i]);
  const svg=document.getElementById('detailChart'),W=700,H=180,L=30,R=10,T=15,B=25,w=W-L-R,h=H-T-B;
  const vals=rates.map(v=>v??0),pts=vals.map((v,i)=>[L+i*w/11,T+(1-v)*h]);
  let z=`<defs><linearGradient id="detailLine"><stop stop-color="${state.processes[p].color}"/><stop offset="1" stop-color="#f12bb8"/></linearGradient></defs>`;
  for(let i=0;i<5;i++){const y=T+i*h/4;z+=`<line x1="${L}" x2="${W-R}" y1="${y}" y2="${y}" stroke="#142137"/><text x="1" y="${y+2}" class="axis">${100-i*25}%</text>`}
  z+=`<path d="${monotoneSvgPath(pts)}" fill="none" stroke="url(#detailLine)" stroke-width="3" stroke-linecap="round"/>`;
- pts.forEach((pt,i)=>{z+=`<circle cx="${pt[0]}" cy="${pt[1]}" r="3" fill="${rates[i]===null?'#293246':state.processes[p].color}"/><text x="${pt[0]}" y="${H-6}" text-anchor="middle" class="axis">${MONTHS[i][0].slice(0,3)}</text>`});
+ pts.forEach((pt,i)=>{z+=`<circle cx="${pt[0]}" cy="${pt[1]}" r="3" fill="${rates[i]===null?'#293246':state.processes[p].color}"/><text x="${pt[0]}" y="${H-6}" text-anchor="middle" class="axis">${MONTHS[idx[i]][0].slice(0,3)}</text>`});
  svg.innerHTML=z
 }
 
@@ -1287,7 +1297,7 @@ function renderKPIs(){
  const root=document.getElementById('kpis');root.innerHTML='';data.forEach((d,i)=>{const el=document.createElement('div');el.className='neon kpi';
  const extra=i===5&&todayStats().monthIndex>=0?`<small style="color:#777f90">${new Date().toLocaleDateString('ru-RU',{day:'2-digit',month:'long'})}</small>`:'';
  el.innerHTML=`<h3>${d[0]}</h3><div class="ring" style="--v:${d[1]*100};--c1:${d[4]};--c2:${d[5]}"><span style="color:${d[6]}">${i===4?`<input id="goalInput" class="goal" value="${pct(state.goal)}">%`:d[2]}</span></div><small class="${i===6?'good':''}">${d[3]}</small>${extra}`;root.appendChild(el)});const g=document.getElementById('goalInput');if(g)g.onchange=()=>{state.goal=Math.max(0,Math.min(1,(parseFloat(g.value)||80)/100));save();renderAll()}}
-function renderChart(){const vals=MONTHS.map((_,i)=>mm(i)??0),svg=document.getElementById('chart'),W=500,H=118,L=25,T=8,B=15,w=468,h=92,pts=vals.map((v,i)=>[L+i*w/11,T+(1-v)*h]);let z='<defs><linearGradient id="lg"><stop stop-color="#0877f3"/><stop offset=".5" stop-color="#9133e4"/><stop offset="1" stop-color="#f12bb8"/></linearGradient><linearGradient id="ag" x2="0" y2="1"><stop stop-color="#9133e4" stop-opacity=".34"/><stop offset=".5" stop-color="#0877f3" stop-opacity=".10"/><stop offset="1" stop-color="#9133e4" stop-opacity="0"/></linearGradient><filter id="gl"><feGaussianBlur stdDeviation="1.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>';for(let i=0;i<5;i++){const y=T+i*h/4;z+=`<line x1="${L}" x2="493" y1="${y}" y2="${y}" stroke="#121d30"/><text x="1" y="${y+2}" class="axis">${100-i*25}%</text>`}const line=pts.map((p,i)=>(i?'L':'M')+p.join(',')).join(' '),area=`M${pts[0][0]},101 `+pts.map(p=>`L${p[0]},${p[1]}`).join(' ')+` L${pts.at(-1)[0]},101Z`;z+=`<path d="${area}" fill="url(#ag)"/><path d="${line}" fill="none" stroke="url(#lg)" stroke-width="2" filter="url(#gl)"/>`;pts.forEach((p,i)=>{z+=`<circle cx="${p[0]}" cy="${p[1]}" r="2.8" fill="${i<3?'#0877f3':'#f12bb8'}" filter="url(#gl)"/>`;if(vals[i])z+=`<text x="${p[0]}" y="${p[1]-4}" text-anchor="middle" fill="#e7e9ef" font-size="5.7">${pct(vals[i])}%</text>`;z+=`<text x="${p[0]}" y="115" text-anchor="middle" class="axis">${MONTHS[i][0].slice(0,3)}</text>`});svg.innerHTML=z}
+function renderChart(){const idx=chartMonths(),vals=idx.map(i=>mm(i)??0),svg=document.getElementById('chart'),W=500,H=118,L=25,T=8,B=15,w=468,h=92,pts=vals.map((v,i)=>[L+i*w/11,T+(1-v)*h]);let z='<defs><linearGradient id="lg"><stop stop-color="#0877f3"/><stop offset=".5" stop-color="#9133e4"/><stop offset="1" stop-color="#f12bb8"/></linearGradient><linearGradient id="ag" x2="0" y2="1"><stop stop-color="#9133e4" stop-opacity=".34"/><stop offset=".5" stop-color="#0877f3" stop-opacity=".10"/><stop offset="1" stop-color="#9133e4" stop-opacity="0"/></linearGradient><filter id="gl"><feGaussianBlur stdDeviation="1.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>';for(let i=0;i<5;i++){const y=T+i*h/4;z+=`<line x1="${L}" x2="493" y1="${y}" y2="${y}" stroke="#121d30"/><text x="1" y="${y+2}" class="axis">${100-i*25}%</text>`}const line=pts.map((p,i)=>(i?'L':'M')+p.join(',')).join(' '),area=`M${pts[0][0]},101 `+pts.map(p=>`L${p[0]},${p[1]}`).join(' ')+` L${pts.at(-1)[0]},101Z`;z+=`<path d="${area}" fill="url(#ag)"/><path d="${line}" fill="none" stroke="url(#lg)" stroke-width="2" filter="url(#gl)"/>`;pts.forEach((p,i)=>{z+=`<circle cx="${p[0]}" cy="${p[1]}" r="2.8" fill="${i<3?'#0877f3':'#f12bb8'}" filter="url(#gl)"/>`;if(vals[i])z+=`<text x="${p[0]}" y="${p[1]-4}" text-anchor="middle" fill="#e7e9ef" font-size="5.7">${pct(vals[i])}%</text>`;z+=`<text x="${p[0]}" y="115" text-anchor="middle" class="axis">${MONTHS[idx[i]][0].slice(0,3)}</text>`});svg.innerHTML=z}
 
 function dayProgressForMonth(mi,dayIndex){
  const vals=state.processes.map((_,p)=>state.months?.[mi]?.[p]?.[dayIndex]||'');
@@ -1844,9 +1854,10 @@ function validateImportedState(x){
  if(!x||typeof x!=='object')throw new Error('Неверный формат');
  if(!Array.isArray(x.processes)||!Array.isArray(x.months))throw new Error('Нет процессов или месяцев');
  if(x.processes.length<1||x.processes.length>500)throw new Error('Некорректное число процессов');
+ extendMonthsTo(x.months.length);
  const clean=fresh();
  clean.goal=Number.isFinite(+x.goal)?Math.max(0,Math.min(1,+x.goal)):.8;
- clean.currentMonth=Number.isInteger(+x.currentMonth)?Math.max(0,Math.min(11,+x.currentMonth)):0;
+ clean.currentMonth=Number.isInteger(+x.currentMonth)?Math.max(0,Math.min(MONTHS.length-1,+x.currentMonth)):0;
  clean.processes=x.processes.map((p,i)=>({
    name:String(p?.name??'').slice(0,120),
    goal:Number.isFinite(+p?.goal)?Math.max(0,Math.min(1,+p.goal)):.8,

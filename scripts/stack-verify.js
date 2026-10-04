@@ -438,6 +438,72 @@ async function run() {
     else fail(`scenario: «+ Операция» default date at 01:30 MSK is ${txDate}, expected 2026-10-02`);
     await tz.close();
 
+    // Calendar window (v29.78): it used to end in Jul 2027 — from 1 Aug 2027 no mark could be saved, silently.
+    // Opens the app on later dates with a stored 12-month state and checks the window grows by appending only.
+    const MD = [['Август', 2026, 7, 31], ['Сентябрь', 2026, 8, 30], ['Октябрь', 2026, 9, 31], ['Ноябрь', 2026, 10, 30], ['Декабрь', 2026, 11, 31], ['Январь', 2027, 0, 31], ['Февраль', 2027, 1, 28], ['Март', 2027, 2, 31], ['Апрель', 2027, 3, 30], ['Май', 2027, 4, 31], ['Июнь', 2027, 5, 30], ['Июль', 2027, 6, 31], ['Август', 2027, 7, 31], ['Сентябрь', 2027, 8, 30], ['Октябрь', 2027, 9, 31], ['Ноябрь', 2027, 10, 30]];
+    const seedState = (n) => {
+      const procs = ['Тренировка', 'Чтение'].map((name) => ({ name, goal: 0.8, color: '#0877f3', schedule: [1, 1, 1, 1, 1, 1, 1], scheduleType: 'daily', monthDay: 1, lastDay: false }));
+      const marks = ['✓', '○', '—', ''];
+      return { goal: 0.8, currentMonth: 11, processes: procs, months: MD.slice(0, n).map((m, mi) => procs.map((_, pi) => Array.from({ length: m[3] }, (_, d) => marks[(mi + pi + d) % 4]))), journal: [], savings: { currency: 'RUB', selectedId: null, goals: [] } };
+    };
+    const old12 = JSON.stringify(seedState(12).months);
+    const openAt = async (iso, months) => {
+      const c = await browser.newContext({ viewport: { width: args.width, height: args.height }, isMobile: true, hasTouch: true, serviceWorkers: 'block', timezoneId: 'Europe/Moscow' });
+      await c.route('**/*', (route) => (route.request().url().startsWith(baseUrl) ? route.continue() : route.abort()));
+      await c.clock.setFixedTime(new Date(iso));
+      await c.addInitScript((s) => { if (!localStorage.getItem('__seeded')) { localStorage.setItem('__seeded', '1'); localStorage.setItem('stack_neon_mix9_calendar_v1', JSON.stringify(s)); } }, seedState(months));
+      const p = await c.newPage();
+      p.on('pageerror', (e) => jsErrors.push('[calendar] ' + e.message));
+      await p.goto(`${baseUrl}/index.html`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+      await p.waitForSelector('.v29-nav', { timeout: 15000 });
+      await p.waitForTimeout(1200);
+      return { c, p };
+    };
+    {
+      const { c, p } = await openAt('2027-08-15T12:00:00', 12);
+      const a = await p.evaluate(() => ({ len: MONTHS.length, idx: dateToMonthIndex(new Date()), stateLen: state.months.length, first12: JSON.stringify(state.months.slice(0, 12)) }));
+      const okAug = a.len >= 16 && a.idx === 12 && a.stateLen === a.len && a.first12 === old12;
+      if (okAug) note(`  scenario OK: Aug 2027 — window extended to ${a.len} months, the 12 old months byte-identical`); else fail(`scenario: Aug 2027 calendar (${JSON.stringify({ len: a.len, idx: a.idx, stateLen: a.stateLen, old12Same: a.first12 === old12 })})`);
+      await p.click('.v29-nav [data-v29-nav="today"]');
+      await p.waitForTimeout(300);
+      await p.click('.v29-row[data-v29-index="0"] .v29-status');
+      await p.waitForTimeout(300);
+      const m = await p.evaluate(() => ({ live: state.months[12][0][14], stored: JSON.parse(localStorage.getItem('stack_neon_mix9_calendar_v1')).months[12][0][14] }));
+      if (m.live === '✓' && m.stored === '✓') note('  scenario OK: Today status is recorded and saved in Aug 2027'); else fail(`scenario: no mark recorded in Aug 2027 (${JSON.stringify(m)})`);
+      const ch = await p.evaluate(() => {
+        const ix = chartMonths(); renderChart(); openProcessDetail(0);
+        const lab = (sel) => [...document.querySelectorAll(sel + ' text.axis')].filter((t) => /[А-Яа-я]{3}/.test(t.textContent)).length;
+        const r = { first: ix[0], last: ix[11], year: lab('#chart'), proc: lab('#detailChart') };
+        document.getElementById('processDetailModal').classList.remove('active');
+        return r;
+      });
+      if (ch.first === 1 && ch.last === 12 && ch.year === 12 && ch.proc === 12) note('  scenario OK: year charts show the 12 months ending Aug 2027'); else fail(`scenario: year charts at Aug 2027 (${JSON.stringify(ch)})`);
+      for (const section of SECTIONS) {
+        await p.click(`.v29-nav [data-v29-nav="${section}"]`);
+        await p.waitForTimeout(350);
+        if (await p.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)) fail(`horizontal overflow on ${section} in Aug 2027`);
+      }
+      await c.close();
+    }
+    {
+      const { c, p } = await openAt('2028-02-29T12:00:00', 12);
+      const l = await p.evaluate(() => { const k = dateToMonthIndex(new Date()); return { name: MONTHS[k][0], days: MONTHS[k][3], marks: state.months[k][0].length }; });
+      if (l.name === 'Февраль 2028' && l.days === 29 && l.marks === 29) note('  scenario OK: Feb 2028 has 29 days'); else fail(`scenario: leap day (${JSON.stringify(l)})`);
+      await c.close();
+    }
+    {
+      const { c, p } = await openAt('2026-10-04T12:00:00', 16);
+      const r = await p.evaluate(() => ({ len: state.months.length, months: MONTHS.length }));
+      if (r.len === 16 && r.months === 16) note('  scenario OK: a stored 16-month state is never truncated, even on an earlier date'); else fail(`scenario: 16-month state truncated (${JSON.stringify(r)})`);
+      await c.close();
+    }
+    {
+      const { c, p } = await openAt('2026-10-04T12:00:00', 12);
+      const r = await p.evaluate(() => ({ len: MONTHS.length, state: state.months.length }));
+      if (r.len === 12 && r.state === 12) note('  scenario OK: today the window is still exactly 12 months (nothing appended)'); else fail(`scenario: window changed without need (${JSON.stringify(r)})`);
+      await c.close();
+    }
+
     if (jsErrors.length) {
       for (const e of jsErrors) fail('JS error: ' + e);
     } else {
