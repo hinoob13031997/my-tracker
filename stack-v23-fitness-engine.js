@@ -1,7 +1,6 @@
 /* STACK v24.6 — fast set logging and workout completion flow. */
 (()=>{'use strict';
 const BUILD='v24.6.1-progress-panel-pilot';
-const START=new Date(2026,7,10),DAY=86400000;
 const GOAL_KEY='stack_fitness_goal_v2318';
 const PROFILE_KEY='stack_fitness_profile_v2320';
 const SETS_KEY='stack_fitness_sets_v2320';
@@ -34,12 +33,7 @@ const EX={
  calf:{name:'Подъём на носки с гантелями',base:'3 × 12–15',range:[12,15]}
 };
 
-const PHASES=[
- {name:'Адаптация',from:1,to:8,days:3,focus:'Техника и устойчивый ритм',next:'Рост объёма'},
- {name:'Рост объёма',from:9,to:20,days:4,focus:'Больше качественной работы',next:'Сила + масса'},
- {name:'Сила + масса',from:21,to:36,days:4,focus:'Тяжёлые и объёмные дни',next:'Закрепление'},
- {name:'Закрепление',from:37,to:52,days:3,focus:'Стабильный результат и слабые места',next:'Новый годовой цикл'}
-];
+const PHASES=globalThis.STACK_DATA.programPhases; /* one table for the whole app: stack-data.js */
 
 const TEMPLATES={
  A:{name:'Тренировка A',ids:['squat','bench','pulldown','core']},
@@ -80,7 +74,7 @@ function write(key,value){try{localStorage.setItem(key,JSON.stringify(value))}ca
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function key(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 function fromKey(s){const [y,m,d]=String(s).split('-').map(Number);return new Date(y,m-1,d)}
-function weekNo(d){return Math.max(1,Math.min(52,Math.floor((new Date(d.getFullYear(),d.getMonth(),d.getDate())-START)/DAY/7)+1))}
+function weekNo(d){return globalThis.STACK_DATA.programPosition(d).week}
 function phaseFor(w){return PHASES.find(p=>w>=p.from&&w<=p.to)||PHASES[3]}
 function goal(){return read(GOAL_KEY,{start:56,target:70,training:'stack',nutrition:'stack'})}
 function goalDirection(){const g=goal(),start=Number(g.start)||0,target=Number(g.target)||0;return target>start?'gain':target<start?'loss':'maintain'}
@@ -91,7 +85,7 @@ function setWorkoutStatus(d,v){globalThis.STACK_DATA.setWorkoutStatus(d,v)}
 function deload(w){return w>1&&w%4===0}
 
 function workoutFor(d){
- const w=weekNo(d),day=d.getDay(),p=phaseFor(w),light=deload(w),odd=w%2===1;
+ const pos=globalThis.STACK_DATA.programPosition(d),w=pos.week,day=d.getDay(),p=pos.phase,light=deload(w),odd=w%2===1;
  let code=null;
  if(p.days===3){
    if(day===1)code=odd?'A':'B';
@@ -102,10 +96,12 @@ function workoutFor(d){
    const schedule={1:'UA',2:'LA',4:'UB',5:'LB'};code=schedule[day]||null;
  }
  if(!code)return null;
- const t=TEMPLATES[code],rotation=Math.floor((w-1)/4)%3,block=Math.floor((w-1)/4)+1,baseIds=t.ids.slice(),manual=read(SWAPS_KEY,{});
+ const t=TEMPLATES[code],rotation=Math.floor((w-1)/4)%3,block=pos.block,baseIds=t.ids.slice(),manual=read(SWAPS_KEY,{});
+ /* manual swaps are stored per 4-week block; from program year 2 the key carries the year so last year's swaps do not come back (year 1 keeps the old keys) */
+ const swapBlock=pos.year>1?`y${pos.year}-${block}`:String(block);
  let ids=baseIds.map(id=>ROTATION[id]?.[rotation]||id);
- ids=ids.map((id,i)=>manual[block+'|'+baseIds[i]]||id);
- return {...t,ids,baseIds,light,week:w,phase:p,cycle:block};
+ ids=ids.map((id,i)=>manual[swapBlock+'|'+baseIds[i]]||id);
+ return {...t,ids,baseIds,light,week:w,phase:p,cycle:block,year:pos.year,swapBlock};
 }
 
 function prescription(id,wo){
@@ -147,14 +143,14 @@ function suggestion(id){
 function todayCard(d,wo){
  const w=weekNo(d),p=phaseFor(w),pt=phaseText(p),st=workoutStatus(d),label=d.toLocaleDateString('ru-RU',{weekday:'long',day:'numeric',month:'long'});
  if(!wo)return `<section class="fx-engine-card" data-engine-today><div class="fx-engine-head"><div><div class="fx-eye">FITNESS · ВЫБРАННЫЙ ДЕНЬ</div><h2>День восстановления</h2></div><span class="fx-engine-week">НЕДЕЛЯ ${w}</span></div><div class="fx-engine-note">${label}. По текущему циклу силовой тренировки нет.</div><div class="fx-engine-chips"><span class="hot">${pt.name}</span><span>${pt.focus}</span></div></section>`;
- const progress=wo.ids.map(id=>setProgress(id,key(d),wo)),allComplete=progress.every(x=>x.done),rows=wo.ids.map((id,i)=>{const e=EX[id],base=wo.baseIds[i],item=progress[i];return `<div class="fx-engine-ex ${item.done?'completed':''}"><span class="fx-engine-num">${item.done?'✓':i+1}</span><div><b>${e.name}</b><small>${prescription(id,wo)} · <span class="fx-engine-set-count">${item.completed}/${item.target} подхода</span></small></div><button class="fx-engine-icon" data-info="${id}" aria-label="Как выполнять ${esc(e.name)}">i</button><button class="fx-engine-icon fx-engine-swap" data-swap-exercise="${id}" data-swap-base="${base}" data-swap-block="${wo.cycle}" aria-label="Заменить ${esc(e.name)}">↻</button><button class="fx-engine-icon fx-engine-log" data-log-exercise="${id}" data-log-date="${key(d)}" aria-label="Записать подходы ${esc(e.name)}">${item.done?'✓':'＋'}</button></div>`}).join('');
+ const progress=wo.ids.map(id=>setProgress(id,key(d),wo)),allComplete=progress.every(x=>x.done),rows=wo.ids.map((id,i)=>{const e=EX[id],base=wo.baseIds[i],item=progress[i];return `<div class="fx-engine-ex ${item.done?'completed':''}"><span class="fx-engine-num">${item.done?'✓':i+1}</span><div><b>${e.name}</b><small>${prescription(id,wo)} · <span class="fx-engine-set-count">${item.completed}/${item.target} подхода</span></small></div><button class="fx-engine-icon" data-info="${id}" aria-label="Как выполнять ${esc(e.name)}">i</button><button class="fx-engine-icon fx-engine-swap" data-swap-exercise="${id}" data-swap-base="${base}" data-swap-block="${wo.swapBlock}" aria-label="Заменить ${esc(e.name)}">↻</button><button class="fx-engine-icon fx-engine-log" data-log-exercise="${id}" data-log-date="${key(d)}" aria-label="Записать подходы ${esc(e.name)}">${item.done?'✓':'＋'}</button></div>`}).join('');
  const ready=allComplete&&st!=='done'?`<div class="fx-workout-ready"><b>Все упражнения выполнены</b><br>Подходы записаны. Подтверди завершение всей тренировки.<button type="button" data-finish-workout>✓ ЗАВЕРШИТЬ ТРЕНИРОВКУ</button></div>`:'';
- return `<section class="fx-engine-card" data-engine-today><div class="fx-engine-head"><div><div class="fx-eye">FITNESS · ВЫБРАННЫЙ ДЕНЬ</div><h2>${wo.light?'Разгрузка · ':''}${wo.name}</h2><div class="fx-engine-note">${label} · ${wo.light?'35–45':'45–65'} минут</div></div><span class="fx-engine-week">НЕДЕЛЯ ${w}</span></div><div class="fx-engine-chips"><span class="hot">${phaseText(wo.phase).name}</span><span>ЦИКЛ ${wo.cycle}</span><span>${wo.light?'ОБЛЕГЧЁННАЯ НЕДЕЛЯ':'РАБОЧАЯ НЕДЕЛЯ'}</span></div>${rows}<div class="fx-help">${suggestion(wo.ids[0])}</div>${ready}<div class="fx-engine-status"><button class="done ${st==='done'?'on':''}" data-engine-status="done">✓ ВЫПОЛНЕНА</button><button class="skip ${st==='skip'?'on':''}" data-engine-status="skip">○ ПРОПУЩЕНА</button><button class="clear ${!st?'on':''}" data-engine-status="">· БЕЗ ОТМЕТКИ</button></div></section>`;
+ return `<section class="fx-engine-card" data-engine-today><div class="fx-engine-head"><div><div class="fx-eye">FITNESS · ВЫБРАННЫЙ ДЕНЬ</div><h2>${wo.light?'Разгрузка · ':''}${wo.name}</h2><div class="fx-engine-note">${label} · ${wo.light?'35–45':'45–65'} минут</div></div><span class="fx-engine-week">НЕДЕЛЯ ${w}</span></div><div class="fx-engine-chips"><span class="hot">${phaseText(wo.phase).name}</span><span>ЦИКЛ ${wo.cycle}</span><span>${wo.light?'ОБЛЕГЧЁННАЯ НЕДЕЛЯ':'РАБОЧАЯ НЕДЕЛЯ'}</span>${wo.year>1?`<span>ГОД ${wo.year}</span>`:''}</div>${rows}<div class="fx-help">${suggestion(wo.ids[0])}</div>${ready}<div class="fx-engine-status"><button class="done ${st==='done'?'on':''}" data-engine-status="done">✓ ВЫПОЛНЕНА</button><button class="skip ${st==='skip'?'on':''}" data-engine-status="skip">○ ПРОПУЩЕНА</button><button class="clear ${!st?'on':''}" data-engine-status="">· БЕЗ ОТМЕТКИ</button></div></section>`;
 }
 
 function programCard(){
- const w=weekNo(new Date()),p=phaseFor(w),pt=phaseText(p),left=p.to-w,nextDeload=w%4===0?w:w+(4-w%4),cycle=Math.floor((w-1)/4)+1;
- return `<section class="fx-engine-card" data-engine-program><div class="fx-engine-head"><div><div class="fx-eye">УМНАЯ ПРОГРАММА · 23 УПРАЖНЕНИЯ</div><h2>${pt.name}</h2></div><span class="fx-engine-week">НЕДЕЛЯ ${w}</span></div><div class="fx-engine-note">${pt.focus}. Тренировки чередуются между неделями; вспомогательные упражнения и акцент меняются каждые 4 недели.</div><div class="fx-cycle-grid"><div class="fx-cycle-stat"><small>ТЕКУЩИЙ ЦИКЛ</small><b>${cycle}</b><small>4 недели</small></div><div class="fx-cycle-stat"><small>ОСТАЛОСЬ В ФАЗЕ</small><b>${left}</b><small>${left===1?'неделя':'недель'}</small></div><div class="fx-cycle-stat"><small>БЛИЖАЙШАЯ РАЗГРУЗКА</small><b>${nextDeload}</b><small>неделя программы</small></div><div class="fx-cycle-stat"><small>СЛЕДУЮЩАЯ ФАЗА</small><b style="font-size:11px">${phaseText(PHASES.find(x=>x.from===p.to+1)||p).name}</b><small>${p.to<52?'с '+(p.to+1)+' недели':'после оценки'}</small></div></div><div class="fx-help">Основные движения сохраняются для измеримого прогресса. Кнопка ↻ позволяет выбрать безопасную замену из той же группы до конца текущего четырёхнедельного цикла.</div><div class="fx-phase-list">${PHASES.map(x=>{const tx=phaseText(x);return`<div class="fx-phase-item ${x===p?'on':''}"><div><b>${tx.name}</b><p>${tx.focus} · ${x.days} тренировки в неделю</p></div><span>${x.from}–${x.to}</span></div>`}).join('')}</div></section>`;
+ const pos=globalThis.STACK_DATA.programPosition(new Date()),w=pos.week,p=pos.phase,pt=phaseText(p),left=p.to-w,nextDeload=w%4===0?w:w+(4-w%4),cycle=pos.block;
+ return `<section class="fx-engine-card" data-engine-program><div class="fx-engine-head"><div><div class="fx-eye">УМНАЯ ПРОГРАММА · 23 УПРАЖНЕНИЯ${pos.year>1?` · ГОД ${pos.year}`:''}</div><h2>${pt.name}</h2></div><span class="fx-engine-week">НЕДЕЛЯ ${w}</span></div><div class="fx-engine-note">${pt.focus}. Тренировки чередуются между неделями; вспомогательные упражнения и акцент меняются каждые 4 недели.</div><div class="fx-cycle-grid"><div class="fx-cycle-stat"><small>ТЕКУЩИЙ ЦИКЛ</small><b>${cycle}</b><small>4 недели</small></div><div class="fx-cycle-stat"><small>ОСТАЛОСЬ В ФАЗЕ</small><b>${left}</b><small>${left===1?'неделя':'недель'}</small></div><div class="fx-cycle-stat"><small>БЛИЖАЙШАЯ РАЗГРУЗКА</small><b>${nextDeload}</b><small>неделя программы</small></div><div class="fx-cycle-stat"><small>СЛЕДУЮЩАЯ ФАЗА</small><b style="font-size:11px">${phaseText(PHASES.find(x=>x.from===(p.to<52?p.to+1:9))||p).name}</b><small>${p.to<52?'с '+(p.to+1)+' недели':'новый цикл, неделя 9'}</small></div></div><div class="fx-help">Основные движения сохраняются для измеримого прогресса. Кнопка ↻ позволяет выбрать безопасную замену из той же группы до конца текущего четырёхнедельного цикла.</div><div class="fx-phase-list">${PHASES.map(x=>{const tx=phaseText(x);return`<div class="fx-phase-item ${x===p?'on':''}"><div><b>${tx.name}</b><p>${tx.focus} · ${x.days} тренировки в неделю</p></div><span>${x.from}–${x.to}</span></div>`}).join('')}</div></section>`;
 }
 
 function estimatedMax(weight,reps){return weight>0&&reps>0?weight*(1+reps/30):0}
@@ -199,7 +195,7 @@ function refresh(){const today=document.querySelector('#v234Fitness [data-engine
 
 document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.matches('[data-log-exercise]'))modal(b.dataset.logExercise,b.dataset.logDate);else if(b.matches('[data-finish-workout]')){setWorkoutStatus(selectedDate(),'done');window.dispatchEvent(new CustomEvent('stack:data-changed',{detail:{source:'fitness-workout-complete'}}));refresh()}else if(b.matches('[data-engine-status]')){setWorkoutStatus(selectedDate(),b.dataset.engineStatus);window.dispatchEvent(new CustomEvent('stack:data-changed',{detail:{source:'fitness-workout-status'}}));refresh()}});
 window.addEventListener('stack:fitness-library-change',refresh);window.addEventListener('stack:data-changed',e=>{if(e.detail?.source==='v29-shell')refresh()});
-function summary(date=new Date()){const week=weekNo(date),phase=phaseFor(week),text=phaseText(phase),workout=workoutFor(date);if(!workout)return Object.freeze({planned:false,name:'День восстановления',week,phase:text.name,deload:deload(week),count:0});return Object.freeze({planned:true,name:(workout.light?'Разгрузка · ':'')+workout.name,week,phase:text.name,deload:workout.light,count:workout.ids.length,cycle:workout.cycle})}
+function summary(date=new Date()){const week=weekNo(date),year=globalThis.STACK_DATA.programPosition(date).year,phase=phaseFor(week),text=phaseText(phase),workout=workoutFor(date);if(!workout)return Object.freeze({planned:false,name:'День восстановления',week,year,phase:text.name,deload:deload(week),count:0});return Object.freeze({planned:true,name:(workout.light?'Разгрузка · ':'')+workout.name,week,year,phase:text.name,deload:workout.light,count:workout.ids.length,cycle:workout.cycle})}
 globalThis.STACK_FITNESS=Object.freeze({build:BUILD,summary});
 const style=document.createElement('style');style.id='v2320EngineStyle';style.textContent=css;document.head.appendChild(style);
 let queued=false;function schedule(){if(queued)return;queued=true;queueMicrotask(()=>{queued=false;draw()})}globalThis.STACK_FITNESS_SCREEN?.onRender(draw,30);draw();console.info('STACK',BUILD);

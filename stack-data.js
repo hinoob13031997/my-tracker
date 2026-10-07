@@ -19,6 +19,28 @@ function dateKey(d=new Date()){return `${d.getFullYear()}-${String(d.getMonth()+
 function workoutStatus(d=new Date()){try{const v=localStorage.getItem('stack_fitness_workout_'+dateKey(d));return v==='1'?'done':v==='skip'?'skip':''}catch(e){return''}}
 /* Every workout status write goes here: it also mirrors the mark onto the «Тренировка» process (v29.55). */
 function setWorkoutStatus(d,v){try{localStorage.setItem('stack_fitness_workout_'+dateKey(d),v==='done'?'1':v==='skip'?'skip':'0')}catch(e){}try{globalThis.STACK_V29_SHELL?.syncWorkout?.(d,v)}catch(e){}}
+/* Fitness program calendar (v29.80). The program is not stored — it is a pure function of the date and the start date, so a
+   date never maps to two workouts and moving the start date cannot duplicate anything: statuses and logged sets are saved per
+   calendar date, not per week. Year 1 runs weeks 1–52 (Адаптация → … → Закрепление). Every following year starts at week 9
+   («Рост объёма», no repeated adaptation) and lasts 44 weeks. The start date lives in the existing goal object
+   (stack_fitness_goal_v2318 → programStart, 'YYYY-MM-DD'); no new key. */
+const PROGRAM_START_DEFAULT='2026-08-10';
+const PROGRAM_PHASES=Object.freeze([
+ Object.freeze({name:'Адаптация',from:1,to:8,days:3,focus:'Техника и устойчивый ритм',next:'Рост объёма'}),
+ Object.freeze({name:'Рост объёма',from:9,to:20,days:4,focus:'Больше качественной работы',next:'Сила + масса'}),
+ Object.freeze({name:'Сила + масса',from:21,to:36,days:4,focus:'Тяжёлые и объёмные дни',next:'Закрепление'}),
+ Object.freeze({name:'Закрепление',from:37,to:52,days:3,focus:'Стабильный результат и слабые места',next:'Новый цикл'})
+]);
+const DAY_MS=86400000;
+function dayNumber(d){return Math.floor(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())/DAY_MS)}
+function parseKey(s){const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s||''));if(!m)return null;const d=new Date(+m[1],+m[2]-1,+m[3]);return d.getMonth()===+m[2]-1?d:null}
+function programStart(){return parseKey(read(KEYS.fitnessGoal,{})?.programStart)||parseKey(PROGRAM_START_DEFAULT)}
+/* week 1..52 of the program template, program year 1.., 4-week block; dates before the start count as week 1 */
+function programPosition(d=new Date()){const n=Math.max(0,Math.floor((dayNumber(d)-dayNumber(programStart()))/7));let year,week;if(n<52){year=1;week=n+1}else{const m=n-52;year=2+Math.floor(m/44);week=9+m%44}const phase=PROGRAM_PHASES.find(p=>week>=p.from&&week<=p.to)||PROGRAM_PHASES[3];return{week,year,phase,block:Math.floor((week-1)/4)+1,weeksSinceStart:n}}
+/* done workouts (status '1') on dates fromKey..toKey inclusive */
+function workoutsDone(from,to){let n=0;try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(!k||!k.startsWith('stack_fitness_workout_'))continue;const day=k.slice(22);if(day>=from&&day<=to&&localStorage.getItem(k)==='1')n++}}catch(e){}return n}
+function yearWorkouts(year=new Date().getFullYear()){return workoutsDone(`${year}-01-01`,`${year}-12-31`)}
+function yearGoal(){const n=Math.floor(Number(read(KEYS.fitnessGoal,{})?.yearWorkouts));return n>0?Math.min(n,366):0}
 /* STACK daily targets: Mifflin–St Jeor × activity ± goal delta; protein by body weight; fat ≥ 25% kcal (v29.61); carbs = rest. */
 function nutritionTargets({goal={},profile={},weight}={}){const n=v=>Number(v)||0,w=n(weight)||n(goal.start),target=n(goal.target),h=n(profile.height),age=n(profile.age),sex=profile.sex;if(!h||!age||!['male','female'].includes(sex)||!w)return null;const dir=target>w?'gain':target&&target<w?'loss':'maintain',bmr=10*w+6.25*h-5*age+(sex==='male'?5:-161),activity=n(profile.days)===4?1.55:1.45,delta=dir==='gain'?250:dir==='loss'?-400:0,floor=sex==='male'?1500:1300,kcal=Math.round(Math.max(floor,bmr*activity+delta)/50)*50,protein=Math.round(w*(dir==='loss'?2:1.8)),fat=Math.round(Math.max(w*.9,kcal*.25/9)),carbs=Math.max(0,Math.round((kcal-protein*4-fat*9)/4));return{kcal,protein,fat,carbs}}
 function tasks(){const m=main();return{journal:Array.isArray(m?.journal)?m.journal:[],details:read(KEYS.taskDetails,{})}}
@@ -35,7 +57,7 @@ function isFullBackup(x){return !!x&&typeof x==='object'&&x.format===BACKUP_FORM
 /* Writes only well-formed `stack_*` keys: JSON values everywhere, short marks for workout days. The main state is never
    written here (the caller validates and saves it); the FX cache is not restored (it is re-fetched). */
 function importStorage(storage){const res={written:0,skipped:[]};if(!storage||typeof storage!=='object'||Array.isArray(storage))return res;for(const [k,v] of Object.entries(storage)){let ok=STORAGE_KEY_RE.test(k)&&!NOT_BACKED_UP.has(k)&&typeof v==='string'&&v.length<=5e6;if(ok){if(k.startsWith(WORKOUT_PREFIX))ok=v.length<=16;else try{JSON.parse(v)}catch(e){ok=false}}if(ok)try{localStorage.setItem(k,v);res.written++;continue}catch(e){}res.skipped.push(k)}return res}
-const api=Object.freeze({version:2,schema:2,keys:KEYS,read,main,income,savings,goals,currency,goalCurrency,transactions,fxCache,rate,balance,monthTransactions,savedNative,savedRubEquivalent,fitness,tasks,snapshot,exportBundle,exportFull,isFullBackup,importStorage,dateKey,workoutStatus,setWorkoutStatus,nutritionTargets});
+const api=Object.freeze({version:2,schema:2,keys:KEYS,read,main,income,savings,goals,currency,goalCurrency,transactions,fxCache,rate,balance,monthTransactions,savedNative,savedRubEquivalent,fitness,tasks,snapshot,exportBundle,exportFull,isFullBackup,importStorage,dateKey,workoutStatus,setWorkoutStatus,programStart,programPosition,programPhases:PROGRAM_PHASES,workoutsDone,yearWorkouts,yearGoal,nutritionTargets});
 Object.defineProperty(globalThis,'STACK_DATA',{value:api,writable:false,configurable:true});
 window.dispatchEvent(new CustomEvent('stack:data-ready',{detail:{version:2,schema:2}}));
 console.info('STACK Data Core v2 ready');
