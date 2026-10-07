@@ -301,6 +301,151 @@ async function runScenarios(page, baseUrl, note, fail) {
   check(bulk.limits.join() === '120,120', `goal name / transaction note inputs stop at the length that is kept on load (${bulk.limits.join()})`);
 }
 
+// Create → edit → delete through the real UI for tasks, processes, savings goals + transactions and body weight (v29.79).
+// Runs in its own context with a fresh storage, so it cannot disturb the other scenarios. This is the safety net for
+// moving a section off its legacy modules: if one of these breaks, the move broke data entry.
+async function runCrudScenarios(browser, baseUrl, args, note, fail, jsErrors) {
+  const ctx = await browser.newContext({ viewport: { width: args.width, height: args.height }, isMobile: args.width <= 720, hasTouch: args.width <= 720, serviceWorkers: 'block' });
+  await ctx.route('**/*', (route) => (route.request().url().startsWith(baseUrl) ? route.continue() : route.abort()));
+  const page = await ctx.newPage();
+  page.setDefaultTimeout(8000);
+  page.on('pageerror', (e) => jsErrors.push('[crud] ' + e.message));
+  page.on('dialog', (d) => d.accept().catch(() => {}));
+  const check = (ok, label) => (ok ? note(`  scenario OK: ${label}`) : fail(`scenario: ${label}`));
+  const step = async (label, fn) => { try { await fn(); } catch (e) { fail(`scenario: ${label} threw: ${String(e.message).split('\n')[0]}`); } };
+  const noOverflow = async (label) => { if (await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)) fail(`horizontal overflow: ${label}`); };
+  const goto = async (section) => { await page.click(`.v29-nav [data-v29-nav="${section}"]`); await page.waitForTimeout(600); };
+  const TITLE = 'CRUD задача & <тест>';
+  const openTaskCard = () => page.evaluate((t) => { const el = [...document.querySelectorAll('#v2212Tasks *')].find((e) => e.children.length === 0 && e.textContent.trim().startsWith(t)); if (el) el.click(); return !!el; }, TITLE.slice(0, 10));
+  await page.goto(`${baseUrl}/index.html`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+  await page.waitForSelector('.v29-nav', { timeout: 15000 });
+  await page.waitForTimeout(1500);
+
+  await step('task create', async () => {
+    const before = await page.evaluate(() => state.journal.length);
+    await goto('deals');
+    await page.locator('.v233-tabs button', { hasText: 'Задачи' }).first().click();
+    await page.waitForTimeout(400);
+    await page.click('#v2212Add');
+    await page.waitForTimeout(300);
+    await noOverflow('new-task modal');
+    await page.fill('#v235Title', TITLE);
+    await page.fill('#v235Due', '2026-12-31');
+    await page.selectOption('#v235Pri', 'Высокий');
+    await page.fill('#v235Note', 'заметка');
+    await page.click('#v235Save');
+    await page.waitForTimeout(500);
+    const t = await page.evaluate(() => state.journal.at(-1));
+    check((await page.evaluate(() => state.journal.length)) === before + 1 && t.task === TITLE && t.due === '2026-12-31' && t.priority === 'Высокий' && t.note === 'заметка', 'CRUD: task created with its fields');
+    check(await page.evaluate((x) => document.getElementById('v2212Tasks').innerText.includes(x), TITLE), 'CRUD: task listed, HTML in the title shown as text');
+  });
+  await step('task card', async () => {
+    check(await openTaskCard(), 'CRUD: task card opens');
+    await page.waitForTimeout(400);
+    await noOverflow('task card');
+    await page.fill('#v2212Desc', 'описание задачи');
+    await page.click('#v2212AddCheck');
+    await page.fill('#v2212Checks input[data-t="0"]', 'пункт 1');
+    await page.check('#v2212Checks input[data-c="0"]');
+    await page.click('#v2212Save');
+    await page.waitForTimeout(500);
+    const d = await page.evaluate(() => { const t = state.journal.at(-1), det = JSON.parse(localStorage.getItem('stack_task_details_v227') || '{}')[t.__v227id]; return { id: !!t.__v227id, desc: det?.description, check: det?.checklist?.[0] }; });
+    check(d.id && d.desc === 'описание задачи' && d.check?.text === 'пункт 1' && d.check?.done === true, 'CRUD: description and checklist saved under the task id');
+  });
+  await step('task delete', async () => {
+    const before = await page.evaluate(() => ({ n: state.journal.length, id: state.journal.at(-1).__v227id }));
+    await openTaskCard();
+    await page.waitForTimeout(300);
+    await page.click('#v2212Delete');
+    await page.waitForTimeout(500);
+    const after = await page.evaluate((id) => ({ n: state.journal.length, orphan: !!JSON.parse(localStorage.getItem('stack_task_details_v227') || '{}')[id] }), before.id);
+    check(after.n === before.n - 1 && !after.orphan, 'CRUD: task deleted together with its description');
+  });
+
+  await step('process', async () => {
+    const before = await page.evaluate(() => state.processes.length);
+    await goto('deals');
+    await page.locator('.v233-tabs button', { hasText: 'Процессы' }).first().click();
+    await page.waitForTimeout(400);
+    await page.evaluate(() => openProcessModal(null));
+    await page.waitForTimeout(300);
+    await noOverflow('process modal');
+    await page.fill('#pmName', 'CRUD процесс');
+    await page.fill('#pmGoal', '70');
+    await page.click('#pmRepeatTypes [data-repeat="weekdays"]');
+    await page.click('#saveProcessModal');
+    await page.waitForTimeout(500);
+    const p = await page.evaluate(() => { const x = state.processes.at(-1); return { n: state.processes.length, name: x.name, goal: x.goal, type: x.scheduleType, aligned: state.months.every((m) => m.length === state.processes.length) }; });
+    check(p.n === before + 1 && p.name === 'CRUD процесс' && Math.abs(p.goal - 0.7) < 1e-9 && p.type === 'weekdays' && p.aligned, 'CRUD: process created, every month resized');
+    await page.evaluate(() => openProcessModal(state.processes.length - 1));
+    await page.fill('#pmName', 'CRUD процесс 2');
+    await page.click('#saveProcessModal');
+    await page.waitForTimeout(400);
+    check(await page.evaluate(() => state.processes.at(-1).name === 'CRUD процесс 2'), 'CRUD: process renamed');
+    await page.locator(`#v233Processes [data-process-delete="${before}"]`).click();
+    await page.waitForTimeout(500);
+    const gone = await page.evaluate(() => ({ n: state.processes.length, aligned: state.months.every((m) => m.length === state.processes.length) }));
+    check(gone.n === before && gone.aligned, 'CRUD: process deleted, its marks removed from every month');
+  });
+
+  await step('finance', async () => {
+    await goto('finance');
+    await page.evaluate(() => openSavingsGoal(null));
+    await page.waitForTimeout(300);
+    await noOverflow('goal modal');
+    await page.fill('#sgName', 'CRUD цель');
+    await page.fill('#sgTarget', '10000');
+    await page.fill('#sgStart', '1000');
+    await page.fill('#sgMonthly', '500');
+    await page.click('#sgSave');
+    await page.waitForTimeout(500);
+    const g = await page.evaluate(() => { const x = state.savings.goals.at(-1); return { name: x.name, target: x.target, start: x.start, id: x.id, sel: state.savings.selectedId }; });
+    check(g.name === 'CRUD цель' && g.target === 10000 && g.start === 1000 && g.sel === g.id, 'CRUD: savings goal created and selected');
+    await page.evaluate(() => openSavingsTx(1));
+    await page.fill('#stAmount', '500');
+    await page.fill('#stNote', 'взнос');
+    await noOverflow('transaction modal');
+    await page.click('#stSave');
+    await page.waitForTimeout(400);
+    await page.evaluate(() => openSavingsTx(-1));
+    await page.fill('#stAmount', '200');
+    await page.click('#stSave');
+    await page.waitForTimeout(400);
+    const bal = await page.evaluate(() => { const x = state.savings.goals.at(-1); return { n: x.tx.length, bal: STACK_DATA.balance(x), today: x.tx.every((t) => t.date === STACK_DATA.dateKey()) }; });
+    check(bal.n === 2 && bal.bal === 1300 && bal.today, 'CRUD: +500 / −200 on a 1000 start gives 1300, dated today');
+    await page.evaluate(() => stackEditTx(state.savings.goals.at(-1).tx[0].id));
+    await page.waitForTimeout(300);
+    await page.fill('#stAmount', '700');
+    await page.click('#stSave');
+    await page.waitForTimeout(400);
+    check(await page.evaluate(() => STACK_DATA.balance(state.savings.goals.at(-1))) === 1500, 'CRUD: transaction edited, balance 1500');
+    await page.locator('#screenSavings button', { hasText: /^Цели$/ }).first().click();
+    await page.waitForTimeout(400);
+    check(await page.evaluate(() => document.getElementById('screenSavings').innerText.includes('CRUD цель')), 'CRUD: goal visible on Finance → Цели');
+    await noOverflow('finance after operations');
+  });
+
+  await step('body weight', async () => {
+    await goto('fitness');
+    await page.click('.v234-tabs [data-v234="progress"]');
+    await page.waitForTimeout(500);
+    await page.locator('[data-fxa-body-add]').first().click();
+    await page.waitForTimeout(300);
+    await noOverflow('body-weight modal');
+    await page.fill('#fxaModal input[name="body"]', '57.3');
+    await page.click('#fxaModal .fxa-save');
+    await page.waitForTimeout(400);
+    await page.locator('[data-fxa-body-edit]').first().click();
+    await page.fill('#fxaModal input[name="body"]', '57.1');
+    await page.click('#fxaModal .fxa-save');
+    await page.waitForTimeout(400);
+    const rows = await page.evaluate(() => JSON.parse(localStorage.getItem('stack_fitness_log_v2310') || '[]'));
+    check(rows.length === 1 && Number(rows[0].body) === 57.1, 'CRUD: body weight added and edited');
+  });
+
+  await ctx.close();
+}
+
 async function run() {
   const { chromium } = loadPlaywright();
   const args = parseArgs(process.argv);
@@ -503,6 +648,8 @@ async function run() {
       if (r.len === 12 && r.state === 12) note('  scenario OK: today the window is still exactly 12 months (nothing appended)'); else fail(`scenario: window changed without need (${JSON.stringify(r)})`);
       await c.close();
     }
+
+    await runCrudScenarios(browser, baseUrl, args, note, fail, jsErrors);
 
     if (jsErrors.length) {
       for (const e of jsErrors) fail('JS error: ' + e);
