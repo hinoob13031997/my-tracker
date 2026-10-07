@@ -446,6 +446,111 @@ async function runCrudScenarios(browser, baseUrl, args, note, fail, jsErrors) {
   await ctx.close();
 }
 
+// Fitness program calendar, yearly workout goal, configurable start date (v29.80). Each case gets its own context
+// with a pinned clock and (where it matters) a seeded storage.
+async function runProgramScenarios(browser, baseUrl, args, note, fail, jsErrors) {
+  const check = (ok, label) => (ok ? note(`  scenario OK: ${label}`) : fail(`scenario: ${label}`));
+  const open = async (iso, { tz = 'Europe/Moscow', seed = {} } = {}) => {
+    const c = await browser.newContext({ viewport: { width: args.width, height: args.height }, isMobile: true, hasTouch: true, serviceWorkers: 'block', timezoneId: tz });
+    await c.route('**/*', (route) => (route.request().url().startsWith(baseUrl) ? route.continue() : route.abort()));
+    await c.clock.setFixedTime(new Date(iso));
+    await c.addInitScript((s) => { if (!localStorage.getItem('__seeded')) { localStorage.setItem('__seeded', '1'); for (const [k, v] of Object.entries(s)) localStorage.setItem(k, v); } }, seed);
+    const p = await c.newPage();
+    p.setDefaultTimeout(8000);
+    p.on('pageerror', (e) => jsErrors.push('[program] ' + e.message));
+    p.on('dialog', (d) => d.accept().catch(() => {}));
+    await p.goto(`${baseUrl}/index.html`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+    await p.waitForSelector('.v29-nav', { timeout: 15000 });
+    await p.waitForTimeout(1200);
+    return { c, p };
+  };
+  const toFitness = async (p, tab) => { await p.click('.v29-nav [data-v29-nav="fitness"]'); await p.waitForTimeout(500); await p.click(`.v234-tabs [data-v234="${tab}"]`); await p.waitForTimeout(600); };
+  const firstExercise = (p) => p.evaluate(() => document.querySelector('#v234Fitness [data-engine-today] .fx-engine-ex b')?.textContent || '');
+
+  { // calendar maths in a timezone with DST: week numbers must follow the calendar, not the clock
+    // a WINTER start date: from the following spring the local clock is 1 h off, which broke `floor((date − start) / 7 days)`
+    const { c, p } = await open('2026-10-07T12:00:00', { tz: 'America/New_York', seed: { stack_fitness_goal_v2318: JSON.stringify({ start: 56, target: 70, programStart: '2026-12-07' }) } });
+    const r = await p.evaluate(() => {
+      const D = STACK_DATA, bad = [];
+      for (let i = 0; i < 800; i++) {
+        const d = new Date(2026, 11, 7 + i), pos = D.programPosition(d), n = Math.floor(i / 7);
+        const week = n < 52 ? n + 1 : 9 + ((n - 52) % 44), year = n < 52 ? 1 : 2 + Math.floor((n - 52) / 44);
+        if (pos.week !== week || pos.year !== year) bad.push(`${i}:${pos.year}/${pos.week}≠${year}/${week}`);
+      }
+      const before = D.programPosition(new Date(2026, 11, 6));
+      return { bad: bad.slice(0, 3), n: bad.length, before: `${before.year}/${before.week}`, y2: D.programPosition(new Date(2027, 11, 6)) };
+    });
+    check(r.n === 0 && r.before === '1/1' && r.y2.year === 2 && r.y2.week === 9 && r.y2.phase.name === 'Рост объёма', `program calendar is exact across DST: with a winter start year 2 begins exactly 52 weeks later at week 9, no repeated «Адаптация» (${r.n} bad days ${r.bad.join(' ')})`);
+    await c.close();
+  }
+  { // year 1 is unchanged: the new calendar equals the old clamped formula for the first 52 weeks
+    const { c, p } = await open('2026-10-07T12:00:00');
+    const r = await p.evaluate(() => {
+      const start = new Date(2026, 7, 10); let bad = 0;
+      for (let i = -20; i < 364; i++) {
+        const d = new Date(2026, 7, 10 + i), old = Math.max(1, Math.min(52, Math.floor((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - start) / 86400000 / 7) + 1));
+        if (STACK_DATA.programPosition(d).week !== old) bad++;
+      }
+      return bad;
+    });
+    check(r === 0, 'program year 1 is identical to the old week numbering (weeks 1–52)');
+    await c.close();
+  }
+  { // yearly goal, settings sheet, start date change keeps every mark; strategy card follows the real phase
+    const { c, p } = await open('2026-10-07T12:00:00', { seed: {
+      'stack_fitness_workout_2026-09-01': '1', 'stack_fitness_workout_2026-09-03': '1', 'stack_fitness_workout_2026-10-05': '1',
+      'stack_fitness_workout_2025-12-30': '1', 'stack_fitness_workout_2026-10-02': 'skip' } });
+    await toFitness(p, 'progress');
+    const card = () => p.evaluate(() => document.querySelector('#v234Fitness [data-year-card]')?.innerText.replace(/\s+/g, ' ') || '');
+    check(/3 выполнено в 2026/.test(await card()), `yearly card counts only ✓ of the current year, ignores ✗ and other years (${await card()})`);
+    await p.click('#v234Fitness [data-year-card] [data-goal-settings]');
+    await p.waitForTimeout(400);
+    const sheet = await p.evaluate(() => ({ start: document.querySelector('#fxPlanEditor input[name="programStart"]')?.value, goal: document.querySelector('#fxPlanEditor input[name="yearWorkouts"]')?.value, w: document.documentElement.scrollWidth <= document.documentElement.clientWidth }));
+    check(sheet.start === '2026-08-10' && sheet.goal === '' && sheet.w, `settings sheet offers the start date (default 2026-08-10) and the yearly goal, no overflow (${JSON.stringify(sheet)})`);
+    await p.fill('#fxPlanEditor input[name="yearWorkouts"]', '250');
+    await p.click('#fxPlanEditor .fx-save');
+    await p.waitForTimeout(600);
+    const goalKey = await p.evaluate(() => JSON.parse(localStorage.getItem('stack_fitness_goal_v2318')));
+    check(/3 из 250/.test(await card()) && goalKey.yearWorkouts === 250 && goalKey.start === 56 && goalKey.training === 'stack' && Array.isArray(goalKey.workouts), `yearly goal saved into the existing goal object, old fields kept (${await card()})`);
+    // program page: the strategy card must say 4/week (phase «Рост объёма»), not the profile's 3
+    await p.click('#v234Progress button[data-v234="program"]');
+    await p.waitForTimeout(500);
+    check(await p.evaluate(() => /4 тренировки\/нед\./.test(document.getElementById('v234Fitness').innerText)), 'strategy card shows the real phase frequency (4/week in weeks 9–36)');
+    // move the start date: marks are untouched, the program is recomputed
+    const marks = () => p.evaluate(() => JSON.stringify(Object.keys(localStorage).filter((k) => k.startsWith('stack_fitness_workout_')).sort().map((k) => [k, localStorage.getItem(k)])));
+    const before = await marks();
+    await p.click('#v234Fitness [data-v234="progress"]');
+    await p.waitForTimeout(400);
+    await p.click('#v234Fitness [data-year-card] [data-goal-settings]');
+    await p.waitForTimeout(300);
+    await p.fill('#fxPlanEditor input[name="programStart"]', '2026-09-14');
+    await p.click('#fxPlanEditor .fx-save');
+    await p.waitForTimeout(600);
+    const moved = await p.evaluate(() => ({ week: STACK_FITNESS.summary(new Date()).week, start: JSON.parse(localStorage.getItem('stack_fitness_goal_v2318')).programStart }));
+    check(moved.start === '2026-09-14' && moved.week === 4 && (await marks()) === before, `moving the start date recomputes the program (week ${moved.week}) and leaves every ✓/○ mark untouched`);
+    await c.close();
+  }
+  { // second program year: label, week, and last year's manual exercise swaps must not come back
+    const swaps = { stack_fitness_exercise_swaps_v2321: JSON.stringify({ '3|squat': 'rdl' }) };
+    const y1 = await open('2026-10-06T12:00:00', { seed: swaps });   // Tuesday, year 1, block 3
+    await toFitness(y1.p, 'today');
+    const swapped = await firstExercise(y1.p);
+    await y1.c.close();
+    const plain = await open('2026-10-06T12:00:00');
+    await toFitness(plain.p, 'today');
+    const unswapped = await firstExercise(plain.p);
+    await plain.c.close();
+    check(swapped && unswapped && swapped !== unswapped, `a year-1 manual swap changes the exercise («${unswapped}» → «${swapped}»)`);
+    const y2 = await open('2027-08-17T12:00:00', { seed: swaps }); // Tuesday, year 2, week 10 → block 3 again
+    await toFitness(y2.p, 'today');
+    const info = await y2.p.evaluate(() => ({ s: STACK_FITNESS.summary(new Date()), head: document.querySelector('#v234Fitness [data-engine-today]')?.innerText.replace(/\s+/g, ' ').slice(0, 160) || '' }));
+    const second = await firstExercise(y2.p);
+    check(info.s.year === 2 && info.s.week === 10 && info.s.planned && /ГОД 2/.test(info.head), `Aug 2027 is program year 2, week 10, labelled «ГОД 2» (${info.head.slice(0, 90)})`);
+    check(second !== swapped, `year-1 swap for block 3 does not re-apply in year 2 («${second}»)`);
+    await y2.c.close();
+  }
+}
+
 async function run() {
   const { chromium } = loadPlaywright();
   const args = parseArgs(process.argv);
@@ -650,6 +755,7 @@ async function run() {
     }
 
     await runCrudScenarios(browser, baseUrl, args, note, fail, jsErrors);
+    await runProgramScenarios(browser, baseUrl, args, note, fail, jsErrors);
 
     if (jsErrors.length) {
       for (const e of jsErrors) fail('JS error: ' + e);
