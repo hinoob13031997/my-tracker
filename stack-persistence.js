@@ -9,7 +9,7 @@
 (() => {
   'use strict';
   const BUILD = 'v29-81-restore-points';
-  const VERSION = 'v29.85';
+  const VERSION = 'v29.86';
   const SNAP = 'snap:',
     META = 'snapm:',
     END = '￿';

@@ -10,7 +10,7 @@
    v29.6.0 — one secondary line «Питание · факт / цель ккал» under the list; tap → Fitness → Питание. */
 (() => {
   'use strict';
-  const BUILD = '29.85.0';
+  const BUILD = '29.86.0';
   const MOBILE = () => innerWidth <= 720;
   const esc = v =>
     String(v ?? '').replace(
