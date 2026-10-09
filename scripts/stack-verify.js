@@ -551,6 +551,165 @@ async function runProgramScenarios(browser, baseUrl, args, note, fail, jsErrors)
   }
 }
 
+
+/* v29.81 — data integrity: honest save(), no resurrected fields, restore points, tab sync, backup reminder. */
+async function runDataScenarios(browser, baseUrl, args, note, fail, jsErrors) {
+  const ctx = await browser.newContext({ viewport: { width: args.width, height: args.height }, isMobile: args.width <= 720, hasTouch: args.width <= 720, serviceWorkers: 'block', acceptDownloads: true });
+  await ctx.route('**/*', (route) => (route.request().url().startsWith(baseUrl) ? route.continue() : route.abort()));
+  const page = await ctx.newPage();
+  page.setDefaultTimeout(8000);
+  page.on('pageerror', (e) => jsErrors.push('[data] ' + e.message));
+  page.on('dialog', (d) => d.accept().catch(() => {}));
+  const check = (ok, label) => (ok ? note(`  scenario OK: ${label}`) : fail(`scenario: ${label}`));
+  const step = async (label, fn) => { try { await fn(); } catch (e) { fail(`scenario: ${label} threw: ${String(e.message).split('\n')[0]}`); } };
+  const open = async (pg) => { await pg.goto(`${baseUrl}/index.html`, { waitUntil: 'domcontentloaded', timeout: 20000 }); await pg.waitForSelector('.v29-nav', { timeout: 15000 }); await pg.waitForTimeout(900); };
+  await open(page);
+
+  await step('save() reports a failed write', async () => {
+    await page.evaluate(() => { window.__origSet = Storage.prototype.setItem; Storage.prototype.setItem = function (k, v) { if (k === KEY) throw new DOMException('quota', 'QuotaExceededError'); return window.__origSet.call(this, k, v); }; });
+    const bad = await page.evaluate(() => { const warn = console.warn; console.warn = () => {}; const r = save(); console.warn = warn; return { r, toast: document.getElementById('stackBackupToast')?.textContent }; });
+    await page.evaluate(() => { Storage.prototype.setItem = window.__origSet; });
+    const good = await page.evaluate(() => ({ r: save(), toast: document.getElementById('stackBackupToast')?.textContent }));
+    check(bad.r === false && /Не сохранено/.test(bad.toast || ''), `a failed write returns false and the toast says so (${bad.r}, «${bad.toast}»)`);
+    check(good.r === true && /Сохранено/.test(good.toast || ''), `a real write returns true and shows «✓ Сохранено» (${good.r})`);
+  });
+
+  await step('deleted fields stay deleted', async () => {
+    const r = await page.evaluate(() => {
+      state.savings.goals.push({ id: 'gdel', name: 'x', target: 1, start: 0, monthly: 0, deadline: '', currency: 'RUB', color: '#ffffff', icon: 'home', tx: [], note: 'keep-me' });
+      save(); delete state.savings.goals[0].note; save();
+      const g = JSON.parse(localStorage.getItem(KEY)).savings.goals[0];
+      state.savings.goals.length = 0; save();
+      return { has: 'note' in g };
+    });
+    check(r.has === false, 'a field deleted from the state is not resurrected by the next save');
+  });
+
+  await step('restore-point retention', async () => {
+    const r = await page.evaluate(() => {
+      const MIN = 60000, H = 3600000, D = 86400000, now = new Date(2026, 9, 10, 12, 0, 0).getTime();
+      const items = [
+        ['min1', now - MIN], ['min9', now - 9 * MIN], ['min20', now - 20 * MIN], ['h3', now - 3 * H], ['h5', now - 5 * H],
+        ['d2', now - 2 * D], ['d2h', now - 2 * D - H], ['d40', now - 40 * D], ['d41', now - 41 * D], ['d300', now - 300 * D],
+        ['pinNew', now - 3 * MIN], ['pinOld', now - 20 * D],
+      ];
+      const pin = new Set(['pinNew', 'pinOld']), byTs = new Map(items.map(([n, t]) => [t, n]));
+      const drop = STACK_RECOVERY.expired(items.map(([n, t]) => ({ ts: t, pin: pin.has(n) })), now).map((t) => byTs.get(t)).sort();
+      return drop;
+    });
+    const want = ['d2h', 'd300', 'd41', 'h5', 'min9', 'pinOld'].sort();
+    check(JSON.stringify(r) === JSON.stringify(want), `retention keeps the newest per 15 min / day / month and pins «before-…» (dropped ${JSON.stringify(r)})`);
+  });
+
+  await step('restore point round trip', async () => {
+    await page.evaluate(() => { state.processes[0].name = 'Тест процесс'; state.journal.push({ id: 'rp1', task: 'RESTORE_ME', status: 'Не начато', date: '2026-10-01', due: '2026-12-31' }); save(); });
+    const made = await page.evaluate(() => STACK_RECOVERY.snapshotNow('before-delete'));
+    const listed = await page.evaluate(async () => (await STACK_RECOVERY.list()).filter((x) => x.reason === 'before-delete').map((x) => ({ id: x.id, tasks: x.stats?.tasks, pin: x.pin })));
+    check(made === true && listed.length === 1 && listed[0].pin === true && listed[0].tasks >= 1, `«before-delete» point is written, pinned and counted (${JSON.stringify(listed)})`);
+    await page.evaluate(() => { state.journal.length = 0; save(); });
+    check(await page.evaluate(() => state.journal.length === 0), 'the task is gone before restoring');
+    const nav = page.waitForNavigation({ timeout: 15000 });
+    await page.evaluate((id) => { STACK_RECOVERY.restore(id); }, listed[0].id);
+    await nav;
+    await page.waitForSelector('.v29-nav', { timeout: 15000 });
+    await page.waitForTimeout(900);
+    const back = await page.evaluate(() => ({ live: state.journal.some((t) => t.task === 'RESTORE_ME'), stored: JSON.parse(localStorage.getItem(KEY)).journal.some((t) => t.task === 'RESTORE_ME') }));
+    check(back.live && back.stored, `restore brings the task back and it survives the reload (${JSON.stringify(back)})`);
+    const pre = await page.evaluate(async () => (await STACK_RECOVERY.list()).filter((x) => x.reason === 'before-restore').length);
+    check(pre >= 1, 'the state before a restore is itself kept as a restore point');
+  });
+
+  await step('IndexedDB is written once per burst of saves', async () => {
+    await page.evaluate(() => { window.__puts = []; const put = IDBObjectStore.prototype.put; IDBObjectStore.prototype.put = function (v, k) { window.__puts.push(k); return put.apply(this, arguments); }; });
+    await page.evaluate(() => { for (let i = 0; i < 12; i++) { state.journal[0].note = 'burst ' + i; save(); } });
+    await page.waitForTimeout(2200);
+    const n = await page.evaluate(() => window.__puts.filter((k) => k === IDB_KEY).length);
+    check(n === 1, `12 saves in a row → ${n} write of the IndexedDB copy`);
+    await page.waitForTimeout(4500);
+    const snaps = await page.evaluate(() => window.__puts.filter((k) => String(k).startsWith('snap:')).length);
+    check(snaps <= 2, `12 saves in a row → ${snaps} restore point written (debounced)`);
+  });
+
+  await step('two windows do not overwrite each other', async () => {
+    const b = await ctx.newPage();
+    b.setDefaultTimeout(8000);
+    b.on('pageerror', (e) => jsErrors.push('[data/b] ' + e.message));
+    b.on('dialog', (d) => d.accept().catch(() => {}));
+    await open(b);
+    await page.evaluate(() => { state.journal.push({ id: 'tabA', task: 'FROM_TAB_A', status: 'Не начато', date: '2026-10-01', due: '2026-12-31' }); save(); });
+    await b.waitForTimeout(600);
+    const seen = await b.evaluate(() => state.journal.some((t) => t.task === 'FROM_TAB_A'));
+    await b.evaluate(() => { state.journal.push({ id: 'tabB', task: 'FROM_TAB_B', status: 'Не начато', date: '2026-10-01', due: '2026-12-31' }); save(); });
+    await page.waitForTimeout(600);
+    const stored = await page.evaluate(() => JSON.parse(localStorage.getItem(KEY)).journal.map((t) => t.task));
+    const aSees = await page.evaluate(() => state.journal.some((t) => t.task === 'FROM_TAB_B'));
+    check(seen && aSees && stored.includes('FROM_TAB_A') && stored.includes('FROM_TAB_B'), `window B adopts A's save, A adopts B's, nothing lost (${JSON.stringify({ seen, aSees })})`);
+    await b.close();
+  });
+
+  await step('backup reminder', async () => {
+    const fresh = await page.evaluate(() => STACK_DATA.backupStatus());
+    check(fresh.due === false, 'no reminder right after the first launch with data');
+    await page.evaluate(() => { localStorage.setItem('stack_backup_meta_v1', JSON.stringify({ since: new Date(Date.now() - 20 * 864e5).toISOString(), last: null })); STACK_V29_SHELL.refresh(); });
+    await page.click('.v29-nav [data-v29-nav="today"]');
+    await page.waitForTimeout(400);
+    check(!!(await page.$('[data-v29-backup]')), 'Today shows the backup reminder after 14+ days without a file');
+    const [dl] = await Promise.all([page.waitForEvent('download'), page.click('[data-v29-backup]')]);
+    const file = JSON.parse(require('fs').readFileSync(await dl.path(), 'utf8'));
+    await page.waitForTimeout(400);
+    const after = await page.evaluate(() => ({ banner: !!document.querySelector('[data-v29-backup]'), last: JSON.parse(localStorage.getItem('stack_backup_meta_v1')).last }));
+    check(!after.banner && !!after.last, 'downloading the file records the date and removes the reminder');
+    check(file.format === 'stack-full-backup' && !('stack_backup_meta_v1' in file.storage), 'the backup meta key is not part of the backup file');
+  });
+
+  await step('restore sheet in Analytics', async () => {
+    await page.click('.v29-nav [data-v29-nav="analytics"]');
+    await page.waitForTimeout(600);
+    await page.click('[data-v29a-restore]');
+    await page.waitForSelector('#v29aRestore .v29a-snap', { timeout: 8000 });
+    const m = await page.evaluate(() => { const c = document.querySelector('#v29aRestore .v29a-sheet-card'); const r = c.getBoundingClientRect(); return { rows: document.querySelectorAll('#v29aRestore .v29a-snap').length, fits: r.left >= 0 && r.right <= innerWidth + 0.5, overflowX: c.scrollWidth > c.clientWidth }; });
+    check(m.rows >= 1 && m.fits && !m.overflowX, `restore sheet lists ${m.rows} point(s) and fits the screen`);
+    await page.click('#v29aRestore [data-v29a-close]');
+    check(!(await page.$('#v29aRestore')), 'restore sheet closes');
+  });
+
+  await step('an immediate reload keeps the last save', async () => {
+    const before = await page.evaluate(() => { for (let i = 0; i < 300; i++) state.journal.push({ date: '2026-10-04', task: 'reload ' + i, due: '', priority: 'Средний', status: 'Не начато', note: '' }); save(); return { len: state.journal.length, rev: Number(state._meta.revision) }; });
+    await open(page);
+    const after = await page.evaluate(() => ({ len: state.journal.length, rev: Number(state._meta.revision) }));
+    check(after.len === before.len && after.rev >= before.rev, `a reload right after a save neither rolls back to the IndexedDB copy nor restarts the revision (${JSON.stringify({ before, after })})`);
+  });
+
+  await step('corrupt main key is recovered from a restore point', async () => {
+    const c = await ctx.newPage();
+    c.setDefaultTimeout(8000);
+    c.on('pageerror', (e) => jsErrors.push('[data/c] ' + e.message));
+    c.on('dialog', (d) => d.accept().catch(() => {}));
+    await c.addInitScript(() => { if (!sessionStorage.getItem('__corrupted')) { sessionStorage.setItem('__corrupted', '1'); localStorage.setItem('stack_neon_mix9_calendar_v1', '{broken'); } });
+    await c.goto(`${baseUrl}/index.html`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+    await c.waitForFunction(() => { try { return JSON.parse(localStorage.getItem('stack_neon_mix9_calendar_v1')).journal.some((t) => t.task === 'RESTORE_ME'); } catch (e) { return false; } }, null, { timeout: 12000 }).catch(() => {});
+    await c.waitForSelector('.v29-nav', { timeout: 15000 });
+    await c.waitForTimeout(800);
+    const r = await c.evaluate(() => ({ live: state.journal.some((t) => t.task === 'RESTORE_ME'), stored: (() => { try { return JSON.parse(localStorage.getItem('stack_neon_mix9_calendar_v1')).journal.some((t) => t.task === 'RESTORE_ME'); } catch (e) { return false; } })() }));
+    check(r.live && r.stored, `a corrupt main key is rebuilt from the newest restore point and stays rebuilt (${JSON.stringify(r)})`);
+    await c.close();
+  });
+
+  await step('an import cannot be rolled back by an older IndexedDB copy', async () => {
+    const r = await page.evaluate(async () => {
+      const before = Number(state._meta?.revision) || 0;
+      const next = validateImportedState({ processes: state.processes, months: state.months, journal: [{ date: '2026-10-01', task: 'IMPORTED', due: '', priority: 'Средний', status: 'Не начато', note: '' }], savings: state.savings });
+      next._meta = { ...(next._meta || {}), revision: Math.max(Number(state._meta?.revision) || 0, Number(next._meta?.revision) || 0) };
+      state = next; normalize(); save(); idbFlush();
+      await new Promise((res) => setTimeout(res, 300));
+      return { before, after: Number(state._meta.revision), idb: Number((await idbLoadState())?._meta?.revision) || 0 };
+    });
+    check(r.after > r.before && r.idb === r.after, `revision keeps growing across an import and the IndexedDB copy matches (${JSON.stringify(r)})`);
+  });
+
+  await ctx.close();
+}
+
 async function run() {
   const { chromium } = loadPlaywright();
   const args = parseArgs(process.argv);
@@ -756,6 +915,7 @@ async function run() {
 
     await runCrudScenarios(browser, baseUrl, args, note, fail, jsErrors);
     await runProgramScenarios(browser, baseUrl, args, note, fail, jsErrors);
+    await runDataScenarios(browser, baseUrl, args, note, fail, jsErrors);
 
     if (jsErrors.length) {
       for (const e of jsErrors) fail('JS error: ' + e);

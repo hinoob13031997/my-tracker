@@ -3,7 +3,7 @@
    workout day status (stack_fitness_workout_<date>: '1' | 'skip' | '0') and the STACK КБЖУ formula.
    v29.76: full backup/restore of every stack_* key (exportFull / importStorage). */
 (()=>{'use strict';
-const KEYS=Object.freeze({main:'stack_neon_mix9_calendar_v1',income:'stack_income_tracker_v1',fx:'stack_fx_cbr_v1',fxHistory:'stack_fx_history_v1',taskDetails:'stack_task_details_v227',fitnessGoal:'stack_fitness_goal_v2318',fitnessProfile:'stack_fitness_profile_v2320',fitnessBody:'stack_fitness_log_v2310',fitnessNutrition:'stack_fitness_nutrition_v2310',focus:'stack_v27_focus_v1'});
+const KEYS=Object.freeze({main:'stack_neon_mix9_calendar_v1',income:'stack_income_tracker_v1',fx:'stack_fx_cbr_v1',fxHistory:'stack_fx_history_v1',taskDetails:'stack_task_details_v227',fitnessGoal:'stack_fitness_goal_v2318',fitnessProfile:'stack_fitness_profile_v2320',fitnessBody:'stack_fitness_log_v2310',fitnessNutrition:'stack_fitness_nutrition_v2310',focus:'stack_v27_focus_v1',backupMeta:'stack_backup_meta_v1'});
 function read(key,fallback={}){try{const v=JSON.parse(localStorage.getItem(key)||'null');return v??fallback}catch(e){return fallback}}
 function main(){const v=read(KEYS.main,{});return v&&typeof v==='object'&&!Array.isArray(v)?v:{}}
 function income(){return read(KEYS.income,{})}function savings(){return main()?.savings||{}}function goals(){const a=savings()?.goals;return Array.isArray(a)?a:[]}
@@ -50,14 +50,24 @@ function exportBundle(){return{schema:2,build:String(globalThis.STACK_CORE?.buil
    workout marks, income, task descriptions and checklists did not survive a device change. Now every `stack_*`
    localStorage key travels in `storage` (raw strings, byte-for-byte); the main state stays top-level `state`.
    Files from older builds (the bare state object) are still accepted by the importer in index.html. */
-const BACKUP_FORMAT='stack-full-backup',STORAGE_KEY_RE=/^stack_[a-z0-9_-]+$/,WORKOUT_PREFIX='stack_fitness_workout_',NOT_BACKED_UP=new Set([KEYS.main,KEYS.fx]);
+const BACKUP_FORMAT='stack-full-backup',STORAGE_KEY_RE=/^stack_[a-z0-9_-]+$/,WORKOUT_PREFIX='stack_fitness_workout_',NOT_BACKED_UP=new Set([KEYS.main,KEYS.fx,KEYS.backupMeta]);
 function storageSnapshot(){const out={};try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(!STORAGE_KEY_RE.test(k)||NOT_BACKED_UP.has(k))continue;const v=localStorage.getItem(k);if(typeof v==='string')out[k]=v}}catch(e){}return out}
 function exportFull(live){const state=live&&typeof live==='object'&&!Array.isArray(live)?live:main();return{format:BACKUP_FORMAT,version:1,createdAt:new Date().toISOString(),state,storage:storageSnapshot()}}
 function isFullBackup(x){return !!x&&typeof x==='object'&&x.format===BACKUP_FORMAT&&!!x.state&&typeof x.state==='object'&&!!x.storage&&typeof x.storage==='object'&&!Array.isArray(x.storage)}
 /* Writes only well-formed `stack_*` keys: JSON values everywhere, short marks for workout days. The main state is never
    written here (the caller validates and saves it); the FX cache is not restored (it is re-fetched). */
 function importStorage(storage){const res={written:0,skipped:[]};if(!storage||typeof storage!=='object'||Array.isArray(storage))return res;for(const [k,v] of Object.entries(storage)){let ok=STORAGE_KEY_RE.test(k)&&!NOT_BACKED_UP.has(k)&&typeof v==='string'&&v.length<=5e6;if(ok){if(k.startsWith(WORKOUT_PREFIX))ok=v.length<=16;else try{JSON.parse(v)}catch(e){ok=false}}if(ok)try{localStorage.setItem(k,v);res.written++;continue}catch(e){}res.skipped.push(k)}return res}
-const api=Object.freeze({version:2,schema:2,keys:KEYS,read,main,income,savings,goals,currency,goalCurrency,transactions,fxCache,rate,balance,monthTransactions,savedNative,savedRubEquivalent,fitness,tasks,snapshot,exportBundle,exportFull,isFullBackup,importStorage,dateKey,workoutStatus,setWorkoutStatus,programStart,programPosition,programPhases:PROGRAM_PHASES,workoutsDone,yearWorkouts,yearGoal,nutritionTargets});
+/* Does the state hold anything the user made? A fresh/wiped state must never be saved as a restore point, nor trigger a backup reminder (v29.81).
+   Auto-filled «—» marks do not count. */
+function hasData(s=main()){if(!s||typeof s!=='object')return false;if((s.journal||[]).length||(s.savings?.goals||[]).length)return true;if((s.processes||[]).some(p=>String(p?.name||'').trim()))return true;return (s.months||[]).some(m=>Array.isArray(m)&&m.some(r=>Array.isArray(r)&&r.some(v=>v==='✓'||v==='○'||v==='◐')))}
+/* When the last file backup was made (v29.81). Kept outside the backup itself, so restoring an old file never rewinds it.
+   `since` is the first time the app saw real data: the reminder counts from there when no backup was ever downloaded. */
+const BACKUP_REMIND_DAYS=14;
+function backupMeta(){const m=read(KEYS.backupMeta,{}),t=v=>{const n=Date.parse(v);return Number.isFinite(n)?n:0};return{last:t(m?.last),since:t(m?.since)}}
+function touchBackupMeta(done=false){try{const cur=read(KEYS.backupMeta,{}),now=new Date().toISOString();if(!done&&cur?.since)return;localStorage.setItem(KEYS.backupMeta,JSON.stringify({since:cur?.since||now,last:done?now:(cur?.last||null)}));if(done)window.dispatchEvent(new CustomEvent('stack:backup-done'))}catch(e){}}
+function backupStatus(now=Date.now()){const m=backupMeta(),base=m.last||m.since;const days=base?Math.max(0,Math.floor((now-base)/DAY_MS)):null;return{everBackedUp:!!m.last,days,due:days!==null&&days>=BACKUP_REMIND_DAYS&&hasData()}}
+function storageOnly(){return storageSnapshot()}
+const api=Object.freeze({version:2,schema:2,keys:KEYS,read,main,income,savings,goals,currency,goalCurrency,transactions,fxCache,rate,balance,monthTransactions,savedNative,savedRubEquivalent,fitness,tasks,snapshot,exportBundle,exportFull,isFullBackup,importStorage,storageOnly,hasData,backupMeta,touchBackupMeta,backupStatus,dateKey,workoutStatus,setWorkoutStatus,programStart,programPosition,programPhases:PROGRAM_PHASES,workoutsDone,yearWorkouts,yearGoal,nutritionTargets});
 Object.defineProperty(globalThis,'STACK_DATA',{value:api,writable:false,configurable:true});
 window.dispatchEvent(new CustomEvent('stack:data-ready',{detail:{version:2,schema:2}}));
 console.info('STACK Data Core v2 ready');

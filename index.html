@@ -990,6 +990,9 @@ function migrateStoredState(x){
    const old=Array.isArray(x.months?.[mi]?.[pi])?x.months[mi][pi]:[];
    return Array.from({length:m[3]},(_,d)=>validMark(old[d])?old[d]:'')
  }));
+ /* _meta (revision/updatedAt, v22.2) travels with the state from the first load: a save() before v22.2 installs itself used to write the state without it,
+    the revision restarted at 0 and reconcile took the older IndexedDB copy as the newer one */
+ if(x._meta&&typeof x._meta==='object'&&!Array.isArray(x._meta))clean._meta={...x._meta};
  return clean
 }
 function normalize(){
@@ -1017,9 +1020,18 @@ function normalize(){
  state.processes.forEach((_,i)=>ensureScheduleSkipsForProcess(i));
 }
 normalize();
+/* The IndexedDB copy is written once the taps settle (and when the page is hidden), not on every tap: each write clones the whole state. */
+let idbTimer=0;
+function idbSaveSoon(){clearTimeout(idbTimer);idbTimer=setTimeout(()=>{idbTimer=0;idbSaveState(state)},1500)}
+function idbFlush(){if(idbTimer){clearTimeout(idbTimer);idbTimer=0;idbSaveState(state)}}
+/* Returns true only when the main key was really written: callers (the «Сохранено» toast) must not claim a save that failed. */
 function save(){
-  try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){console.warn('STACK localStorage save failed',e)}
-  idbSaveState(state)
+  let ok=false;
+  /* revision counter: a copy with a higher revision wins in reconcile (v22.2.js), so it grows here, in the one place every write passes through */
+  try{const m=state._meta&&typeof state._meta==='object'?state._meta:(state._meta={});m.revision=(Number(m.revision)||0)+1;m.updatedAt=new Date().toISOString()}catch(e){}
+  try{localStorage.setItem(KEY,JSON.stringify(state));ok=true}catch(e){console.warn('STACK localStorage save failed',e)}
+  idbSaveSoon();
+  return ok
 }
 const pct=v=>Math.round((v||0)*100);
 function completion(a){const s=activeCompletion(a);return s.rate??0}
@@ -1240,7 +1252,7 @@ function renderProcessDetailChart(p,allRates){
  svg.innerHTML=z
 }
 
-function removeProcess(i){if(state.processes.length<=1)return;if(!confirm('Удалить процесс и его отметки за все месяцы?'))return;state.processes.splice(i,1);state.months.forEach(m=>m.splice(i,1));save();renderAll()}
+function removeProcess(i){if(state.processes.length<=1)return;if(!confirm('Удалить процесс и его отметки за все месяцы?'))return;try{STACK_RECOVERY.snapshotNow('before-delete')}catch(_){}state.processes.splice(i,1);state.months.forEach(m=>m.splice(i,1));save();renderAll()}
 function prevDelta(){
  const mi=state.currentMonth;
  const cur=mm(mi);
@@ -1848,7 +1860,7 @@ document.getElementById('editFromDetail').onclick=()=>{
 };
 document.getElementById('addProcess').onclick=addProcess;
 document.getElementById('addJournal').onclick=()=>{state.journal.push({priority:'Средний',status:'Не начато'});save();renderJournal()};
-document.getElementById('exportBtn').onclick=()=>{const D=window.STACK_DATA,a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(D?.exportFull?D.exportFull(state):state,null,2)],{type:'application/json'}));a.download='STACK_backup_'+(D?.dateKey?D.dateKey():new Date().toISOString().slice(0,10))+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
+document.getElementById('exportBtn').onclick=()=>{const D=window.STACK_DATA,a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(D?.exportFull?D.exportFull(state):state,null,2)],{type:'application/json'}));a.download='STACK_backup_'+(D?.dateKey?D.dateKey():new Date().toISOString().slice(0,10))+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);D?.touchBackupMeta?.(true)};
 
 function validateImportedState(x){
  if(!x||typeof x!=='object')throw new Error('Неверный формат');
@@ -1915,9 +1927,13 @@ document.getElementById('fileInput').onchange=e=>{
      /* validate first: a bad file must not touch any stored data */
      const next=validateImportedState(full?full.state:parsed);
      if(full&&!confirm('Импорт заменит текущие данные (задачи, финансы, Fitness, питание) данными из файла. Продолжить?'))return;
+     /* a restore point of what is about to be replaced (captured synchronously, before any key is touched) */
+     try{STACK_RECOVERY.snapshotNow('before-import')}catch(_){}
      if(full)D.importStorage(full.storage);
+     /* the revision (state._meta, v22.2) must keep growing across an import: a reset to 1 made the older IndexedDB copy look newer and the next start rolled the import back */
+     next._meta={...(next._meta||{}),revision:Math.max(Number(state._meta?.revision)||0,Number(next._meta?.revision)||0)};
      state=next;
-     normalize();save();loadFxCache();
+     normalize();save();idbFlush();loadFxCache();
 const startupMonth=dateToMonthIndex(new Date());
 if(startupMonth>=0 && !sessionStorage.getItem('stack_month_manual'))state.currentMonth=startupMonth;
 renderAll();alert('Импорт выполнен');
@@ -1932,6 +1948,7 @@ renderAll();
 
 function persistNow(){
  try{save()}catch(e){}
+ idbFlush()
 }
 window.addEventListener('pagehide',persistNow);
 window.addEventListener('beforeunload',persistNow);
