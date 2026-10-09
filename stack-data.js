@@ -313,6 +313,88 @@
     const label = `${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`;
     return String(d.getFullYear()) === today.slice(0, 4) ? label : `${label} ${d.getFullYear()}`;
   }
+  /* What «Аналитика» shows for tasks (v29.89). It used to be done / ALL non-archived tasks since the first day: tasks that are not due yet
+   counted as failures, old completed ones never aged out and there was no trend. Now: tasks with a deadline in the last 14 days (done / all of
+   them) plus every still-open task whose deadline is older — an unfinished task stays a debt until it is closed or moved. Tasks without a
+   deadline are not counted (the screen does not call them late either); `previous` is the 14 days before, with their status as of today. */
+  const TASK_WINDOW = 14;
+  function taskStats(journal = tasks().journal, today = dateKey()) {
+    const from = shiftKey(today, 1 - TASK_WINDOW),
+      pFrom = shiftKey(today, 1 - 2 * TASK_WINDOW),
+      pTo = shiftKey(today, -TASK_WINDOW);
+    let total = 0,
+      completed = 0,
+      pTotal = 0,
+      pDone = 0;
+    for (const t of Array.isArray(journal) ? journal : []) {
+      const due = isDateKey(t?.due) ? t.due : '';
+      if (!due || due > today) continue;
+      const done = isTaskDone(t);
+      if (due >= from) {
+        total++;
+        if (done) completed++;
+      } else if (!done) total++;
+      if (due >= pFrom && due <= pTo) {
+        pTotal++;
+        if (done) pDone++;
+      }
+    }
+    const pct = (a, b) => (b ? Math.round((a / b) * 100) : null);
+    return { total, completed, score: pct(completed, total), previous: pct(pDone, pTotal) };
+  }
+  /* Process numbers over CALENDAR days, one source for «Дела → Процессы» and «Аналитика». The ✓/(✓+○) rule itself stays the single
+   activeCompletion() of index.html (◐ = half). `recent` = last 14 days, `previous` = the 14 before (null when nothing was marked in them —
+   it used to be «the last 14 marked values», however old, and a missing period counted as 0%). Streak = consecutive days ending today
+   (an unmarked today does not break it) with ✓; «—» and days the process is not scheduled are skipped; ○, ◐ or an unmarked past day end it. */
+  function processStats(i, s = main(), now = new Date()) {
+    if (typeof activeCompletion !== 'function' || !Array.isArray(s?.months)) return null;
+    const pct = marks => {
+      const c = activeCompletion(marks);
+      return c.rate === null ? null : Math.round(c.rate * 100);
+    };
+    const dayAgo = n => new Date(now.getFullYear(), now.getMonth(), now.getDate() - n),
+      monthOf = d => (typeof dateToMonthIndex === 'function' ? dateToMonthIndex(d) : -1),
+      markAt = d => {
+        const mi = monthOf(d);
+        return mi >= 0 ? s.months[mi]?.[i]?.[d.getDate() - 1] || '' : '';
+      },
+      span = (from, to) => {
+        const a = [];
+        for (let n = from; n <= to; n++) {
+          const v = markAt(dayAgo(n));
+          if (v) a.push(v);
+        }
+        return a;
+      };
+    const every = s.months.flatMap(m => (Array.isArray(m?.[i]) ? m[i].filter(Boolean) : []));
+    const recentMarks = span(0, 13),
+      all = activeCompletion(every),
+      recent = pct(recentMarks),
+      previous = pct(span(14, 27));
+    let streak = 0;
+    for (let n = 0; n < 366; n++) {
+      const d = dayAgo(n);
+      if (monthOf(d) < 0) break;
+      try {
+        if (typeof isScheduledOnDate === 'function' && !isScheduledOnDate(i, d)) continue;
+      } catch (e) {}
+      const v = markAt(d);
+      if (n === 0 && v === '') continue;
+      if (v === '—') continue;
+      if (v !== '✓') break;
+      streak++;
+    }
+    return {
+      done: all.done,
+      total: all.total,
+      all: all.rate === null ? null : Math.round(all.rate * 100),
+      recent,
+      previous,
+      count: recentMarks.filter(v => v !== '—').length,
+      delta: recent !== null && previous !== null ? recent - previous : 0,
+      streak,
+    };
+  }
   function snapshot() {
     return {
       schema: 2,
@@ -471,6 +553,8 @@
     rescheduleTask,
     shiftKey,
     formatDay,
+    taskStats,
+    processStats,
     snapshot,
     exportBundle,
     exportFull,

@@ -22,41 +22,35 @@
   const main = () => globalThis.STACK_DATA?.main?.() || read('stack_neon_mix9_calendar_v1', {});
   const journal = () => (Array.isArray(main()?.journal) ? main().journal : []);
   const processes = () => (Array.isArray(main()?.processes) ? main().processes : []);
+  /* v29.89: processes and tasks are read through STACK_DATA.processStats / taskStats — calendar windows, the one ✓/(✓+○) rule of index.html */
   function processDomain() {
     const s = main(),
-      ps = processes(),
-      months = Array.isArray(s?.months) ? s.months : [];
-    const items = ps.map((p, i) => {
-      const vals = [];
-      for (const m of months) {
-        const a = m?.[i] || [];
-        for (const v of a) if (v && v !== '—') vals.push(v);
-      }
-      const recent = vals.slice(-14),
-        prev = vals.slice(-28, -14),
-        pct = a => (a.length ? Math.round((a.filter(v => v === '✓').length / a.length) * 100) : 0);
-      return {
-        name: p?.name || `Процесс ${i + 1}`,
-        goal: Number(p?.goal) || 80,
-        all: pct(vals),
-        recent: pct(recent),
-        previous: pct(prev),
-        count: recent.length,
-      };
-    });
-    const active = items.filter(x => x.count);
+      D = globalThis.STACK_DATA,
+      items = processes().map((p, i) => {
+        const st = D?.processStats?.(i, s) || {};
+        return {
+          name: p?.name || `Процесс ${i + 1}`,
+          goal: Number(p?.goal) || 80,
+          all: st.all ?? null,
+          recent: st.recent ?? null,
+          previous: st.previous ?? null,
+          count: st.count || 0,
+        };
+      });
+    const active = items.filter(x => x.count && Number.isFinite(x.recent)),
+      prev = active.filter(x => Number.isFinite(x.previous)),
+      avg = a => clamp(a.reduce((t, x) => t + x, 0) / a.length);
     return {
-      score: active.length ? clamp(active.reduce((s, x) => s + x.recent, 0) / active.length) : null,
-      previous: active.length ? clamp(active.reduce((s, x) => s + x.previous, 0) / active.length) : null,
+      score: active.length ? avg(active.map(x => x.recent)) : null,
+      previous: prev.length ? avg(prev.map(x => x.previous)) : null,
       items,
     };
   }
   function taskDomain() {
-    const a = journal(),
-      done = t => /готов|выполн|done|complete/i.test(String(t?.status || '')),
-      active = a.filter(t => t && String(t.status || '').toLowerCase() !== 'архив');
-    const completed = active.filter(done).length;
-    return { score: active.length ? clamp((completed / active.length) * 100) : null, total: active.length, completed };
+    const t = globalThis.STACK_DATA?.taskStats?.(journal());
+    return t
+      ? { score: t.score, previous: t.previous, total: t.total, completed: t.completed }
+      : { score: null, previous: null, total: 0, completed: 0 };
   }
   /* v29.68: share of logged days in the last 14 (and the 14 before) where eaten kcal was 85–115% of the target. */
   function nutritionAdherence() {
@@ -117,28 +111,26 @@
       target: Number(goal.target) || null,
     };
   }
+  /* v29.89: against the plan over the last 30 days (and the 30 before), not the calendar month — on the 1st the month is empty, which read
+   as «0% of the plan, focus: finance» every month and a trend of −100. Nothing recorded yet → no score instead of 0. */
   function financeDomain() {
     try {
-      const d = new Date(),
+      const F = globalThis.STACK_FINANCE,
+        d = new Date(),
         k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
-        pd = new Date(d.getFullYear(), d.getMonth() - 1, 1),
-        pk = `${pd.getFullYear()}-${String(pd.getMonth() + 1).padStart(2, '0')}`,
-        m = globalThis.STACK_FINANCE?.month?.('RUB', k) || {},
-        pm = globalThis.STACK_FINANCE?.month?.('RUB', pk) || {};
-      const income = Number(m.income) || 0,
+        m = F?.month?.('RUB', k) || {},
+        income = Number(m.income) || 0,
         plan = Number(m.plan) || 0,
-        saved = Number(m.saved) || 0,
-        free = Number(m.free) || 0;
-      let score = null;
-      if (plan > 0) score = clamp((saved / plan) * 100);
-      else if (income > 0) score = clamp((Math.max(0, saved) / income) * 100 * 4);
-      const pincome = Number(pm.income) || 0,
-        pplan = Number(pm.plan) || 0,
-        psaved = Number(pm.saved) || 0;
-      let previous = null;
-      if (pplan > 0) previous = clamp((psaved / pplan) * 100);
-      else if (pincome > 0) previous = clamp((Math.max(0, psaved) / pincome) * 100 * 4);
-      return { score, income, plan, saved, free, previous };
+        free = Number(m.free) || 0,
+        cur = F?.rolling?.('RUB', 0, 30) || { saved: 0, tx: 0 },
+        prev = F?.rolling?.('RUB', 30, 30) || { saved: 0, tx: 0 };
+      let score = null,
+        previous = null;
+      if (plan > 0) {
+        if (cur.tx || prev.tx || F?.rolling?.('RUB', 0, 3650)?.tx) score = clamp((cur.saved / plan) * 100);
+        if (prev.tx) previous = clamp((prev.saved / plan) * 100);
+      } else if (income > 0) score = clamp((Math.max(0, Number(m.saved) || 0) / income) * 100 * 4);
+      return { score, income, plan, saved: cur.saved, free, previous };
     } catch (_) {
       return { score: null, income: 0, plan: 0, saved: 0, free: 0, previous: null };
     }
@@ -186,7 +178,10 @@
       return {
         tone: 'bad',
         title: `Фокус недели · ${w.label}`,
-        text: `Сейчас ${w.score}/100. Не расширяй систему: сначала верни этот домен хотя бы к 70.`,
+        text:
+          w.k === 'tasks'
+            ? `Сейчас ${w.score}/100. Закрой или перенеси просроченные задачи — это быстрее всего поднимает оценку.`
+            : `Сейчас ${w.score}/100. Не расширяй систему: сначала верни этот домен хотя бы к 70.`,
       };
     if (w.score < 75)
       return {

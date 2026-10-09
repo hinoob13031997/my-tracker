@@ -10,7 +10,7 @@
  * overflow on mobile, and DOM-mutation loops (MutationObserver ping-pong).
  *
  * Usage:
- *   node scripts/stack-verify.js [--width=390] [--height=844] [--port=8811] [--only=today,deals,crud,program,data,sw]
+ *   node scripts/stack-verify.js [--width=390] [--height=844] [--port=8811] [--only=today,deals,analytics,crud,program,data,sw]
  *
  * Requires Playwright + a Chromium build. In this project's usual sandbox
  * that means the global install at /opt/node22/lib/node_modules and the
@@ -909,6 +909,182 @@ async function runDealsScenarios(browser, baseUrl, args, note, fail, jsErrors) {
       h: document.documentElement.scrollHeight,
     }));
     check(!o.x && o.h < 3000, `no horizontal overflow, the page is ${o.h}px tall instead of a graveyard of done tasks`);
+  });
+  await ctx.close();
+}
+
+/* Аналитика (v29.89): domain numbers from calendar windows, charts in real pixels with gaps instead of zeros. */
+async function runAnalyticsScenarios(browser, baseUrl, args, note, fail, jsErrors) {
+  const ctx = await browser.newContext({
+    viewport: { width: args.width, height: args.height },
+    isMobile: args.width <= 720,
+    hasTouch: args.width <= 720,
+    serviceWorkers: 'block',
+  });
+  await ctx.route('**/*', route => (route.request().url().startsWith(baseUrl) ? route.continue() : route.abort()));
+  await ctx.clock.setFixedTime(new Date('2026-10-09T10:00:00'));
+  const day = n => {
+    const d = new Date(2026, 9, 9 + n, 12);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const task = (title, o = {}) => ({
+    date: '',
+    task: title,
+    due: o.due ?? '',
+    priority: 'Средний',
+    status: o.status || 'Не начато',
+    note: '',
+  });
+  const procs = ['Чтение', 'Английский'].map(name => ({
+    name,
+    goal: 0.8,
+    color: '#0877f3',
+    schedule: [1, 1, 1, 1, 1, 1, 1],
+    scheduleType: 'daily',
+    monthDay: 1,
+    lastDay: false,
+  }));
+  const lens = [31, 30, 31, 30, 31, 31, 28, 31, 30, 31, 30, 31];
+  const months = lens.map((n, mi) =>
+    procs.map((_, pi) =>
+      Array.from({ length: n }, (_, d) => (mi < 3 && d < (mi === 2 ? 8 : n) ? (d % 4 ? '✓' : '○') : ''))
+    )
+  );
+  const seed = {
+    goal: 0.8,
+    currentMonth: 2,
+    processes: procs,
+    months,
+    journal: [
+      task('A_DONE_1', { due: day(0), status: 'Готово' }),
+      task('A_DONE_2', { due: day(-4), status: 'Готово' }),
+      task('A_LATE', { due: day(-1) }),
+      task('A_FUTURE', { due: day(10) }),
+      task('A_NO_DEADLINE'),
+      task('A_OLD_DONE', { due: day(-90), status: 'Готово' }),
+    ],
+    savings: {
+      currency: 'RUB',
+      selectedId: 'g1',
+      goals: [
+        {
+          id: 'g1',
+          name: 'Цель',
+          target: 100000,
+          start: 0,
+          monthly: 10000,
+          deadline: '',
+          currency: 'RUB',
+          color: '#0877f3',
+          icon: 'home',
+          tx: [{ amount: 10000, date: day(-3), note: '' }],
+        },
+      ],
+    },
+  };
+  await ctx.addInitScript(s => {
+    if (!localStorage.getItem('__seeded')) {
+      localStorage.setItem('__seeded', '1');
+      localStorage.setItem('stack_neon_mix9_calendar_v1', JSON.stringify(s));
+    }
+  }, seed);
+  const page = await ctx.newPage();
+  page.setDefaultTimeout(8000);
+  page.on('pageerror', e => jsErrors.push('[analytics] ' + e.message));
+  const check = (ok, label) => (ok ? note(`  scenario OK: ${label}`) : fail(`scenario: ${label}`));
+  const step = async (label, fn) => {
+    try {
+      await fn();
+    } catch (e) {
+      fail(`scenario: ${label} threw: ${String(e.message).split('\n')[0]}`);
+    }
+  };
+  await page.goto(`${baseUrl}/index.html`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+  await page.waitForSelector('.v29-nav', { timeout: 15000 });
+  await page.waitForTimeout(1400);
+  await page.click('.v29-nav [data-v29-nav="analytics"]');
+  await page.waitForSelector('.v29a-domain');
+
+  await step('domain numbers', async () => {
+    const d = await page.evaluate(() =>
+      Object.fromEntries(
+        [...document.querySelectorAll('.v29a-domain')].map(b => [
+          b.querySelector('span').textContent,
+          b.querySelector('b').textContent,
+        ])
+      )
+    );
+    check(
+      d['ЗАДАЧИ'] === '67',
+      `tasks: 2 of the 3 tasks that were due count, the future / undated / 90-day-old done ones do not (${d['ЗАДАЧИ']})`
+    );
+    check(d['ФИНАНСЫ'] === '100', `finance: 10 000 saved in the last 30 days against a 10 000 plan (${d['ФИНАНСЫ']})`);
+    check(/^\d+$/.test(d['ПРОЦЕССЫ']), `processes show a number from the last 14 days (${d['ПРОЦЕССЫ']})`);
+    const sub = await page.evaluate(() => document.querySelector('.v29a-week')?.textContent || document.body.innerText);
+    check(
+      /Задачи 2\/3/.test(sub),
+      `the weekly line reads «Задачи 2/3» (${(sub.match(/Задачи [^·]*/) || [''])[0].trim()})`
+    );
+  });
+
+  await step('charts', async () => {
+    await page.getByText('Показать графики и историю').click();
+    await page.waitForTimeout(500);
+    const c = await page.evaluate(() => {
+      const svg = document.getElementById('chart');
+      const box = svg.getBoundingClientRect();
+      const scale = svg.getScreenCTM().a;
+      const axis = [...svg.querySelectorAll('text.axis')];
+      return {
+        points: svg.querySelectorAll('circle').length,
+        months: axis.filter(t => /[А-Яа-я]{3}/.test(t.textContent)).length,
+        lines: svg.querySelectorAll('path[stroke="url(#lg)"]').length,
+        px: Math.round(parseFloat(getComputedStyle(axis[0]).fontSize) * scale * 10) / 10,
+        h: Math.round(box.height),
+        ratio: Math.round((box.width / box.height) * 100) / 100,
+        overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      };
+    });
+    check(
+      c.points === 3 && c.months === 12 && c.lines === 1,
+      `the year chart has a point only for the 3 months with data and one line — no 0% cliff through the future (${JSON.stringify(c)})`
+    );
+    check(
+      c.px >= 9.5 && c.h >= 150 && !c.overflow,
+      `its axis text is ≥ 9.5px on screen and the plot is ${c.h}px tall (${c.px}px)`
+    );
+    const t = await page.evaluate(() => {
+      const svg = document.getElementById('trendChart');
+      const axis = [...svg.querySelectorAll('text.axis')];
+      const clipped = [...svg.querySelectorAll('text')].filter(x => {
+        const b = x.getBBox();
+        return b.x < 0 || b.x + b.width > svg.viewBox.baseVal.width;
+      }).length;
+      return {
+        px: Math.round(parseFloat(getComputedStyle(axis[0]).fontSize) * svg.getScreenCTM().a * 10) / 10,
+        line: !!svg.querySelector('.trend-line-animated'),
+        clipped,
+        h: Math.round(svg.getBoundingClientRect().height),
+      };
+    });
+    check(
+      t.px >= 9.5 && t.line && t.clipped === 0 && t.h >= 150,
+      `the month-dynamics chart: readable text, its line, no clipped labels (${JSON.stringify(t)})`
+    );
+    const dtl = await page.evaluate(() => {
+      openProcessDetail(0);
+      const svg = document.getElementById('detailChart');
+      const r = {
+        points: svg.querySelectorAll('circle').length,
+        lines: svg.querySelectorAll('path[stroke="url(#detailLine)"]').length,
+      };
+      document.getElementById('processDetailModal').classList.remove('active');
+      return r;
+    });
+    check(
+      dtl.points === 3 && dtl.lines === 1,
+      `a process chart also leaves months without data empty (${JSON.stringify(dtl)})`
+    );
   });
   await ctx.close();
 }
@@ -2078,7 +2254,7 @@ async function runServiceWorkerScenarios(chromium, launchOpts, root, port, note,
 async function run() {
   const { chromium } = loadPlaywright();
   const args = parseArgs(process.argv);
-  /* --only=today,deals,crud,program,data,sw runs just those scenario groups (the quick loop while working on one screen); a full run is the default */
+  /* --only=today,deals,analytics,crud,program,data,sw runs just those scenario groups (the quick loop while working on one screen); a full run is the default */
   const only = args.only ? String(args.only).split(',') : null;
   const want = name => !only || only.includes(name);
   const root = path.resolve(__dirname, '..');
@@ -2450,6 +2626,7 @@ async function run() {
 
     if (want('crud')) await runCrudScenarios(browser, baseUrl, args, note, fail, jsErrors);
     if (want('deals')) await runDealsScenarios(browser, baseUrl, args, note, fail, jsErrors);
+    if (want('analytics')) await runAnalyticsScenarios(browser, baseUrl, args, note, fail, jsErrors);
     if (want('program')) await runProgramScenarios(browser, baseUrl, args, note, fail, jsErrors);
     if (want('data')) await runDataScenarios(browser, baseUrl, args, note, fail, jsErrors);
     if (want('today')) await runTodayScenarios(browser, baseUrl, args, note, fail, jsErrors);

@@ -50,6 +50,28 @@
       total: totalBalance(c),
     };
   }
+  /* A sliding window of `days` days ending `endAgo` days ago, instead of the calendar month (v29.89): on the 1st the calendar month is
+   empty, which read as «saved 0% of the plan» every month. `tx` is how many operations fall in the window — a window with none is
+   «not tracked», not «zero». */
+  function rolling(currency, endAgo = 0, days = 30) {
+    const c = D()?.currency?.(currency) || 'RUB',
+      today = D()?.dateKey?.() || '',
+      to = D()?.shiftKey?.(today, -endAgo) || '',
+      from = D()?.shiftKey?.(today, -endAgo - days + 1) || '';
+    let saved = 0,
+      tx = 0;
+    if (from && to)
+      for (const g of D()?.goals?.() || []) {
+        if (D()?.goalCurrency?.(g) !== c) continue;
+        for (const t of D()?.transactions?.(g) || []) {
+          const d = String(t?.date || '').slice(0, 10);
+          if (d < from || d > to) continue;
+          saved += Number(t?.amount) || 0;
+          tx++;
+        }
+      }
+    return { saved, tx, plan: monthlyPlan(c), from, to };
+  }
   function monthsForYear(year) {
     const y = Number(year) || new Date().getFullYear(),
       inc = D()?.income?.() || {};
@@ -97,6 +119,7 @@
     monthlyPlan,
     totalBalance,
     month,
+    rolling,
     monthsForYear,
     year,
   });

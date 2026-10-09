@@ -62,7 +62,7 @@ function makeStorage(failWrites = () => false) {
 }
 
 /* A fresh app instance: inline script of index.html + stack-data.js, over its own storage. */
-function boot({ failWrites, seed } = {}) {
+function boot({ failWrites, seed, now } = {}) {
   const localStorage = makeStorage(failWrites);
   if (seed)
     for (const [k, v] of Object.entries(seed)) localStorage.setItem(k, typeof v === 'string' ? v : JSON.stringify(v));
@@ -113,17 +113,24 @@ function boot({ failWrites, seed } = {}) {
   /* browsers expose every element id as a global (savCurrency.onchange = …): give each one a stub */
   for (const m of html.matchAll(/\bid="([A-Za-z_$][\w$]*)"/g)) if (!(m[1] in win)) win[m[1]] = anything();
   const ctx = vm.createContext(win);
+  /* a pinned clock for the windows that count back from today (processes, tasks, finance) */
+  if (now)
+    vm.runInContext(
+      `(function(){var R=Date,F=${new Date(now).getTime()};globalThis.Date=class extends R{constructor(...a){a.length?super(...a):super(F)}static now(){return F}}})()`,
+      ctx
+    );
   const inline = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]).find(s => s.includes('const KEY='));
   assert(inline, 'inline app script not found in index.html');
   vm.runInContext(inline, ctx, { filename: 'index.html (inline)' });
-  vm.runInContext(fs.readFileSync(path.join(root, 'stack-data.js'), 'utf8'), ctx, { filename: 'stack-data.js' });
+  for (const f of ['stack-data.js', 'stack-finance.js', 'stack-v27-core.js'])
+    vm.runInContext(fs.readFileSync(path.join(root, f), 'utf8'), ctx, { filename: f });
   /* values born inside the VM belong to another realm (their Array.prototype differs): hand out plain copies so deepStrictEqual compares data */
   const plain = v => (v && typeof v === 'object' ? JSON.parse(JSON.stringify(v)) : v);
   const get = code => plain(vm.runInContext(code, ctx));
   const D = {};
   for (const [k, v] of Object.entries(win.STACK_DATA || {}))
     D[k] = typeof v === 'function' ? (...a) => plain(v(...a)) : v; // STACK_DATA is frozen: a plain wrapper, not a Proxy
-  return { ctx, get, localStorage, events, D };
+  return { ctx, get, localStorage, events, D, core: () => plain(win.STACK_CORE.snapshot()), F: win.STACK_FINANCE };
 }
 
 let passed = 0,
@@ -522,6 +529,138 @@ console.log('tasks (deadline groups, tick, reschedule)');
     assert.strictEqual(D.shiftKey('2026-12-31', 1), '2027-01-01');
     assert.strictEqual(D.shiftKey('2028-02-28', 1), '2028-02-29');
   });
+}
+
+console.log('analytics (windows, one formula, no stale numbers)');
+{
+  const NOW = '2026-10-09T12:00:00';
+  const iso = n => {
+    const d = new Date(2026, 9, 9 - n, 12);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  /* a state whose process `pi` has these marks: { daysAgo: mark } */
+  const withMarks = (marks, procs = 3) => {
+    const d = boot({ now: NOW });
+    const x = JSON.parse(d.get('JSON.stringify(fresh())'));
+    x.processes = x.processes.slice(0, procs).map((p, i) => ({ ...p, name: 'P' + i }));
+    x.months = x.months.map(m => m.slice(0, procs));
+    marks.forEach((byDay, pi) => {
+      for (const [ago, v] of Object.entries(byDay)) {
+        const dt = new Date(2026, 9, 9 - +ago, 12),
+          mi = (dt.getFullYear() - 2026) * 12 + dt.getMonth() - 7;
+        x.months[mi][pi][dt.getDate() - 1] = v;
+      }
+    });
+    d.localStorage.setItem(KEY, JSON.stringify(x));
+    return { ...d, state: x };
+  };
+  const range = (from, to, v) => Object.fromEntries(Array.from({ length: to - from + 1 }, (_, k) => [from + k, v]));
+  test('processes: the last 14 calendar days, the 14 before, and a streak that counts days', () => {
+    const d = withMarks([{ ...range(0, 13, '✓'), ...range(14, 27, '○') }]);
+    const st = d.D.processStats(0, d.state, new Date(2026, 9, 9, 12));
+    assert.deepStrictEqual(
+      [st.recent, st.previous, st.delta, st.streak, st.count],
+      [100, 0, 100, 14, 14],
+      JSON.stringify(st)
+    );
+  });
+  test('processes: an unmarked today keeps the streak, an unmarked past day ends it, «—» is skipped', () => {
+    const a = withMarks([range(1, 5, '✓')]);
+    assert.strictEqual(a.D.processStats(0, a.state, new Date(2026, 9, 9, 12)).streak, 5, 'today empty');
+    const b = withMarks([{ 0: '✓', 1: '✓', 3: '✓' }]);
+    assert.strictEqual(b.D.processStats(0, b.state, new Date(2026, 9, 9, 12)).streak, 2, 'a past gap ends it');
+    const c = withMarks([{ 0: '✓', 1: '—', 2: '—', 3: '✓' }]);
+    assert.strictEqual(c.D.processStats(0, c.state, new Date(2026, 9, 9, 12)).streak, 2, '— neither breaks nor counts');
+    const e = withMarks([{ 0: '✓', 1: '○', 2: '✓' }]);
+    assert.strictEqual(e.D.processStats(0, e.state, new Date(2026, 9, 9, 12)).streak, 1, '○ ends it');
+  });
+  test('processes: the legacy ◐ is half, as everywhere else (the old analytics counted it as 0)', () => {
+    const d = withMarks([{ 0: '✓', 1: '✓', 2: '◐', 3: '◐' }]);
+    assert.strictEqual(d.D.processStats(0, d.state, new Date(2026, 9, 9, 12)).recent, 75);
+  });
+  test('processes: old marks are not «recent»; an empty previous period is no data, not 0%', () => {
+    const d = withMarks([{ 40: '✓', 41: '✓' }, range(0, 5, '✓')]);
+    const old = d.D.processStats(0, d.state, new Date(2026, 9, 9, 12)),
+      cur = d.D.processStats(1, d.state, new Date(2026, 9, 9, 12));
+    assert.deepStrictEqual([old.recent, old.count, old.all], [null, 0, 100]);
+    assert.deepStrictEqual([cur.recent, cur.previous, cur.delta], [100, null, 0]);
+    const dom = d.core().domains.processes;
+    assert.strictEqual(dom.score, 100, 'the process nobody marked for 2 weeks is not averaged in');
+    assert.strictEqual(dom.previous, null, 'no previous period → no trend instead of +100');
+  });
+  test('tasks: a 14-day window plus old debts; future, undated and old done tasks do not count', () => {
+    const t = (due, status = 'Не начато') => ({ task: 'x', due, date: '', priority: 'Средний', status, note: '' });
+    const journal = [
+      t(iso(0), 'Готово'),
+      t(iso(3), 'Готово'),
+      t(iso(13), 'Готово'),
+      t(iso(5)),
+      t(iso(-4)),
+      t('', 'Не начато'),
+      t(iso(60), 'Готово'),
+      t(iso(60)),
+      t(iso(14), 'Готово'),
+      t(iso(16), 'Готово'),
+      t(iso(20)),
+      t(iso(27)),
+    ];
+    const d = boot({ now: NOW });
+    const st = d.D.taskStats(journal, iso(0));
+    assert.deepStrictEqual(
+      [st.total, st.completed, st.score, st.previous],
+      [7, 3, 43, 50],
+      '3 done + 1 open in the window, plus 3 open debts older than the window (60, 20, 27 days); previous: 2 of 4 done'
+    );
+    assert.deepStrictEqual(d.D.taskStats([], iso(0)), { total: 0, completed: 0, score: null, previous: null });
+    assert.strictEqual(d.D.taskStats([t(iso(-3))], iso(0)).score, null, 'only future tasks: nothing to judge');
+  });
+  test('finance: a sliding 30 days, so the 1st of a month is not «0% of the plan»', () => {
+    const goal = tx => ({
+      id: 'g1',
+      name: 'g',
+      target: 1e6,
+      start: 0,
+      monthly: 30000,
+      currency: 'RUB',
+      icon: 'home',
+      color: '#fff',
+      tx,
+    });
+    const mk = (now, tx, extra = {}) => {
+      const d = boot({ now });
+      const x = JSON.parse(d.get('JSON.stringify(fresh())'));
+      x.savings = { currency: 'RUB', selectedId: 'g1', goals: [goal(tx)], ...extra };
+      d.localStorage.setItem(KEY, JSON.stringify(x));
+      return d;
+    };
+    const first = mk('2026-11-01T12:00:00', [{ amount: 30000, date: '2026-10-20', note: '' }]);
+    assert.strictEqual(first.core().domains.finance.score, 100, 'saved 30 000 in the last 30 days on 1 Nov');
+    const mid = mk(NOW, [
+      { amount: 20000, date: iso(10), note: '' },
+      { amount: -5000, date: iso(2), note: '' },
+      { amount: 30000, date: iso(40), note: '' },
+    ]);
+    const f = mid.core().domains.finance;
+    assert.deepStrictEqual([f.score, f.previous, f.saved], [50, 100, 15000]);
+    assert.strictEqual(
+      mk(NOW, []).core().domains.finance.score,
+      null,
+      'a plan but nothing ever recorded: no score, not 0'
+    );
+    const quiet = mk(NOW, [{ amount: 10000, date: iso(200), note: '' }]).core().domains.finance;
+    assert.deepStrictEqual([quiet.score, quiet.previous], [0, null], 'tracked before, nothing in 30 days: an honest 0');
+  });
+  test('the task hint names the way out: close or move what is late', () => {
+    const d = boot({ now: NOW });
+    const x = JSON.parse(d.get('JSON.stringify(fresh())'));
+    x.journal = [{ task: 'late', due: iso(3), date: '', priority: 'Средний', status: 'Не начато', note: '' }];
+    d.localStorage.setItem(KEY, JSON.stringify(x));
+    const s = plainInsight(d);
+    assert.match(s.text, /перенеси просроченные/);
+  });
+  function plainInsight(d) {
+    return JSON.parse(JSON.stringify(d.ctx.STACK_CORE.insight()));
+  }
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);
