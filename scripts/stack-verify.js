@@ -710,6 +710,112 @@ async function runDataScenarios(browser, baseUrl, args, note, fail, jsErrors) {
   await ctx.close();
 }
 
+
+/* v29.82 — «Сегодня»: overdue tasks, status memory, workout recognition, one render per tap, resume refresh, tap targets, nutrition guards. */
+async function runTodayScenarios(browser, baseUrl, args, note, fail, jsErrors) {
+  const ctx = await browser.newContext({ viewport: { width: args.width, height: args.height }, isMobile: args.width <= 720, hasTouch: args.width <= 720, serviceWorkers: 'block' });
+  await ctx.route('**/*', (route) => (route.request().url().startsWith(baseUrl) ? route.continue() : route.abort()));
+  const page = await ctx.newPage();
+  page.setDefaultTimeout(8000);
+  page.on('pageerror', (e) => jsErrors.push('[today] ' + e.message));
+  page.on('dialog', (d) => d.accept().catch(() => {}));
+  const check = (ok, label) => (ok ? note(`  scenario OK: ${label}`) : fail(`scenario: ${label}`));
+  const step = async (label, fn) => { try { await fn(); } catch (e) { fail(`scenario: ${label} threw: ${String(e.message).split('\n')[0]}`); } };
+  await page.goto(`${baseUrl}/index.html`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+  await page.waitForSelector('.v29-nav', { timeout: 15000 });
+  await page.waitForTimeout(900);
+  const refresh = async () => { await page.evaluate(() => STACK_V29_SHELL.refresh()); await page.waitForTimeout(250); };
+  const addTask = (task, status, daysAgo, id) => page.evaluate(([t, st, n, i]) => { const k = STACK_DATA.dateKey(new Date(Date.now() - n * 864e5)); state.journal.push({ id: i, task: t, status: st, date: k, due: k }); save(); }, [task, status, daysAgo, id]);
+
+  await step('overdue tasks', async () => {
+    await addTask('OVERDUE_ONE', 'В работе', 3, 'od1');
+    await refresh();
+    const row = await page.evaluate(() => { const r = [...document.querySelectorAll('.v29-row[data-v29-kind="task"]')].find((e) => e.textContent.includes('OVERDUE_ONE')); return r ? { late: r.querySelector('.v29-late')?.textContent || '' } : null; });
+    check(!!row && /просрочено · 3 дн\./.test(row.late), `an overdue task is on «Сегодня» with its delay (${JSON.stringify(row)})`);
+  });
+
+  await step('overdue cap', async () => {
+    for (let i = 0; i < 7; i++) await addTask('OVERDUE_BULK_' + i, 'Не начато', 10 + i, 'odb' + i);
+    await refresh();
+    const m = await page.evaluate(() => ({ late: document.querySelectorAll('.v29-row[data-v29-kind="task"] .v29-late').length, more: document.querySelector('[data-v29-more]')?.textContent || '' }));
+    check(m.late === 5 && /Ещё 3 просроченных/.test(m.more), `at most 5 overdue rows, the rest behind one row (${JSON.stringify(m)})`);
+    await page.click('[data-v29-more]');
+    await page.waitForTimeout(500);
+    check(await page.evaluate(() => !!document.querySelector('#screenTasks.active') || document.querySelector('.v29-nav [aria-current="page"]')?.dataset.v29Nav === 'deals'), '«Ещё N» opens Дела');
+    await page.click('.v29-nav [data-v29-nav="today"]');
+    await page.waitForTimeout(300);
+  });
+
+  await step('«В работе» survives a tick and an untick', async () => {
+    const sel = '.v29-row[data-v29-kind="task"]:has-text("OVERDUE_ONE") .v29-status';
+    await page.click(sel);
+    await page.waitForTimeout(300);
+    const a = await page.evaluate(() => ({ row: !!document.querySelector('.v29-row[data-v29-kind="task"]'), t: state.journal.find((t) => t.id === 'od1') }));
+    const stillThere = await page.evaluate(() => [...document.querySelectorAll('.v29-row[data-v29-kind="task"]')].some((e) => e.textContent.includes('OVERDUE_ONE')));
+    check(a.t.status === 'Готово' && stillThere, `a ticked overdue task stays visible until you leave the screen (${a.t.status}, visible=${stillThere})`);
+    await page.click(sel);
+    await page.waitForTimeout(300);
+    const b = await page.evaluate(() => state.journal.find((t) => t.id === 'od1'));
+    check(b.status === 'В работе' && !('prevStatus' in b), `unticking restores «В работе», not «Не начато» (${b.status})`);
+  });
+
+  await step('workout recognition by word', async () => {
+    const r = await page.evaluate(() => Object.fromEntries(['Тренировка', 'Зал', 'Тренажёрный зал', 'Спортзал', 'Спорт', 'Паспорт', 'Залог', 'Сказал', 'Читать'].map((n) => [n, STACK_DATA.isWorkoutName(n)])));
+    const ok = r['Тренировка'] && r['Зал'] && r['Тренажёрный зал'] && r['Спортзал'] && r['Спорт'] && !r['Паспорт'] && !r['Залог'] && !r['Сказал'] && !r['Читать'];
+    check(ok, `workout names match by word, not by substring (${Object.entries(r).filter(([, v]) => v).map(([k]) => k).join(', ')})`);
+    await addTask('Продлить паспорт', 'Не начато', 0, 'pass1');
+    await page.evaluate(() => { state.processes[1].name = 'Залог'; save(); });
+    await refresh();
+    const m = await page.evaluate(() => { const row = [...document.querySelectorAll('.v29-row')].find((e) => e.textContent.includes('Продлить паспорт')); const pr = [...document.querySelectorAll('.v29-row[data-v29-kind="process"]')].find((e) => e.textContent.includes('Залог')); return { taskRoute: row?.dataset.v29Route, taskGlyph: !!row?.querySelector('.v29-workout-glyph'), procRoute: pr?.dataset.v29Route }; });
+    check(m.taskRoute === 'deals' && !m.taskGlyph && m.procRoute === 'deals', `«Продлить паспорт» / «Залог» are not routed to Fitness (${JSON.stringify(m)})`);
+    await page.evaluate(() => { state.processes[1].name = ''; save(); });
+  });
+
+  await step('one render per status tap', async () => {
+    await refresh();
+    const n = await page.evaluate(async () => {
+      let c = 0; const mo = new MutationObserver(() => { c++; }); mo.observe(document.getElementById('stackV29Root'), { childList: true, subtree: true });
+      document.querySelector('.v29-row[data-v29-kind="process"] .v29-status').click();
+      await new Promise((r) => setTimeout(r, 500)); mo.disconnect(); return c;
+    });
+    check(n === 1, `a status tap redraws «Сегодня» once (${n} render batch${n === 1 ? '' : 'es'})`);
+  });
+
+  await step('refresh on resume', async () => {
+    await page.evaluate(() => { state.processes[2].name = 'RESUME_NAME'; });
+    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    await page.waitForTimeout(250);
+    check(await page.evaluate(() => document.querySelector('#stackV29Root').textContent.includes('RESUME_NAME')), '«Сегодня» redraws when the app comes back to the foreground');
+    await page.evaluate(() => { state.processes[2].name = ''; save(); });
+  });
+
+  await step('tap targets', async () => {
+    await refresh();
+    const t = await page.evaluate(() => { const r = document.querySelector('.v29-status').getBoundingClientRect(), o = document.querySelector('.v29-open').getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height), oh: Math.round(o.height) }; });
+    check(t.w >= 44 && t.h >= 44 && t.oh >= 44, `status button and row title are at least 44px (${JSON.stringify(t)})`);
+    check(!(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)), 'no horizontal overflow with overdue rows');
+  });
+
+  await step('nutrition guard rails', async () => {
+    const r = await page.evaluate(() => {
+      const t = (goal, profile) => STACK_DATA.nutritionTargets({ goal, profile });
+      return {
+        normal: t({ start: 90, target: 80 }, { height: 180, age: 30, sex: 'male', days: 3 }),
+        under: t({ start: 48, target: 44 }, { height: 170, age: 25, sex: 'female', days: 3 }),
+        belowBmi: t({ start: 70, target: 50 }, { height: 175, age: 30, sex: 'male', days: 3 }),
+        teen: t({ start: 55, target: 50 }, { height: 165, age: 15, sex: 'male', days: 4 }),
+        child: t({ start: 20, target: 15 }, { height: 110, age: 5, sex: 'male', days: 3 }),
+      };
+    });
+    check(r.normal && !r.normal.warning && r.normal.kcal > 1500, `an ordinary loss goal is calculated as before (${r.normal?.kcal} ккал)`);
+    check(r.under?.warning && r.under.kcal >= 1700, `no deficit for BMI < 18.5 (${JSON.stringify(r.under)})`);
+    check(r.belowBmi?.warning && r.belowBmi.kcal >= 2000, `no deficit for a goal weight with BMI < 18.5 (${r.belowBmi?.kcal})`);
+    check(r.teen?.warning && r.child === null, `minors get maintenance only, implausible input gets nothing (${r.teen?.warning ? 'note' : 'no note'}, child=${r.child})`);
+  });
+
+  await ctx.close();
+}
+
 async function run() {
   const { chromium } = loadPlaywright();
   const args = parseArgs(process.argv);
@@ -916,6 +1022,7 @@ async function run() {
     await runCrudScenarios(browser, baseUrl, args, note, fail, jsErrors);
     await runProgramScenarios(browser, baseUrl, args, note, fail, jsErrors);
     await runDataScenarios(browser, baseUrl, args, note, fail, jsErrors);
+    await runTodayScenarios(browser, baseUrl, args, note, fail, jsErrors);
 
     if (jsErrors.length) {
       for (const e of jsErrors) fail('JS error: ' + e);

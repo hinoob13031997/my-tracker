@@ -41,8 +41,18 @@ function programPosition(d=new Date()){const n=Math.max(0,Math.floor((dayNumber(
 function workoutsDone(from,to){let n=0;try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(!k||!k.startsWith('stack_fitness_workout_'))continue;const day=k.slice(22);if(day>=from&&day<=to&&localStorage.getItem(k)==='1')n++}}catch(e){}return n}
 function yearWorkouts(year=new Date().getFullYear()){return workoutsDone(`${year}-01-01`,`${year}-12-31`)}
 function yearGoal(){const n=Math.floor(Number(read(KEYS.fitnessGoal,{})?.yearWorkouts));return n>0?Math.min(n,366):0}
+/* The «Тренировка» process is recognised by a WORD of its name: «тренир…», «спорт…» or exactly «зал». A bare substring test also took
+   «Паспорт», «Залог», «сказал» for a workout (v29.82). One implementation: Today, the workout sync and the icons all call this. */
+const WORKOUT_NAME=/(^|[^а-яёa-z0-9])(тренир|спорт|зал($|[^а-яёa-z0-9]))/;
+function isWorkoutName(name){return WORKOUT_NAME.test(String(name||'').toLowerCase())}
 /* STACK daily targets: Mifflin–St Jeor × activity ± goal delta; protein by body weight; fat ≥ 25% kcal (v29.61); carbs = rest. */
-function nutritionTargets({goal={},profile={},weight}={}){const n=v=>Number(v)||0,w=n(weight)||n(goal.start),target=n(goal.target),h=n(profile.height),age=n(profile.age),sex=profile.sex;if(!h||!age||!['male','female'].includes(sex)||!w)return null;const dir=target>w?'gain':target&&target<w?'loss':'maintain',bmr=10*w+6.25*h-5*age+(sex==='male'?5:-161),activity=n(profile.days)===4?1.55:1.45,delta=dir==='gain'?250:dir==='loss'?-400:0,floor=sex==='male'?1500:1300,kcal=Math.round(Math.max(floor,bmr*activity+delta)/50)*50,protein=Math.round(w*(dir==='loss'?2:1.8)),fat=Math.round(Math.max(w*.9,kcal*.25/9)),carbs=Math.max(0,Math.round((kcal-protein*4-fat*9)/4));return{kcal,protein,fat,carbs}}
+function nutritionTargets({goal={},profile={},weight}={}){const n=v=>Number(v)||0,w=n(weight)||n(goal.start),target=n(goal.target),h=n(profile.height),age=n(profile.age),sex=profile.sex;if(!h||!age||!['male','female'].includes(sex)||!w)return null;
+ /* v29.82 guard rails: no numbers for implausible input (typos), no deficit for minors or for an underweight / below-18.5-BMI goal — maintenance instead, with a note */
+ if(h<120||h>230||age<14||age>100||w<30||w>300)return null;
+ const bmi=x=>x/((h/100)**2);let dir=target>w?'gain':target&&target<w?'loss':'maintain',warning='';
+ if(age<18){dir='maintain';warning='До 18 лет цель по весу не применяется — расчёт на поддержание'}
+ else if(dir==='loss'&&(bmi(w)<18.5||bmi(target)<18.5)){dir='maintain';warning=bmi(w)<18.5?'ИМТ ниже 18,5 — дефицит калорий не применяется':'Целевой вес даёт ИМТ ниже 18,5 — дефицит калорий не применяется'}
+ const bmr=10*w+6.25*h-5*age+(sex==='male'?5:-161),activity=n(profile.days)===4?1.55:1.45,delta=dir==='gain'?250:dir==='loss'?-400:0,floor=sex==='male'?1500:1300,kcal=Math.round(Math.max(floor,bmr*activity+delta)/50)*50,protein=Math.round(w*(dir==='loss'?2:1.8)),fat=Math.round(Math.max(w*.9,kcal*.25/9)),carbs=Math.max(0,Math.round((kcal-protein*4-fat*9)/4));return warning?{kcal,protein,fat,carbs,warning}:{kcal,protein,fat,carbs}}
 function tasks(){const m=main();return{journal:Array.isArray(m?.journal)?m.journal:[],details:read(KEYS.taskDetails,{})}}
 function snapshot(){return{schema:2,main:main(),income:income(),savings:savings(),fx:fxCache(),fxHistory:read(KEYS.fxHistory,{}),fitness:fitness(),tasks:tasks(),focus:read(KEYS.focus,{})}}
 function exportBundle(){return{schema:2,build:String(globalThis.STACK_CORE?.build||'27.0.0'),createdAt:new Date().toISOString(),...snapshot()}}
@@ -67,7 +77,7 @@ function backupMeta(){const m=read(KEYS.backupMeta,{}),t=v=>{const n=Date.parse(
 function touchBackupMeta(done=false){try{const cur=read(KEYS.backupMeta,{}),now=new Date().toISOString();if(!done&&cur?.since)return;localStorage.setItem(KEYS.backupMeta,JSON.stringify({since:cur?.since||now,last:done?now:(cur?.last||null)}));if(done)window.dispatchEvent(new CustomEvent('stack:backup-done'))}catch(e){}}
 function backupStatus(now=Date.now()){const m=backupMeta(),base=m.last||m.since;const days=base?Math.max(0,Math.floor((now-base)/DAY_MS)):null;return{everBackedUp:!!m.last,days,due:days!==null&&days>=BACKUP_REMIND_DAYS&&hasData()}}
 function storageOnly(){return storageSnapshot()}
-const api=Object.freeze({version:2,schema:2,keys:KEYS,read,main,income,savings,goals,currency,goalCurrency,transactions,fxCache,rate,balance,monthTransactions,savedNative,savedRubEquivalent,fitness,tasks,snapshot,exportBundle,exportFull,isFullBackup,importStorage,storageOnly,hasData,backupMeta,touchBackupMeta,backupStatus,dateKey,workoutStatus,setWorkoutStatus,programStart,programPosition,programPhases:PROGRAM_PHASES,workoutsDone,yearWorkouts,yearGoal,nutritionTargets});
+const api=Object.freeze({version:2,schema:2,keys:KEYS,read,main,income,savings,goals,currency,goalCurrency,transactions,fxCache,rate,balance,monthTransactions,savedNative,savedRubEquivalent,fitness,tasks,snapshot,exportBundle,exportFull,isFullBackup,importStorage,storageOnly,hasData,isWorkoutName,backupMeta,touchBackupMeta,backupStatus,dateKey,workoutStatus,setWorkoutStatus,programStart,programPosition,programPhases:PROGRAM_PHASES,workoutsDone,yearWorkouts,yearGoal,nutritionTargets});
 Object.defineProperty(globalThis,'STACK_DATA',{value:api,writable:false,configurable:true});
 window.dispatchEvent(new CustomEvent('stack:data-ready',{detail:{version:2,schema:2}}));
 console.info('STACK Data Core v2 ready');

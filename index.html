@@ -1888,6 +1888,8 @@ function validateImportedState(x){
    due:String(j?.due??'').slice(0,10),
    priority:['Высокий','Средний','Низкий'].includes(j?.priority)?j.priority:'Средний',
    status:['Не начато','В работе','Готово'].includes(j?.status)?j.status:'Не начато',
+   /* the status a task had before it was ticked off on «Сегодня» (restored when the tick is removed) */
+   ...(['Не начато','В работе'].includes(j?.prevStatus)?{prevStatus:j.prevStatus}:{}),
    note:String(j?.note??'').slice(0,TASK_NOTE_MAX),
    /* id of the task card in stack_task_details_v227 (description, checklist): dropping it orphaned them */
    ...(typeof j?.__v227id==='string'&&j.__v227id?{__v227id:j.__v227id.slice(0,40)}:{})
