@@ -1,9 +1,126 @@
 /* STACK v24.6 — composed nutrition plan with marked-meal fact totals. */
-(()=>{'use strict';const BUILD='v24.6.1-plan-card-retired',MARK='stack_fitness_nutrition_plan_v2311',VARIANT_KEY='stack_fitness_nutrition_variant_v241',SHARES=[25,14,28,13,20];
-const DIETS=[{kcal:2750,p:130,f:75,c:389,m:[['07:00','Завтрак','Овсянка 80 г (сухой вес), молоко 250 мл, яйца 2 шт., банан 120 г'],['10:30','Перекус','Творог 200 г, яблоко 150 г'],['13:30','Обед','Рис 90 г (сухой вес), куриное бедро без кожи 180 г (готовый вес), капуста/морковь 250 г'],['17:30','Перекус','Творог 150 г, банан 120 г, арахис 15 г'],['21:00','Ужин','Макароны 80 г (сухой вес), куриное бедро без кожи 150 г (готовый вес), овощи 200 г']]},{kcal:2850,p:130,f:75,c:389,m:[['07:00','Завтрак','Гречка 90 г (сухой вес), яйца 3 шт., огурец'],['10:30','Перекус','Кефир 300 мл, банан 120 г, овсяные хлопья 30 г'],['13:30','Обед','Картофель 400 г, индейка 180 г (готовый вес), овощи 250 г'],['17:30','Перекус','Йогурт 250 г, изюм 30 г, орехи 15 г'],['21:00','Ужин','Рис 90 г (сухой вес), тунец 150 г, овощи 200 г']]},{kcal:2950,p:130,f:75,c:389,m:[['07:00','Завтрак','Овсянка 90 г (сухой вес), кефир 250 мл, банан, арахис 20 г'],['10:30','Перекус','Творог 200 г, груша 180 г'],['13:30','Обед','Макароны 100 г (сухой вес), курица 180 г (готовый вес), овощи 250 г'],['17:30','Перекус','Творог 150 г, сыр 30 г, яблоко 150 г'],['21:00','Ужин','Гречка 80 г (сухой вес), яйца 3 шт., салат 250 г']]},{kcal:2800,p:130,f:75,c:389,m:[['07:00','Завтрак','Рисовая каша 90 г (сухой вес), молоко 250 мл, яйца 2 шт.'],['10:30','Перекус','Йогурт 250 г, банан 120 г'],['13:30','Обед','Гречка 90 г (сухой вес), говядина 170 г (готовый вес), овощи 250 г'],['17:30','Перекус','Творог 150 г, ягоды 100 г, орехи 15 г'],['21:00','Ужин','Картофель 350 г, рыба 180 г, овощи 200 г']]}];let variant=(()=>{try{const value=Number(localStorage.getItem(VARIANT_KEY));return Number.isInteger(value)&&value>=0&&value<DIETS.length?value:0}catch(e){return 0}})();
-function date(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}function read(){try{return JSON.parse(localStorage.getItem(MARK)||'{}')}catch(e){return{}}}
-function allocated(total){let used=0;return SHARES.map((share,index)=>{const value=index===SHARES.length-1?total-used:Math.round(total*share/100);used+=value;return value})}
-function snapshot(day=date()){const d=DIETS[variant],log=read(),kcal=allocated(d.kcal),p=allocated(d.p),f=allocated(d.f),c=allocated(d.c),meals=d.m.map((m,i)=>({time:m[0],name:m[1],items:m[2],kcal:kcal[i],p:p[i],f:f[i],c:c[i],marked:!!log[day+'-'+variant+'-'+i]})),fact=meals.filter(x=>x.marked).reduce((s,x)=>({kcal:s.kcal+x.kcal,p:s.p+x.p,f:s.f+x.f,c:s.c+x.c}),{kcal:0,p:0,f:0,c:0});return{variant,target:{kcal:d.kcal,p:d.p,f:d.f,c:d.c},meals,fact,done:meals.filter(x=>x.marked).length,total:meals.length}}
-globalThis.STACK_NUTRITION_PLAN=Object.freeze({build:BUILD,snapshot});
-document.querySelector('#v234Fitness .v234-body .fx-plan')?.remove();
-console.info('STACK',BUILD,'(legacy .fx-plan card retired, data-only — see stack-nutrition.js)');})();
+(() => {
+  'use strict';
+  const BUILD = 'v24.6.1-plan-card-retired',
+    MARK = 'stack_fitness_nutrition_plan_v2311',
+    VARIANT_KEY = 'stack_fitness_nutrition_variant_v241',
+    SHARES = [25, 14, 28, 13, 20];
+  const DIETS = [
+    {
+      kcal: 2750,
+      p: 130,
+      f: 75,
+      c: 389,
+      m: [
+        ['07:00', 'Завтрак', 'Овсянка 80 г (сухой вес), молоко 250 мл, яйца 2 шт., банан 120 г'],
+        ['10:30', 'Перекус', 'Творог 200 г, яблоко 150 г'],
+        ['13:30', 'Обед', 'Рис 90 г (сухой вес), куриное бедро без кожи 180 г (готовый вес), капуста/морковь 250 г'],
+        ['17:30', 'Перекус', 'Творог 150 г, банан 120 г, арахис 15 г'],
+        ['21:00', 'Ужин', 'Макароны 80 г (сухой вес), куриное бедро без кожи 150 г (готовый вес), овощи 200 г'],
+      ],
+    },
+    {
+      kcal: 2850,
+      p: 130,
+      f: 75,
+      c: 389,
+      m: [
+        ['07:00', 'Завтрак', 'Гречка 90 г (сухой вес), яйца 3 шт., огурец'],
+        ['10:30', 'Перекус', 'Кефир 300 мл, банан 120 г, овсяные хлопья 30 г'],
+        ['13:30', 'Обед', 'Картофель 400 г, индейка 180 г (готовый вес), овощи 250 г'],
+        ['17:30', 'Перекус', 'Йогурт 250 г, изюм 30 г, орехи 15 г'],
+        ['21:00', 'Ужин', 'Рис 90 г (сухой вес), тунец 150 г, овощи 200 г'],
+      ],
+    },
+    {
+      kcal: 2950,
+      p: 130,
+      f: 75,
+      c: 389,
+      m: [
+        ['07:00', 'Завтрак', 'Овсянка 90 г (сухой вес), кефир 250 мл, банан, арахис 20 г'],
+        ['10:30', 'Перекус', 'Творог 200 г, груша 180 г'],
+        ['13:30', 'Обед', 'Макароны 100 г (сухой вес), курица 180 г (готовый вес), овощи 250 г'],
+        ['17:30', 'Перекус', 'Творог 150 г, сыр 30 г, яблоко 150 г'],
+        ['21:00', 'Ужин', 'Гречка 80 г (сухой вес), яйца 3 шт., салат 250 г'],
+      ],
+    },
+    {
+      kcal: 2800,
+      p: 130,
+      f: 75,
+      c: 389,
+      m: [
+        ['07:00', 'Завтрак', 'Рисовая каша 90 г (сухой вес), молоко 250 мл, яйца 2 шт.'],
+        ['10:30', 'Перекус', 'Йогурт 250 г, банан 120 г'],
+        ['13:30', 'Обед', 'Гречка 90 г (сухой вес), говядина 170 г (готовый вес), овощи 250 г'],
+        ['17:30', 'Перекус', 'Творог 150 г, ягоды 100 г, орехи 15 г'],
+        ['21:00', 'Ужин', 'Картофель 350 г, рыба 180 г, овощи 200 г'],
+      ],
+    },
+  ];
+  let variant = (() => {
+    try {
+      const value = Number(localStorage.getItem(VARIANT_KEY));
+      return Number.isInteger(value) && value >= 0 && value < DIETS.length ? value : 0;
+    } catch (e) {
+      return 0;
+    }
+  })();
+  function date() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  function read() {
+    try {
+      return JSON.parse(localStorage.getItem(MARK) || '{}');
+    } catch (e) {
+      return {};
+    }
+  }
+  function allocated(total) {
+    let used = 0;
+    return SHARES.map((share, index) => {
+      const value = index === SHARES.length - 1 ? total - used : Math.round((total * share) / 100);
+      used += value;
+      return value;
+    });
+  }
+  function snapshot(day = date()) {
+    const d = DIETS[variant],
+      log = read(),
+      kcal = allocated(d.kcal),
+      p = allocated(d.p),
+      f = allocated(d.f),
+      c = allocated(d.c),
+      meals = d.m.map((m, i) => ({
+        time: m[0],
+        name: m[1],
+        items: m[2],
+        kcal: kcal[i],
+        p: p[i],
+        f: f[i],
+        c: c[i],
+        marked: !!log[day + '-' + variant + '-' + i],
+      })),
+      fact = meals
+        .filter(x => x.marked)
+        .reduce((s, x) => ({ kcal: s.kcal + x.kcal, p: s.p + x.p, f: s.f + x.f, c: s.c + x.c }), {
+          kcal: 0,
+          p: 0,
+          f: 0,
+          c: 0,
+        });
+    return {
+      variant,
+      target: { kcal: d.kcal, p: d.p, f: d.f, c: d.c },
+      meals,
+      fact,
+      done: meals.filter(x => x.marked).length,
+      total: meals.length,
+    };
+  }
+  globalThis.STACK_NUTRITION_PLAN = Object.freeze({ build: BUILD, snapshot });
+  document.querySelector('#v234Fitness .v234-body .fx-plan')?.remove();
+  console.info('STACK', BUILD, '(legacy .fx-plan card retired, data-only — see stack-nutrition.js)');
+})();

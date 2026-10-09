@@ -24,7 +24,10 @@ function edit(file, pairs) {
   const full = path.join(root, file);
   let text = fs.readFileSync(full, 'utf8');
   for (const [re, to, label] of pairs) {
-    if (!re.test(text)) { console.error(`${file}: «${label}» not found`); process.exit(1); }
+    if (!re.test(text)) {
+      console.error(`${file}: «${label}» not found`);
+      process.exit(1);
+    }
     text = text.replace(re, to);
   }
   fs.writeFileSync(full, text);

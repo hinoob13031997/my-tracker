@@ -1,11 +1,12 @@
 /* STACK v29.4 — Deals mobile alignment polish. UI only; task data/schema unchanged. */
-(()=>{'use strict';
-const BUILD='29.4.0';
-function install(){
- if(document.getElementById('stackV294DealsPolish'))return;
- const s=document.createElement('style');
- s.id='stackV294DealsPolish';
- s.textContent=`@media(max-width:720px){
+(() => {
+  'use strict';
+  const BUILD = '29.4.0';
+  function install() {
+    if (document.getElementById('stackV294DealsPolish')) return;
+    const s = document.createElement('style');
+    s.id = 'stackV294DealsPolish';
+    s.textContent = `@media(max-width:720px){
  #screenTasks,#screenTasks *{box-sizing:border-box}
  #screenTasks{overflow-x:hidden!important}
  #screenTasks>.v2212-tasks{width:100%!important;max-width:100%!important;padding-left:10px!important;padding-right:10px!important}
@@ -38,8 +39,12 @@ function install(){
  .v2212-card{padding-left:11px!important;padding-right:11px!important}
  .v2212-actions{grid-template-columns:minmax(0,1fr) 88px!important}
  }`;
- document.head.appendChild(s);
-}
-function boot(){install();console.info('STACK Deals polish',BUILD)}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+    document.head.appendChild(s);
+  }
+  function boot() {
+    install();
+    console.info('STACK Deals polish', BUILD);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });
+  else boot();
 })();
