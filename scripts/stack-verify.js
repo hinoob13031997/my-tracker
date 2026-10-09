@@ -817,6 +817,19 @@ async function runTodayScenarios(browser, baseUrl, args, note, fail, jsErrors) {
     check(shown === '◐' && after === '○', `an old ◐ mark is kept, shown, and moves on to ○ on tap (${shown} → ${after})`);
   });
 
+  await step('legacy leftovers stay removed', async () => {
+    const src = require('fs').readFileSync(require('path').resolve(__dirname, '..', 'stack-v29-shell.js'), 'utf8');
+    check(!/MutationObserver/.test(src), 'the v29 shell watches no DOM mutations (no text-matching hide-by-observer on document.body)');
+    const m = await page.evaluate(() => ({ legacyToday: !!document.getElementById('screenToday') || !!document.getElementById('todayList') || typeof renderTodayScreen !== 'undefined', legacyNav: !!document.getElementById('mobileNav') }));
+    check(!m.legacyToday && !m.legacyNav, `no legacy «Сегодня» screen / renderer and no legacy bottom nav (${JSON.stringify(m)})`);
+    await page.click('.v29-nav [data-v29-nav="deals"]');
+    await page.waitForTimeout(500);
+    const labels = await page.evaluate(() => [...document.querySelectorAll('#screenTasks button')].map((b) => (b.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase()).filter((t) => t === 'все процессы' || t === 'все задачи' || /(новая|добавить|создать)\s+задач/.test(t)));
+    check(labels.length === 0, `Дела has no duplicate «Все задачи / Все процессы / Новая задача» buttons (${labels.join(', ') || 'none'})`);
+    await page.click('.v29-nav [data-v29-nav="today"]');
+    await page.waitForTimeout(300);
+  });
+
   await step('nutrition guard rails', async () => {
     const r = await page.evaluate(() => {
       const t = (goal, profile) => STACK_DATA.nutritionTargets({ goal, profile });
@@ -953,6 +966,37 @@ async function run() {
     if (frameOk && !parentRunsApp) note('  desktop OK: app in phone-width frame, parent page runs no app code');
     else fail(`desktop frame (frame=${!!frame}, frameOk=${frameOk}, parentRunsApp=${parentRunsApp})`);
     await desk.close();
+
+    // v29.84: the old wide layout must not appear on touch devices either — a tablet and a phone turned to landscape get the same
+    // phone-width frame; a phone in portrait runs the app directly; rotating a running phone moves it into the frame.
+    for (const [label, w, h] of [['phone landscape 844×390', 844, 390], ['tablet 820×1180', 820, 1180]]) {
+      const c = await browser.newContext({ viewport: { width: w, height: h }, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
+      await c.route('**/*', (route) => (route.request().url().startsWith(baseUrl) ? route.continue() : route.abort()));
+      const p = await c.newPage();
+      p.on('pageerror', (e) => jsErrors.push(`[${label}] ` + e.message));
+      await p.goto(`${baseUrl}/index.html`, { waitUntil: 'commit', timeout: 20000 });
+      await p.waitForTimeout(2500);
+      const f = p.frames().find((x) => /[?&]frame=1/.test(x.url()));
+      const parentApp = await p.evaluate(() => typeof state !== 'undefined');
+      const ok = f ? await f.evaluate(() => innerWidth <= 720 && !!document.querySelector('.v29-nav') && !document.querySelector('.today-screen.active')) : false;
+      if (ok && !parentApp) note(`  scenario OK: ${label} shows the phone-width app, not the old wide layout`); else fail(`scenario: ${label} (frame=${!!f}, frameOk=${ok}, parentRunsApp=${parentApp})`);
+      await c.close();
+    }
+    {
+      const c = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
+      await c.route('**/*', (route) => (route.request().url().startsWith(baseUrl) ? route.continue() : route.abort()));
+      const p = await c.newPage();
+      p.on('pageerror', (e) => jsErrors.push('[rotation] ' + e.message));
+      await p.goto(`${baseUrl}/index.html`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+      await p.waitForSelector('.v29-nav', { timeout: 15000 });
+      const direct = p.frames().length === 1;
+      await p.setViewportSize({ width: 844, height: 390 });
+      await p.waitForTimeout(3500);
+      const f = p.frames().find((x) => /[?&]frame=1/.test(x.url()));
+      const ok = f ? await f.evaluate(() => innerWidth <= 720 && !!document.querySelector('.v29-nav')) : false;
+      if (direct && ok) note('  scenario OK: a phone in portrait runs the app directly; turning it to landscape moves it into the phone-width frame'); else fail(`scenario: rotation (direct=${direct}, framed=${ok})`);
+      await c.close();
+    }
 
     // Local day, not the UTC day (v29.76): at 01:30 in Moscow the UTC date is still yesterday,
     // which put «+ Операция» on the previous day (and, on the 1st, in the previous month).
