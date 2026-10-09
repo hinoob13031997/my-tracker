@@ -245,6 +245,156 @@
     const m = main();
     return { journal: Array.isArray(m?.journal) ? m.journal : [], details: read(KEYS.taskDetails, {}) };
   }
+  /* Task rules (v29.87), one copy for «Сегодня» and «Дела»: what «done» means, which deadline group a task belongs to, how a tick is
+   undone and how a task is moved to another day. A task has `date` (planned day, today for a new task) and `due` (deadline, optional);
+   «просрочено» means an open task with a past `due` — a task without a deadline is never late, it is «Без срока» once its day has passed. */
+  const TASK_DONE = /готов|выполн|done|complete/;
+  const isDateKey = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
+  function isTaskDone(t) {
+    return TASK_DONE.test(String(t?.status || '').toLowerCase());
+  }
+  /* done ⇄ not done. The status a task had before the tick (`prevStatus`, optional) comes back on un-tick. Returns true when the task is done now. */
+  function toggleTaskDone(t) {
+    if (!t || typeof t !== 'object') return false;
+    if (isTaskDone(t)) {
+      const was = String(t.prevStatus || '');
+      t.status = was && !isTaskDone({ status: was }) ? was : 'Не начато';
+      delete t.prevStatus;
+      return false;
+    }
+    if (t.status && t.status !== 'Не начато') t.prevStatus = t.status;
+    else delete t.prevStatus;
+    t.status = 'Готово';
+    return true;
+  }
+  function shiftKey(key, n) {
+    const d = parseKey(key);
+    if (!d) return '';
+    d.setDate(d.getDate() + n);
+    return dateKey(d);
+  }
+  function daysBetween(a, b) {
+    const x = parseKey(a),
+      y = parseKey(b);
+    return x && y ? dayNumber(y) - dayNumber(x) : 0;
+  }
+  /* 'done' | 'overdue' | 'today' | 'tomorrow' | 'week' (within 7 days) | 'later' | 'nodate' */
+  function taskBucket(t, today = dateKey()) {
+    if (isTaskDone(t)) return 'done';
+    const due = isDateKey(t?.due) ? t.due : '',
+      day = isDateKey(t?.date) ? t.date : '';
+    if (due && due < today) return 'overdue';
+    if (due === today || day === today) return 'today';
+    const at = due || (day > today ? day : '');
+    if (!at) return 'nodate';
+    const tomorrow = shiftKey(today, 1);
+    return at === tomorrow ? 'tomorrow' : at <= shiftKey(today, 7) ? 'week' : 'later';
+  }
+  /* days past the deadline, 0 for a task that is not late */
+  function daysLate(t, today = dateKey()) {
+    return taskBucket(t, today) === 'overdue' ? daysBetween(t.due, today) : 0;
+  }
+  /* Move a task to another day: the deadline becomes `key`; a planned day of today moves with it (otherwise the task would stay on
+   «Сегодня»). Nothing else is touched. Returns false for a bad date. */
+  function rescheduleTask(t, key, today = dateKey()) {
+    if (!t || typeof t !== 'object' || !isDateKey(key) || !parseKey(key)) return false;
+    t.due = key;
+    if (t.date === today && key !== today) t.date = key;
+    return true;
+  }
+  const MONTH_SHORT = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+  /* «Сегодня» / «Завтра» / «Вчера» / «12 окт» / «12 окт 2027» instead of the raw 2026-10-12 */
+  function formatDay(key, today = dateKey()) {
+    const d = parseKey(key);
+    if (!d) return '';
+    if (key === today) return 'Сегодня';
+    if (key === shiftKey(today, 1)) return 'Завтра';
+    if (key === shiftKey(today, -1)) return 'Вчера';
+    const label = `${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`;
+    return String(d.getFullYear()) === today.slice(0, 4) ? label : `${label} ${d.getFullYear()}`;
+  }
+  /* What «Аналитика» shows for tasks (v29.89). It used to be done / ALL non-archived tasks since the first day: tasks that are not due yet
+   counted as failures, old completed ones never aged out and there was no trend. Now: tasks with a deadline in the last 14 days (done / all of
+   them) plus every still-open task whose deadline is older — an unfinished task stays a debt until it is closed or moved. Tasks without a
+   deadline are not counted (the screen does not call them late either); `previous` is the 14 days before, with their status as of today. */
+  const TASK_WINDOW = 14;
+  function taskStats(journal = tasks().journal, today = dateKey()) {
+    const from = shiftKey(today, 1 - TASK_WINDOW),
+      pFrom = shiftKey(today, 1 - 2 * TASK_WINDOW),
+      pTo = shiftKey(today, -TASK_WINDOW);
+    let total = 0,
+      completed = 0,
+      pTotal = 0,
+      pDone = 0;
+    for (const t of Array.isArray(journal) ? journal : []) {
+      const due = isDateKey(t?.due) ? t.due : '';
+      if (!due || due > today) continue;
+      const done = isTaskDone(t);
+      if (due >= from) {
+        total++;
+        if (done) completed++;
+      } else if (!done) total++;
+      if (due >= pFrom && due <= pTo) {
+        pTotal++;
+        if (done) pDone++;
+      }
+    }
+    const pct = (a, b) => (b ? Math.round((a / b) * 100) : null);
+    return { total, completed, score: pct(completed, total), previous: pct(pDone, pTotal) };
+  }
+  /* Process numbers over CALENDAR days, one source for «Дела → Процессы» and «Аналитика». The ✓/(✓+○) rule itself stays the single
+   activeCompletion() of index.html (◐ = half). `recent` = last 14 days, `previous` = the 14 before (null when nothing was marked in them —
+   it used to be «the last 14 marked values», however old, and a missing period counted as 0%). Streak = consecutive days ending today
+   (an unmarked today does not break it) with ✓; «—» and days the process is not scheduled are skipped; ○, ◐ or an unmarked past day end it. */
+  function processStats(i, s = main(), now = new Date()) {
+    if (typeof activeCompletion !== 'function' || !Array.isArray(s?.months)) return null;
+    const pct = marks => {
+      const c = activeCompletion(marks);
+      return c.rate === null ? null : Math.round(c.rate * 100);
+    };
+    const dayAgo = n => new Date(now.getFullYear(), now.getMonth(), now.getDate() - n),
+      monthOf = d => (typeof dateToMonthIndex === 'function' ? dateToMonthIndex(d) : -1),
+      markAt = d => {
+        const mi = monthOf(d);
+        return mi >= 0 ? s.months[mi]?.[i]?.[d.getDate() - 1] || '' : '';
+      },
+      span = (from, to) => {
+        const a = [];
+        for (let n = from; n <= to; n++) {
+          const v = markAt(dayAgo(n));
+          if (v) a.push(v);
+        }
+        return a;
+      };
+    const every = s.months.flatMap(m => (Array.isArray(m?.[i]) ? m[i].filter(Boolean) : []));
+    const recentMarks = span(0, 13),
+      all = activeCompletion(every),
+      recent = pct(recentMarks),
+      previous = pct(span(14, 27));
+    let streak = 0;
+    for (let n = 0; n < 366; n++) {
+      const d = dayAgo(n);
+      if (monthOf(d) < 0) break;
+      try {
+        if (typeof isScheduledOnDate === 'function' && !isScheduledOnDate(i, d)) continue;
+      } catch (e) {}
+      const v = markAt(d);
+      if (n === 0 && v === '') continue;
+      if (v === '—') continue;
+      if (v !== '✓') break;
+      streak++;
+    }
+    return {
+      done: all.done,
+      total: all.total,
+      all: all.rate === null ? null : Math.round(all.rate * 100),
+      recent,
+      previous,
+      count: recentMarks.filter(v => v !== '—').length,
+      delta: recent !== null && previous !== null ? recent - previous : 0,
+      streak,
+    };
+  }
   function snapshot() {
     return {
       schema: 2,
@@ -396,6 +546,15 @@
     savedRubEquivalent,
     fitness,
     tasks,
+    isTaskDone,
+    toggleTaskDone,
+    taskBucket,
+    daysLate,
+    rescheduleTask,
+    shiftKey,
+    formatDay,
+    taskStats,
+    processStats,
     snapshot,
     exportBundle,
     exportFull,

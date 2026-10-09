@@ -10,7 +10,7 @@
  * overflow on mobile, and DOM-mutation loops (MutationObserver ping-pong).
  *
  * Usage:
- *   node scripts/stack-verify.js [--width=390] [--height=844] [--port=8811]
+ *   node scripts/stack-verify.js [--width=390] [--height=844] [--port=8811] [--only=today,deals,analytics,crud,program,data,sw]
  *
  * Requires Playwright + a Chromium build. In this project's usual sandbox
  * that means the global install at /opt/node22/lib/node_modules and the
@@ -663,6 +663,432 @@ async function runCrudScenarios(browser, baseUrl, args, note, fail, jsErrors) {
 
 // Fitness program calendar, yearly workout goal, configurable start date (v29.80). Each case gets its own context
 // with a pinned clock and (where it matters) a seeded storage.
+/* Дела → Задачи (v29.88): groups by deadline, folded «Готово», dates in words, a tick updates its row in place. */
+async function runDealsScenarios(browser, baseUrl, args, note, fail, jsErrors) {
+  const ctx = await browser.newContext({
+    viewport: { width: args.width, height: args.height },
+    isMobile: args.width <= 720,
+    hasTouch: args.width <= 720,
+    serviceWorkers: 'block',
+  });
+  await ctx.route('**/*', route => (route.request().url().startsWith(baseUrl) ? route.continue() : route.abort()));
+  await ctx.clock.setFixedTime(new Date('2026-10-09T10:00:00'));
+  const day = n => {
+    const d = new Date(2026, 9, 9 + n, 12);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const task = (title, o = {}) => ({
+    date: o.date ?? '',
+    task: title,
+    due: o.due ?? '',
+    priority: o.priority || 'Средний',
+    status: o.status || 'Не начато',
+    note: '',
+    ...(o.prevStatus ? { prevStatus: o.prevStatus } : {}),
+  });
+  const journal = [
+    task('T_LATE_NEW', { due: day(-2), priority: 'Низкий' }),
+    task('T_LATE_OLD', { due: day(-9), priority: 'Средний' }),
+    task('T_TODAY_MID', { due: day(0) }),
+    task('T_TODAY_HIGH', { due: day(0), priority: 'Высокий' }),
+    task('T_PLANNED_TODAY', { date: day(0) }),
+    task('T_TOMORROW', { due: day(1) }),
+    task('T_WEEK', { due: day(5) }),
+    task('T_LATER', { due: day(30), status: 'В работе' }),
+    task('T_NODATE', { date: day(-20) }),
+    ...Array.from({ length: 30 }, (_, i) => task('T_DONE_' + i, { due: day(-3 - i), status: 'Готово' })),
+  ];
+  const procs = ['Чтение'].map(name => ({
+    name,
+    goal: 0.8,
+    color: '#0877f3',
+    schedule: [1, 1, 1, 1, 1, 1, 1],
+    scheduleType: 'daily',
+    monthDay: 1,
+    lastDay: false,
+  }));
+  const lens = [31, 30, 31, 30, 31, 31, 28, 31, 30, 31, 30, 31];
+  const seed = {
+    goal: 0.8,
+    currentMonth: 2,
+    processes: procs,
+    months: lens.map(n => procs.map(() => Array(n).fill(''))),
+    journal,
+    savings: { currency: 'RUB', selectedId: null, goals: [] },
+  };
+  await ctx.addInitScript(s => {
+    if (!localStorage.getItem('__seeded')) {
+      localStorage.setItem('__seeded', '1');
+      localStorage.setItem('stack_neon_mix9_calendar_v1', JSON.stringify(s));
+    }
+  }, seed);
+  const page = await ctx.newPage();
+  page.setDefaultTimeout(8000);
+  page.on('pageerror', e => jsErrors.push('[deals] ' + e.message));
+  page.on('dialog', d => d.accept().catch(() => {}));
+  const check = (ok, label) => (ok ? note(`  scenario OK: ${label}`) : fail(`scenario: ${label}`));
+  const step = async (label, fn) => {
+    try {
+      await fn();
+    } catch (e) {
+      fail(`scenario: ${label} threw: ${String(e.message).split('\n')[0]}`);
+    }
+  };
+  await page.goto(`${baseUrl}/index.html`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+  await page.waitForSelector('.v29-nav', { timeout: 15000 });
+  await page.waitForTimeout(1400);
+  await page.click('.v29-nav [data-v29-nav="deals"]');
+  await page.waitForSelector('#v2212Tasks .v2212-group');
+  const names = (scope = '#v2212Tasks') =>
+    page.evaluate(
+      sc =>
+        [...document.querySelectorAll(sc + ' .v2212-group')].map(g => ({
+          head: g.querySelector('.v2212-gh span')?.textContent || '',
+          rows: [...g.querySelectorAll('.v2212-name')].map(n => n.textContent),
+        })),
+      scope
+    );
+
+  await step('groups and order', async () => {
+    const g = await names();
+    const heads = g.map(x => x.head).join('|');
+    check(
+      heads === 'Просрочено|Сегодня|Завтра|На этой неделе|Позже|Без срока|Готово',
+      `groups are Просрочено / Сегодня / Завтра / На этой неделе / Позже / Без срока / Готово (${heads})`
+    );
+    const by = Object.fromEntries(g.map(x => [x.head, x.rows.join(',')]));
+    check(by['Просрочено'] === 'T_LATE_OLD,T_LATE_NEW', `overdue: the oldest deadline first (${by['Просрочено']})`);
+    check(
+      by['Сегодня'] === 'T_TODAY_HIGH,T_TODAY_MID,T_PLANNED_TODAY',
+      `today: by priority, then the task planned for today (${by['Сегодня']})`
+    );
+    check(
+      by['Завтра'] === 'T_TOMORROW' &&
+        by['На этой неделе'] === 'T_WEEK' &&
+        by['Позже'] === 'T_LATER' &&
+        by['Без срока'] === 'T_NODATE',
+      'tomorrow / week / later / without a deadline each hold their own task (a past planned day is not «this week»)'
+    );
+    const rows = await page.evaluate(() => document.querySelectorAll('#v2212Tasks .v2212-row').length);
+    check(rows === 9, `30 done tasks are folded away: only the 9 open rows are drawn (${rows})`);
+    const doneHead = await page.evaluate(() => {
+      const b = document.querySelector('#v2212Tasks [data-done-toggle]');
+      return b
+        ? {
+            text: b.textContent.replace(/\s+/g, ' ').trim(),
+            open: b.getAttribute('aria-expanded'),
+            h: b.getBoundingClientRect().height,
+          }
+        : null;
+    });
+    check(
+      !!doneHead && /Готово\s*30/.test(doneHead.text) && doneHead.open === 'false' && doneHead.h >= 44,
+      `«Готово · 30» is a folded 44px header (${JSON.stringify(doneHead)})`
+    );
+  });
+
+  await step('dates and the late label', async () => {
+    const t = await page.evaluate(() => {
+      const meta = [...document.querySelectorAll('#v2212Tasks .v2212-row')].map(r =>
+        r.querySelector('.v2212-meta').textContent.replace(/\s+/g, ' ').trim()
+      );
+      const late = document.querySelector('#v2212Tasks .v2212-late');
+      return {
+        meta,
+        late: late ? { text: late.textContent, color: getComputedStyle(late).color } : null,
+        raw: /\d{4}-\d{2}-\d{2}/.test(document.getElementById('v2212Tasks').innerText),
+      };
+    });
+    check(!t.raw, 'no raw 2026-10-09 dates in the list');
+    check(
+      t.meta.some(m => /◷ 30 сен/.test(m)) &&
+        t.meta.some(m => /◷ Сегодня/.test(m)) &&
+        t.meta.some(m => /◷ Завтра/.test(m)),
+      `dates are in words: «30 сен», «Сегодня», «Завтра» (${t.meta.slice(0, 4).join(' / ')})`
+    );
+    check(
+      !!t.late && /просрочено · 9 дн\./.test(t.late.text) && t.late.color === 'rgb(240, 138, 93)',
+      `an overdue task says how late it is, in orange (${JSON.stringify(t.late)})`
+    );
+  });
+
+  await step('tick in place, previous status back', async () => {
+    const sel = '#v2212Tasks .v2212-row:has-text("T_LATER") .v2212-check';
+    const box = await page.locator(sel).boundingBox();
+    const size = [Math.round(box.width), Math.round(box.height)];
+    check(size[0] >= 44 && size[1] >= 44, `the tick has a 44px tap area (${size})`);
+    await page.evaluate(() => {
+      window.__row = [...document.querySelectorAll('#v2212Tasks .v2212-row')].find(r =>
+        r.textContent.includes('T_LATER')
+      );
+      window.__nodes = document.querySelectorAll('#v2212Tasks *').length;
+    });
+    await page.click(sel);
+    await page.waitForTimeout(150);
+    const a = await page.evaluate(() => {
+      const t = state.journal.find(x => x.task === 'T_LATER');
+      const row = [...document.querySelectorAll('#v2212Tasks .v2212-row')].find(r => r.textContent.includes('T_LATER'));
+      return {
+        same: row === window.__row,
+        nodes: document.querySelectorAll('#v2212Tasks *').length === window.__nodes,
+        done: row.classList.contains('done'),
+        status: t.status,
+        prev: t.prevStatus,
+        aria: row.querySelector('.v2212-check').getAttribute('aria-pressed'),
+      };
+    });
+    check(
+      a.same && a.nodes && a.done && a.status === 'Готово' && a.prev === 'В работе' && a.aria === 'true',
+      `a tick changes only its row: same element, nothing redrawn, status «Готово» (${JSON.stringify(a)})`
+    );
+    await page.click(sel);
+    await page.waitForTimeout(150);
+    const b = await page.evaluate(() => {
+      const t = state.journal.find(x => x.task === 'T_LATER');
+      return { status: t.status, prev: 'prevStatus' in t };
+    });
+    check(
+      b.status === 'В работе' && !b.prev,
+      `an untick gives «В работе» back, not «Не начато» (${JSON.stringify(b)})`
+    );
+  });
+
+  await step('folded Готово and its paging', async () => {
+    await page.click('#v2212Tasks [data-done-toggle]');
+    await page.waitForTimeout(150);
+    let n = await page.evaluate(() => ({
+      rows: document.querySelectorAll('#v2212Tasks .v2212-row.done').length,
+      more: document.querySelector('#v2212Tasks [data-done-more]')?.textContent || '',
+      first: document.querySelector('#v2212Tasks .v2212-donehead')?.nextElementSibling?.querySelector('.v2212-name')
+        ?.textContent,
+    }));
+    check(
+      n.rows === 20 && /Показать ещё 10/.test(n.more) && n.first === 'T_DONE_0',
+      `opening «Готово» shows the newest 20 and «Показать ещё 10» (${JSON.stringify(n)})`
+    );
+    await page.click('#v2212Tasks [data-done-more]');
+    await page.waitForTimeout(150);
+    n = await page.evaluate(() => ({
+      rows: document.querySelectorAll('#v2212Tasks .v2212-row.done').length,
+      more: !!document.querySelector('#v2212Tasks [data-done-more]'),
+    }));
+    check(n.rows === 30 && !n.more, `«Показать ещё» adds the rest (${JSON.stringify(n)})`);
+    await page.click('#v2212Tasks [data-done-toggle]');
+    await page.waitForTimeout(150);
+  });
+
+  await step('filters', async () => {
+    await page.click('#v2212Tasks [data-f="today"]');
+    await page.waitForTimeout(150);
+    let g = await names();
+    check(
+      g.map(x => x.head).join('|') === 'Просрочено|Сегодня',
+      `«Сегодня» filter: only overdue and today (${g.map(x => x.head).join('|')})`
+    );
+    await page.click('#v2212Tasks [data-f="done"]');
+    await page.waitForTimeout(150);
+    g = await names();
+    check(
+      g.length === 1 && g[0].head === 'Готово' && g[0].rows.length === 20,
+      `«Готово» filter: the done tasks, 20 at a time (${g.map(x => x.head + ':' + x.rows.length)})`
+    );
+    await page.click('#v2212Tasks [data-f="important"]');
+    await page.waitForTimeout(150);
+    g = await names();
+    check(
+      g.length === 1 && g[0].head === 'Сегодня' && g[0].rows.join() === 'T_TODAY_HIGH',
+      `«Важные» filter: high priority only (${g.map(x => x.head + ':' + x.rows)})`
+    );
+    await page.click('#v2212Tasks [data-f="all"]');
+    await page.waitForTimeout(150);
+  });
+
+  await step('layout', async () => {
+    const o = await page.evaluate(() => ({
+      x: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      h: document.documentElement.scrollHeight,
+    }));
+    check(!o.x && o.h < 3000, `no horizontal overflow, the page is ${o.h}px tall instead of a graveyard of done tasks`);
+  });
+  await ctx.close();
+}
+
+/* Аналитика (v29.89): domain numbers from calendar windows, charts in real pixels with gaps instead of zeros. */
+async function runAnalyticsScenarios(browser, baseUrl, args, note, fail, jsErrors) {
+  const ctx = await browser.newContext({
+    viewport: { width: args.width, height: args.height },
+    isMobile: args.width <= 720,
+    hasTouch: args.width <= 720,
+    serviceWorkers: 'block',
+  });
+  await ctx.route('**/*', route => (route.request().url().startsWith(baseUrl) ? route.continue() : route.abort()));
+  await ctx.clock.setFixedTime(new Date('2026-10-09T10:00:00'));
+  const day = n => {
+    const d = new Date(2026, 9, 9 + n, 12);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const task = (title, o = {}) => ({
+    date: '',
+    task: title,
+    due: o.due ?? '',
+    priority: 'Средний',
+    status: o.status || 'Не начато',
+    note: '',
+  });
+  const procs = ['Чтение', 'Английский'].map(name => ({
+    name,
+    goal: 0.8,
+    color: '#0877f3',
+    schedule: [1, 1, 1, 1, 1, 1, 1],
+    scheduleType: 'daily',
+    monthDay: 1,
+    lastDay: false,
+  }));
+  const lens = [31, 30, 31, 30, 31, 31, 28, 31, 30, 31, 30, 31];
+  const months = lens.map((n, mi) =>
+    procs.map((_, pi) =>
+      Array.from({ length: n }, (_, d) => (mi < 3 && d < (mi === 2 ? 8 : n) ? (d % 4 ? '✓' : '○') : ''))
+    )
+  );
+  const seed = {
+    goal: 0.8,
+    currentMonth: 2,
+    processes: procs,
+    months,
+    journal: [
+      task('A_DONE_1', { due: day(0), status: 'Готово' }),
+      task('A_DONE_2', { due: day(-4), status: 'Готово' }),
+      task('A_LATE', { due: day(-1) }),
+      task('A_FUTURE', { due: day(10) }),
+      task('A_NO_DEADLINE'),
+      task('A_OLD_DONE', { due: day(-90), status: 'Готово' }),
+    ],
+    savings: {
+      currency: 'RUB',
+      selectedId: 'g1',
+      goals: [
+        {
+          id: 'g1',
+          name: 'Цель',
+          target: 100000,
+          start: 0,
+          monthly: 10000,
+          deadline: '',
+          currency: 'RUB',
+          color: '#0877f3',
+          icon: 'home',
+          tx: [{ amount: 10000, date: day(-3), note: '' }],
+        },
+      ],
+    },
+  };
+  await ctx.addInitScript(s => {
+    if (!localStorage.getItem('__seeded')) {
+      localStorage.setItem('__seeded', '1');
+      localStorage.setItem('stack_neon_mix9_calendar_v1', JSON.stringify(s));
+    }
+  }, seed);
+  const page = await ctx.newPage();
+  page.setDefaultTimeout(8000);
+  page.on('pageerror', e => jsErrors.push('[analytics] ' + e.message));
+  const check = (ok, label) => (ok ? note(`  scenario OK: ${label}`) : fail(`scenario: ${label}`));
+  const step = async (label, fn) => {
+    try {
+      await fn();
+    } catch (e) {
+      fail(`scenario: ${label} threw: ${String(e.message).split('\n')[0]}`);
+    }
+  };
+  await page.goto(`${baseUrl}/index.html`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+  await page.waitForSelector('.v29-nav', { timeout: 15000 });
+  await page.waitForTimeout(1400);
+  await page.click('.v29-nav [data-v29-nav="analytics"]');
+  await page.waitForSelector('.v29a-domain');
+
+  await step('domain numbers', async () => {
+    const d = await page.evaluate(() =>
+      Object.fromEntries(
+        [...document.querySelectorAll('.v29a-domain')].map(b => [
+          b.querySelector('span').textContent,
+          b.querySelector('b').textContent,
+        ])
+      )
+    );
+    check(
+      d['ЗАДАЧИ'] === '67',
+      `tasks: 2 of the 3 tasks that were due count, the future / undated / 90-day-old done ones do not (${d['ЗАДАЧИ']})`
+    );
+    check(d['ФИНАНСЫ'] === '100', `finance: 10 000 saved in the last 30 days against a 10 000 plan (${d['ФИНАНСЫ']})`);
+    check(/^\d+$/.test(d['ПРОЦЕССЫ']), `processes show a number from the last 14 days (${d['ПРОЦЕССЫ']})`);
+    const sub = await page.evaluate(() => document.querySelector('.v29a-week')?.textContent || document.body.innerText);
+    check(
+      /Задачи 2\/3/.test(sub),
+      `the weekly line reads «Задачи 2/3» (${(sub.match(/Задачи [^·]*/) || [''])[0].trim()})`
+    );
+  });
+
+  await step('charts', async () => {
+    await page.getByText('Показать графики и историю').click();
+    await page.waitForTimeout(500);
+    const c = await page.evaluate(() => {
+      const svg = document.getElementById('chart');
+      const box = svg.getBoundingClientRect();
+      const scale = svg.getScreenCTM().a;
+      const axis = [...svg.querySelectorAll('text.axis')];
+      return {
+        points: svg.querySelectorAll('circle').length,
+        months: axis.filter(t => /[А-Яа-я]{3}/.test(t.textContent)).length,
+        lines: svg.querySelectorAll('path[stroke="url(#lg)"]').length,
+        px: Math.round(parseFloat(getComputedStyle(axis[0]).fontSize) * scale * 10) / 10,
+        h: Math.round(box.height),
+        ratio: Math.round((box.width / box.height) * 100) / 100,
+        overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      };
+    });
+    check(
+      c.points === 3 && c.months === 12 && c.lines === 1,
+      `the year chart has a point only for the 3 months with data and one line — no 0% cliff through the future (${JSON.stringify(c)})`
+    );
+    check(
+      c.px >= 9.5 && c.h >= 150 && !c.overflow,
+      `its axis text is ≥ 9.5px on screen and the plot is ${c.h}px tall (${c.px}px)`
+    );
+    const t = await page.evaluate(() => {
+      const svg = document.getElementById('trendChart');
+      const axis = [...svg.querySelectorAll('text.axis')];
+      const clipped = [...svg.querySelectorAll('text')].filter(x => {
+        const b = x.getBBox();
+        return b.x < 0 || b.x + b.width > svg.viewBox.baseVal.width;
+      }).length;
+      return {
+        px: Math.round(parseFloat(getComputedStyle(axis[0]).fontSize) * svg.getScreenCTM().a * 10) / 10,
+        line: !!svg.querySelector('.trend-line-animated'),
+        clipped,
+        h: Math.round(svg.getBoundingClientRect().height),
+      };
+    });
+    check(
+      t.px >= 9.5 && t.line && t.clipped === 0 && t.h >= 150,
+      `the month-dynamics chart: readable text, its line, no clipped labels (${JSON.stringify(t)})`
+    );
+    const dtl = await page.evaluate(() => {
+      openProcessDetail(0);
+      const svg = document.getElementById('detailChart');
+      const r = {
+        points: svg.querySelectorAll('circle').length,
+        lines: svg.querySelectorAll('path[stroke="url(#detailLine)"]').length,
+      };
+      document.getElementById('processDetailModal').classList.remove('active');
+      return r;
+    });
+    check(
+      dtl.points === 3 && dtl.lines === 1,
+      `a process chart also leaves months without data empty (${JSON.stringify(dtl)})`
+    );
+  });
+  await ctx.close();
+}
+
 async function runProgramScenarios(browser, baseUrl, args, note, fail, jsErrors) {
   const check = (ok, label) => (ok ? note(`  scenario OK: ${label}`) : fail(`scenario: ${label}`));
   const open = async (iso, { tz = 'Europe/Moscow', seed = {} } = {}) => {
@@ -1112,6 +1538,65 @@ async function runDataScenarios(browser, baseUrl, args, note, fail, jsErrors) {
     );
   });
 
+  await step('backup through the share sheet', async () => {
+    let downloads = 0;
+    const onDownload = () => downloads++;
+    page.on('download', onDownload);
+    const old = JSON.stringify({ since: new Date(Date.now() - 20 * 864e5).toISOString(), last: null });
+    const run = async mode => {
+      downloads = 0;
+      await page.evaluate(
+        ([m, o]) => {
+          localStorage.setItem('stack_backup_meta_v1', o);
+          window.__shared = null;
+          Object.defineProperty(navigator, 'canShare', {
+            value: d => m !== 'unsupported' && !!d.files,
+            configurable: true,
+          });
+          Object.defineProperty(navigator, 'share', {
+            configurable: true,
+            value: async d => {
+              if (m === 'cancel') throw Object.assign(new Error('cancelled'), { name: 'AbortError' });
+              if (m === 'refused') throw Object.assign(new Error('refused'), { name: 'NotAllowedError' });
+              window.__shared = { name: d.files[0].name, type: d.files[0].type, text: await d.files[0].text() };
+            },
+          });
+          document.getElementById('exportBtn').click();
+        },
+        [mode, old]
+      );
+      await page.waitForTimeout(500);
+      return page.evaluate(() => ({
+        shared: window.__shared,
+        last: JSON.parse(localStorage.getItem('stack_backup_meta_v1')).last,
+      }));
+    };
+    const ok = await run('ok');
+    const file = ok.shared ? JSON.parse(ok.shared.text) : null;
+    check(
+      !!ok.shared &&
+        /^STACK_backup_\d{4}-\d{2}-\d{2}\.json$/.test(ok.shared.name) &&
+        ok.shared.type === 'application/json' &&
+        file.format === 'stack-full-backup' &&
+        downloads === 0 &&
+        !!ok.last,
+      `on a phone the file goes to the share sheet as ${ok.shared && ok.shared.name}, nothing is downloaded, the date is recorded`
+    );
+    const cancel = await run('cancel');
+    check(
+      !cancel.last && downloads === 0,
+      'a cancelled share sheet is not a backup: no date recorded, no stray download'
+    );
+    const refused = await run('refused');
+    check(
+      downloads === 1 && !!refused.last,
+      `a refused share falls back to the plain download (${downloads} download)`
+    );
+    const unsupported = await run('unsupported');
+    check(downloads === 1 && !!unsupported.last, 'a browser that cannot share files downloads as before');
+    page.off('download', onDownload);
+  });
+
   await step('restore sheet in Analytics', async () => {
     await page.click('.v29-nav [data-v29-nav="analytics"]');
     await page.waitForTimeout(600);
@@ -1334,6 +1819,120 @@ async function runTodayScenarios(browser, baseUrl, args, note, fail, jsErrors) {
     );
   });
 
+  await step('move an overdue task to another day', async () => {
+    await refresh();
+    const rows = await page.evaluate(() => {
+      const row = [...document.querySelectorAll('.v29-row[data-v29-kind="task"]')].find(e =>
+        e.textContent.includes('OVERDUE_ONE')
+      );
+      const b = row?.querySelector('[data-v29-move]')?.getBoundingClientRect();
+      return {
+        has: !!b,
+        w: Math.round(b?.width || 0),
+        h: Math.round(b?.height || 0),
+        label: row?.querySelector('[data-v29-move]')?.getAttribute('aria-label') || '',
+        processMoves: document.querySelectorAll('.v29-row[data-v29-kind="process"] [data-v29-move]').length,
+        overflow: document.documentElement.scrollWidth > innerWidth,
+      };
+    });
+    check(
+      rows.has &&
+        rows.w >= 44 &&
+        rows.h >= 44 &&
+        /OVERDUE_ONE/.test(rows.label) &&
+        !rows.processMoves &&
+        !rows.overflow,
+      `a late task has a 44px «перенести» button, processes have none (${JSON.stringify(rows)})`
+    );
+    const before = await page.evaluate(() => JSON.stringify(state.journal.find(t => t.id === 'od1')));
+    const moveSel = '.v29-row[data-v29-kind="task"]:has-text("OVERDUE_ONE") [data-v29-move]';
+    await page.click(moveSel);
+    await page.waitForSelector('#v29MoveSheet');
+    const sheet = await page.evaluate(() => {
+      const s = document.querySelector('#v29MoveSheet .v29-sheet').getBoundingClientRect();
+      return {
+        buttons: [...document.querySelectorAll('#v29MoveSheet button')].map(b => b.firstChild.textContent.trim()),
+        date: !!document.querySelector('#v29MoveSheet input[type=date]'),
+        inside: s.left >= 0 && Math.round(s.right) <= innerWidth,
+        small: [...document.querySelectorAll('#v29MoveSheet button')].some(b => b.getBoundingClientRect().height < 44),
+      };
+    });
+    check(
+      sheet.buttons.join() === 'Сегодня,Завтра,Отмена' && sheet.date && sheet.inside && !sheet.small,
+      `the sheet offers Сегодня / Завтра / date / Отмена inside the screen, taps ≥44px (${JSON.stringify(sheet)})`
+    );
+    await page.keyboard.press('Escape');
+    const closed = await page.evaluate(() => ({
+      gone: !document.getElementById('v29MoveSheet'),
+      same: JSON.stringify(state.journal.find(t => t.id === 'od1')),
+    }));
+    check(closed.gone && closed.same === before, 'Escape closes the sheet and changes nothing');
+    await page.click(moveSel);
+    await page.waitForSelector('#v29MoveSheet');
+    await page.click('#v29MoveSheet [data-v29-to]:has-text("Завтра")');
+    await page.waitForTimeout(400);
+    const moved = await page.evaluate(() => {
+      const t = state.journal.find(x => x.id === 'od1');
+      const tomorrow = STACK_DATA.shiftKey(STACK_DATA.dateKey(), 1);
+      const group = [...document.querySelectorAll('#v2212Tasks .v2212-group')].find(g =>
+        g.textContent.includes('OVERDUE_ONE')
+      );
+      return {
+        due: t.due === tomorrow,
+        status: t.status,
+        title: t.task,
+        date: t.date,
+        onToday: [...document.querySelectorAll('.v29-row')].some(e => e.textContent.includes('OVERDUE_ONE')),
+        sheetGone: !document.getElementById('v29MoveSheet'),
+        dealsGroup: group?.querySelector('.v2212-gh span')?.textContent || '',
+      };
+    });
+    const was = JSON.parse(before);
+    check(
+      moved.due &&
+        moved.status === was.status &&
+        moved.title === was.task &&
+        moved.date === was.date &&
+        !moved.onToday &&
+        moved.sheetGone,
+      `«Завтра» moves only the deadline: the row leaves «Сегодня», status/title/date stay (${JSON.stringify(moved)})`
+    );
+    check(/Завтра/.test(moved.dealsGroup), `the moved task sits in «Дела → Завтра» (${moved.dealsGroup})`);
+    await page.click('.v29-row[data-v29-kind="task"]:has-text("OVERDUE_BULK_0") [data-v29-move]');
+    await page.click('#v29MoveSheet [data-v29-to]:has-text("Сегодня")');
+    await page.waitForTimeout(400);
+    const today = await page.evaluate(() => {
+      const t = state.journal.find(x => x.id === 'odb0');
+      const row = [...document.querySelectorAll('.v29-row')].find(e => e.textContent.includes('OVERDUE_BULK_0'));
+      return { due: t.due === STACK_DATA.dateKey(), stays: !!row, late: !!row?.querySelector('.v29-late') };
+    });
+    check(
+      today.due && today.stays && !today.late,
+      `«Сегодня» keeps the task on the screen without the late mark (${JSON.stringify(today)})`
+    );
+    await page.click('.v29-row[data-v29-kind="task"]:has-text("OVERDUE_BULK_1") [data-v29-move]');
+    const target = await page.evaluate(() => STACK_DATA.shiftKey(STACK_DATA.dateKey(), 5));
+    await page.fill('#v29MoveSheet input[type=date]', target);
+    await page.waitForTimeout(400);
+    const picked = await page.evaluate(() => ({
+      due: state.journal.find(x => x.id === 'odb1').due,
+      onToday: [...document.querySelectorAll('.v29-row')].some(e => e.textContent.includes('OVERDUE_BULK_1')),
+      count: state.journal.length,
+    }));
+    check(
+      picked.due === target && !picked.onToday,
+      `a picked date is saved and the task leaves «Сегодня» (${JSON.stringify(picked)})`
+    );
+    const rest = await page.evaluate(() => ({
+      late: document.querySelectorAll('.v29-row[data-v29-kind="task"] .v29-late').length,
+      more: !!document.querySelector('[data-v29-more]'),
+    }));
+    check(
+      rest.late === 5 && !rest.more,
+      `after 3 moves the remaining 5 overdue tasks all fit and the «Ещё N» row is gone (${JSON.stringify(rest)})`
+    );
+  });
+
   await step('workout recognition by word', async () => {
     const r = await page.evaluate(() =>
       Object.fromEntries(
@@ -1530,6 +2129,89 @@ async function runTodayScenarios(browser, baseUrl, args, note, fail, jsErrors) {
     );
   });
 
+  await step('«осталось» does not count a missed day', async () => {
+    await page.click('.v29-nav [data-v29-nav="today"]');
+    await page.evaluate(() => {
+      const d = new Date(),
+        mi = dateToMonthIndex(d),
+        day = d.getDate() - 1;
+      ['✓', '○', '—', '', ''].forEach((v, i) => (state.months[mi][i][day] = v));
+      save();
+      STACK_V29_SHELL.refresh();
+    });
+    await page.waitForTimeout(300);
+    const t = await page.evaluate(() => document.querySelector('.v29-progress').innerText.replace(/\s+/g, ' ').trim());
+    check(
+      /1 из 4 обязательных выполнено/.test(t) && /2 осталось · 1 пропущено · 1 не требовалось/.test(t),
+      `1 done, 1 missed, 1 not required, 2 unmarked → «2 осталось · 1 пропущено · 1 не требовалось» (${t})`
+    );
+  });
+
+  await step('Finance: a dash and a hint instead of zeros while the income is not entered', async () => {
+    await page.click('.v29-nav [data-v29-nav="finance"]');
+    await page.waitForSelector('.f25-grid');
+    const cards = () =>
+      page.evaluate(() =>
+        Object.fromEntries(
+          [...document.querySelectorAll('.f25-grid > div')].map(d => [
+            d.querySelector('span').textContent,
+            d.querySelector('b').textContent.trim(),
+          ])
+        )
+      );
+    const before = await cards();
+    check(
+      before['МОЖНО ОТЛОЖИТЬ'] === '—' && before['ДОХОД'] === 'не указан' && before['ПЛАН ЦЕЛЕЙ'] === 'не задан',
+      `no income entered → «—» / «не указан» / «не задан», not 0 ₽ (${JSON.stringify(before)})`
+    );
+    const input = await page.evaluate(() => {
+      const i = document.querySelector('[data-f25-income="income"]');
+      return { value: i.value, placeholder: i.placeholder };
+    });
+    check(
+      input.value === '' && input.placeholder === '0',
+      `the income field is empty with a «0» hint (${JSON.stringify(input)})`
+    );
+    await page.fill('[data-f25-income="income"]', '100000');
+    await page.locator('[data-f25-income="income"]').blur();
+    await page.waitForTimeout(300);
+    await page.fill('[data-f25-income="expenses"]', '40000');
+    await page.locator('[data-f25-income="expenses"]').blur();
+    await page.waitForTimeout(500);
+    const after = await cards();
+    check(
+      /60\s?000/.test(after['МОЖНО ОТЛОЖИТЬ']) && /100\s?000/.test(after['ДОХОД']),
+      `with an income the numbers appear (${JSON.stringify(after)})`
+    );
+    /* the app is minimised / closed: nothing typed on this screen may be erased (v22.3-income.js used to rewrite the key with its stale copy) */
+    await page.evaluate(() => {
+      window.dispatchEvent(new Event('pagehide'));
+      Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+    });
+    await page.waitForTimeout(400);
+    const kept = await page.evaluate(() => {
+      const x = JSON.parse(localStorage.getItem('stack_income_tracker_v1') || '{}');
+      const k = Object.keys(x.values || {})[0];
+      return { income: x.values?.[k], expenses: x.expenses?.[k], stray: 'income' in x };
+    });
+    check(
+      kept.income === 100000 && kept.expenses === 40000 && !kept.stray,
+      `minimising the app keeps the income and expenses, stored under «values» (${JSON.stringify(kept)})`
+    );
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('.v29-nav', { timeout: 15000 });
+    await page.waitForTimeout(1500);
+    await page.click('.v29-nav [data-v29-nav="finance"]');
+    await page.waitForSelector('.f25-grid');
+    const back = await cards();
+    check(
+      /60\s?000/.test(back['МОЖНО ОТЛОЖИТЬ']) && /100\s?000/.test(back['ДОХОД']),
+      `and after a restart the screen still shows them (${JSON.stringify(back)})`
+    );
+  });
+
   await ctx.close();
 }
 
@@ -1714,6 +2396,9 @@ async function runServiceWorkerScenarios(chromium, launchOpts, root, port, note,
 async function run() {
   const { chromium } = loadPlaywright();
   const args = parseArgs(process.argv);
+  /* --only=today,deals,analytics,crud,program,data,sw runs just those scenario groups (the quick loop while working on one screen); a full run is the default */
+  const only = args.only ? String(args.only).split(',') : null;
+  const want = name => !only || only.includes(name);
   const root = path.resolve(__dirname, '..');
   const server = await serveRepo(root, args.port);
   const baseUrl = `http://localhost:${args.port}`;
@@ -1767,322 +2452,327 @@ async function run() {
     await page.waitForSelector('.v29-nav', { timeout: 15000 });
     note('Loaded shell OK.');
 
-    async function checkOverflow(label) {
-      const overflow = await page.evaluate(
-        () => document.documentElement.scrollWidth > document.documentElement.clientWidth
-      );
-      if (overflow) fail(`horizontal overflow on ${label}`);
-      else note(`  overflow OK (${label})`);
-    }
-
-    for (const section of SECTIONS) {
-      await page.click(`.v29-nav [data-v29-nav="${section}"]`);
-      await page.waitForTimeout(500);
-      await checkOverflow(section);
-    }
-
-    // Fitness tab round trip, including the Program drill-down from Progress.
-    await page.click('.v29-nav [data-v29-nav="fitness"]');
-    await page.waitForTimeout(500);
-    for (const tab of FITNESS_TABS) {
-      await page.click(`.v234-tabs [data-v234="${tab}"]`);
-      await page.waitForTimeout(400);
-      await checkOverflow(`fitness/${tab}`);
-    }
-    // The Program drill-down button only lives inside the Progress panel,
-    // so switch back there first (the tab loop above ends on Nutrition).
-    await page.click('.v234-tabs [data-v234="progress"]');
-    await page.waitForTimeout(300);
-    const programBtn = await page.$('#v234Progress button[data-v234="program"]');
-    if (programBtn) {
-      await programBtn.click();
-      await page.waitForTimeout(300);
-      await checkOverflow('fitness/program');
-      const backBtn = await page.$('[data-v234="progress"]');
-      if (backBtn) await backBtn.click();
-    } else {
-      note('  (no Program drill-down button found — skipping that check)');
-    }
-
-    // DOM-churn check: settle on Fitness Today, then verify mutations stop.
-    await page.click('.v234-tabs [data-v234="today"]');
-    await page.waitForTimeout(1500);
-    await page.evaluate(() => {
-      window.__stackVerifyMut = 0;
-      new MutationObserver(m => {
-        window.__stackVerifyMut += m.length;
-      }).observe(document.getElementById('v234Fitness') || document.body, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        characterData: true,
-      });
-    });
-    await page.waitForTimeout(2500);
-    const idleMutations = await page.evaluate(() => window.__stackVerifyMut);
-    if (idleMutations > 0)
-      fail(`${idleMutations} DOM mutations while idle on Fitness/Today (possible MutationObserver loop)`);
-    else note(`  0 idle DOM mutations on Fitness/Today (2.5s) — no observer loop`);
-
-    // ---- Behaviour scenarios (bugs that shipped once and slipped past the
-    // navigation-only checks above). Each runs on this throwaway context's
-    // own localStorage, so seeding data here never touches real user data.
-    await runScenarios(page, baseUrl, note, fail);
-
-    // Desktop (v29.69): a wide top-level page shows the same app in a phone-width
-    // frame (index.html?frame=1) and does not run the app itself.
-    const desk = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' });
-    await desk.route('**/*', route => (route.request().url().startsWith(baseUrl) ? route.continue() : route.abort()));
-    const dp = await desk.newPage();
-    dp.on('pageerror', e => jsErrors.push('[desktop] ' + e.message));
-    await dp.goto(`${baseUrl}/index.html`, { waitUntil: 'commit', timeout: 20000 });
-    await dp.waitForTimeout(2500);
-    const frame = dp.frames().find(f => /[?&]frame=1/.test(f.url()));
-    const parentRunsApp = await dp.evaluate(() => typeof state !== 'undefined');
-    const frameOk = frame
-      ? await frame.evaluate(() => innerWidth <= 720 && !!document.querySelector('.v29-nav'))
-      : false;
-    if (frameOk && !parentRunsApp) note('  desktop OK: app in phone-width frame, parent page runs no app code');
-    else fail(`desktop frame (frame=${!!frame}, frameOk=${frameOk}, parentRunsApp=${parentRunsApp})`);
-    await desk.close();
-
-    // v29.84: the old wide layout must not appear on touch devices either — a tablet and a phone turned to landscape get the same
-    // phone-width frame; a phone in portrait runs the app directly; rotating a running phone moves it into the frame.
-    for (const [label, w, h] of [
-      ['phone landscape 844×390', 844, 390],
-      ['tablet 820×1180', 820, 1180],
-    ]) {
-      const c = await browser.newContext({
-        viewport: { width: w, height: h },
-        isMobile: true,
-        hasTouch: true,
-        serviceWorkers: 'block',
-      });
-      await c.route('**/*', route => (route.request().url().startsWith(baseUrl) ? route.continue() : route.abort()));
-      const p = await c.newPage();
-      p.on('pageerror', e => jsErrors.push(`[${label}] ` + e.message));
-      await p.goto(`${baseUrl}/index.html`, { waitUntil: 'commit', timeout: 20000 });
-      await p.waitForTimeout(2500);
-      const f = p.frames().find(x => /[?&]frame=1/.test(x.url()));
-      const parentApp = await p.evaluate(() => typeof state !== 'undefined');
-      const ok = f
-        ? await f.evaluate(
-            () =>
-              innerWidth <= 720 &&
-              !!document.querySelector('.v29-nav') &&
-              !document.querySelector('.today-screen.active')
-          )
-        : false;
-      if (ok && !parentApp) note(`  scenario OK: ${label} shows the phone-width app, not the old wide layout`);
-      else fail(`scenario: ${label} (frame=${!!f}, frameOk=${ok}, parentRunsApp=${parentApp})`);
-      await c.close();
-    }
-    {
-      const c = await browser.newContext({
-        viewport: { width: 390, height: 844 },
-        isMobile: true,
-        hasTouch: true,
-        serviceWorkers: 'block',
-      });
-      await c.route('**/*', route => (route.request().url().startsWith(baseUrl) ? route.continue() : route.abort()));
-      const p = await c.newPage();
-      p.on('pageerror', e => jsErrors.push('[rotation] ' + e.message));
-      await p.goto(`${baseUrl}/index.html`, { waitUntil: 'domcontentloaded', timeout: 20000 });
-      await p.waitForSelector('.v29-nav', { timeout: 15000 });
-      const direct = p.frames().length === 1;
-      await p.setViewportSize({ width: 844, height: 390 });
-      await p.waitForTimeout(3500);
-      const f = p.frames().find(x => /[?&]frame=1/.test(x.url()));
-      const ok = f ? await f.evaluate(() => innerWidth <= 720 && !!document.querySelector('.v29-nav')) : false;
-      if (direct && ok)
-        note(
-          '  scenario OK: a phone in portrait runs the app directly; turning it to landscape moves it into the phone-width frame'
+    if (!only) {
+      async function checkOverflow(label) {
+        const overflow = await page.evaluate(
+          () => document.documentElement.scrollWidth > document.documentElement.clientWidth
         );
-      else fail(`scenario: rotation (direct=${direct}, framed=${ok})`);
-      await c.close();
-    }
+        if (overflow) fail(`horizontal overflow on ${label}`);
+        else note(`  overflow OK (${label})`);
+      }
 
-    // Local day, not the UTC day (v29.76): at 01:30 in Moscow the UTC date is still yesterday,
-    // which put «+ Операция» on the previous day (and, on the 1st, in the previous month).
-    const tz = await browser.newContext({
-      viewport: { width: args.width, height: args.height },
-      isMobile: true,
-      hasTouch: true,
-      serviceWorkers: 'block',
-      timezoneId: 'Europe/Moscow',
-    });
-    await tz.route('**/*', route => (route.request().url().startsWith(baseUrl) ? route.continue() : route.abort()));
-    await tz.clock.setFixedTime(new Date('2026-10-01T22:30:00Z'));
-    const tp = await tz.newPage();
-    tp.on('pageerror', e => jsErrors.push('[timezone] ' + e.message));
-    await tp.goto(`${baseUrl}/index.html`, { waitUntil: 'domcontentloaded', timeout: 20000 });
-    await tp.waitForSelector('.v29-nav', { timeout: 15000 });
-    const txDate = await tp.evaluate(() => {
-      state.savings.goals.push({
-        id: 'gverify',
-        name: 'verify',
-        target: 1000,
-        start: 0,
-        monthly: 0,
-        deadline: '',
-        currency: 'RUB',
-        color: '#0877f3',
-        icon: 'home',
-        tx: [],
+      for (const section of SECTIONS) {
+        await page.click(`.v29-nav [data-v29-nav="${section}"]`);
+        await page.waitForTimeout(500);
+        await checkOverflow(section);
+      }
+
+      // Fitness tab round trip, including the Program drill-down from Progress.
+      await page.click('.v29-nav [data-v29-nav="fitness"]');
+      await page.waitForTimeout(500);
+      for (const tab of FITNESS_TABS) {
+        await page.click(`.v234-tabs [data-v234="${tab}"]`);
+        await page.waitForTimeout(400);
+        await checkOverflow(`fitness/${tab}`);
+      }
+      // The Program drill-down button only lives inside the Progress panel,
+      // so switch back there first (the tab loop above ends on Nutrition).
+      await page.click('.v234-tabs [data-v234="progress"]');
+      await page.waitForTimeout(300);
+      const programBtn = await page.$('#v234Progress button[data-v234="program"]');
+      if (programBtn) {
+        await programBtn.click();
+        await page.waitForTimeout(300);
+        await checkOverflow('fitness/program');
+        const backBtn = await page.$('[data-v234="progress"]');
+        if (backBtn) await backBtn.click();
+      } else {
+        note('  (no Program drill-down button found — skipping that check)');
+      }
+
+      // DOM-churn check: settle on Fitness Today, then verify mutations stop.
+      await page.click('.v234-tabs [data-v234="today"]');
+      await page.waitForTimeout(1500);
+      await page.evaluate(() => {
+        window.__stackVerifyMut = 0;
+        new MutationObserver(m => {
+          window.__stackVerifyMut += m.length;
+        }).observe(document.getElementById('v234Fitness') || document.body, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+          characterData: true,
+        });
       });
-      state.savings.selectedId = 'gverify';
-      state.savings.currency = 'RUB';
-      openSavingsTx(1);
-      return stDate.value;
-    });
-    if (txDate === '2026-10-02')
-      note('  scenario OK: «+ Операция» defaults to the local day at 01:30 MSK (2026-10-02)');
-    else fail(`scenario: «+ Операция» default date at 01:30 MSK is ${txDate}, expected 2026-10-02`);
-    await tz.close();
+      await page.waitForTimeout(2500);
+      const idleMutations = await page.evaluate(() => window.__stackVerifyMut);
+      if (idleMutations > 0)
+        fail(`${idleMutations} DOM mutations while idle on Fitness/Today (possible MutationObserver loop)`);
+      else note(`  0 idle DOM mutations on Fitness/Today (2.5s) — no observer loop`);
 
-    // Calendar window (v29.78): it used to end in Jul 2027 — from 1 Aug 2027 no mark could be saved, silently.
-    // Opens the app on later dates with a stored 12-month state and checks the window grows by appending only.
-    const MD = [
-      ['Август', 2026, 7, 31],
-      ['Сентябрь', 2026, 8, 30],
-      ['Октябрь', 2026, 9, 31],
-      ['Ноябрь', 2026, 10, 30],
-      ['Декабрь', 2026, 11, 31],
-      ['Январь', 2027, 0, 31],
-      ['Февраль', 2027, 1, 28],
-      ['Март', 2027, 2, 31],
-      ['Апрель', 2027, 3, 30],
-      ['Май', 2027, 4, 31],
-      ['Июнь', 2027, 5, 30],
-      ['Июль', 2027, 6, 31],
-      ['Август', 2027, 7, 31],
-      ['Сентябрь', 2027, 8, 30],
-      ['Октябрь', 2027, 9, 31],
-      ['Ноябрь', 2027, 10, 30],
-    ];
-    const seedState = n => {
-      const procs = ['Тренировка', 'Чтение'].map(name => ({
-        name,
-        goal: 0.8,
-        color: '#0877f3',
-        schedule: [1, 1, 1, 1, 1, 1, 1],
-        scheduleType: 'daily',
-        monthDay: 1,
-        lastDay: false,
-      }));
-      const marks = ['✓', '○', '—', ''];
-      return {
-        goal: 0.8,
-        currentMonth: 11,
-        processes: procs,
-        months: MD.slice(0, n).map((m, mi) =>
-          procs.map((_, pi) => Array.from({ length: m[3] }, (_, d) => marks[(mi + pi + d) % 4]))
-        ),
-        journal: [],
-        savings: { currency: 'RUB', selectedId: null, goals: [] },
-      };
-    };
-    const old12 = JSON.stringify(seedState(12).months);
-    const openAt = async (iso, months) => {
-      const c = await browser.newContext({
+      // ---- Behaviour scenarios (bugs that shipped once and slipped past the
+      // navigation-only checks above). Each runs on this throwaway context's
+      // own localStorage, so seeding data here never touches real user data.
+      await runScenarios(page, baseUrl, note, fail);
+
+      // Desktop (v29.69): a wide top-level page shows the same app in a phone-width
+      // frame (index.html?frame=1) and does not run the app itself.
+      const desk = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' });
+      await desk.route('**/*', route => (route.request().url().startsWith(baseUrl) ? route.continue() : route.abort()));
+      const dp = await desk.newPage();
+      dp.on('pageerror', e => jsErrors.push('[desktop] ' + e.message));
+      await dp.goto(`${baseUrl}/index.html`, { waitUntil: 'commit', timeout: 20000 });
+      await dp.waitForTimeout(2500);
+      const frame = dp.frames().find(f => /[?&]frame=1/.test(f.url()));
+      const parentRunsApp = await dp.evaluate(() => typeof state !== 'undefined');
+      const frameOk = frame
+        ? await frame.evaluate(() => innerWidth <= 720 && !!document.querySelector('.v29-nav'))
+        : false;
+      if (frameOk && !parentRunsApp) note('  desktop OK: app in phone-width frame, parent page runs no app code');
+      else fail(`desktop frame (frame=${!!frame}, frameOk=${frameOk}, parentRunsApp=${parentRunsApp})`);
+      await desk.close();
+
+      // v29.84: the old wide layout must not appear on touch devices either — a tablet and a phone turned to landscape get the same
+      // phone-width frame; a phone in portrait runs the app directly; rotating a running phone moves it into the frame.
+      for (const [label, w, h] of [
+        ['phone landscape 844×390', 844, 390],
+        ['tablet 820×1180', 820, 1180],
+      ]) {
+        const c = await browser.newContext({
+          viewport: { width: w, height: h },
+          isMobile: true,
+          hasTouch: true,
+          serviceWorkers: 'block',
+        });
+        await c.route('**/*', route => (route.request().url().startsWith(baseUrl) ? route.continue() : route.abort()));
+        const p = await c.newPage();
+        p.on('pageerror', e => jsErrors.push(`[${label}] ` + e.message));
+        await p.goto(`${baseUrl}/index.html`, { waitUntil: 'commit', timeout: 20000 });
+        await p.waitForTimeout(2500);
+        const f = p.frames().find(x => /[?&]frame=1/.test(x.url()));
+        const parentApp = await p.evaluate(() => typeof state !== 'undefined');
+        const ok = f
+          ? await f.evaluate(
+              () =>
+                innerWidth <= 720 &&
+                !!document.querySelector('.v29-nav') &&
+                !document.querySelector('.today-screen.active')
+            )
+          : false;
+        if (ok && !parentApp) note(`  scenario OK: ${label} shows the phone-width app, not the old wide layout`);
+        else fail(`scenario: ${label} (frame=${!!f}, frameOk=${ok}, parentRunsApp=${parentApp})`);
+        await c.close();
+      }
+      {
+        const c = await browser.newContext({
+          viewport: { width: 390, height: 844 },
+          isMobile: true,
+          hasTouch: true,
+          serviceWorkers: 'block',
+        });
+        await c.route('**/*', route => (route.request().url().startsWith(baseUrl) ? route.continue() : route.abort()));
+        const p = await c.newPage();
+        p.on('pageerror', e => jsErrors.push('[rotation] ' + e.message));
+        await p.goto(`${baseUrl}/index.html`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+        await p.waitForSelector('.v29-nav', { timeout: 15000 });
+        const direct = p.frames().length === 1;
+        await p.setViewportSize({ width: 844, height: 390 });
+        await p.waitForTimeout(3500);
+        const f = p.frames().find(x => /[?&]frame=1/.test(x.url()));
+        const ok = f ? await f.evaluate(() => innerWidth <= 720 && !!document.querySelector('.v29-nav')) : false;
+        if (direct && ok)
+          note(
+            '  scenario OK: a phone in portrait runs the app directly; turning it to landscape moves it into the phone-width frame'
+          );
+        else fail(`scenario: rotation (direct=${direct}, framed=${ok})`);
+        await c.close();
+      }
+
+      // Local day, not the UTC day (v29.76): at 01:30 in Moscow the UTC date is still yesterday,
+      // which put «+ Операция» on the previous day (and, on the 1st, in the previous month).
+      const tz = await browser.newContext({
         viewport: { width: args.width, height: args.height },
         isMobile: true,
         hasTouch: true,
         serviceWorkers: 'block',
         timezoneId: 'Europe/Moscow',
       });
-      await c.route('**/*', route => (route.request().url().startsWith(baseUrl) ? route.continue() : route.abort()));
-      await c.clock.setFixedTime(new Date(iso));
-      await c.addInitScript(s => {
-        if (!localStorage.getItem('__seeded')) {
-          localStorage.setItem('__seeded', '1');
-          localStorage.setItem('stack_neon_mix9_calendar_v1', JSON.stringify(s));
+      await tz.route('**/*', route => (route.request().url().startsWith(baseUrl) ? route.continue() : route.abort()));
+      await tz.clock.setFixedTime(new Date('2026-10-01T22:30:00Z'));
+      const tp = await tz.newPage();
+      tp.on('pageerror', e => jsErrors.push('[timezone] ' + e.message));
+      await tp.goto(`${baseUrl}/index.html`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+      await tp.waitForSelector('.v29-nav', { timeout: 15000 });
+      const txDate = await tp.evaluate(() => {
+        state.savings.goals.push({
+          id: 'gverify',
+          name: 'verify',
+          target: 1000,
+          start: 0,
+          monthly: 0,
+          deadline: '',
+          currency: 'RUB',
+          color: '#0877f3',
+          icon: 'home',
+          tx: [],
+        });
+        state.savings.selectedId = 'gverify';
+        state.savings.currency = 'RUB';
+        openSavingsTx(1);
+        return stDate.value;
+      });
+      if (txDate === '2026-10-02')
+        note('  scenario OK: «+ Операция» defaults to the local day at 01:30 MSK (2026-10-02)');
+      else fail(`scenario: «+ Операция» default date at 01:30 MSK is ${txDate}, expected 2026-10-02`);
+      await tz.close();
+
+      // Calendar window (v29.78): it used to end in Jul 2027 — from 1 Aug 2027 no mark could be saved, silently.
+      // Opens the app on later dates with a stored 12-month state and checks the window grows by appending only.
+      const MD = [
+        ['Август', 2026, 7, 31],
+        ['Сентябрь', 2026, 8, 30],
+        ['Октябрь', 2026, 9, 31],
+        ['Ноябрь', 2026, 10, 30],
+        ['Декабрь', 2026, 11, 31],
+        ['Январь', 2027, 0, 31],
+        ['Февраль', 2027, 1, 28],
+        ['Март', 2027, 2, 31],
+        ['Апрель', 2027, 3, 30],
+        ['Май', 2027, 4, 31],
+        ['Июнь', 2027, 5, 30],
+        ['Июль', 2027, 6, 31],
+        ['Август', 2027, 7, 31],
+        ['Сентябрь', 2027, 8, 30],
+        ['Октябрь', 2027, 9, 31],
+        ['Ноябрь', 2027, 10, 30],
+      ];
+      const seedState = n => {
+        const procs = ['Тренировка', 'Чтение'].map(name => ({
+          name,
+          goal: 0.8,
+          color: '#0877f3',
+          schedule: [1, 1, 1, 1, 1, 1, 1],
+          scheduleType: 'daily',
+          monthDay: 1,
+          lastDay: false,
+        }));
+        const marks = ['✓', '○', '—', ''];
+        return {
+          goal: 0.8,
+          currentMonth: 11,
+          processes: procs,
+          months: MD.slice(0, n).map((m, mi) =>
+            procs.map((_, pi) => Array.from({ length: m[3] }, (_, d) => marks[(mi + pi + d) % 4]))
+          ),
+          journal: [],
+          savings: { currency: 'RUB', selectedId: null, goals: [] },
+        };
+      };
+      const old12 = JSON.stringify(seedState(12).months);
+      const openAt = async (iso, months) => {
+        const c = await browser.newContext({
+          viewport: { width: args.width, height: args.height },
+          isMobile: true,
+          hasTouch: true,
+          serviceWorkers: 'block',
+          timezoneId: 'Europe/Moscow',
+        });
+        await c.route('**/*', route => (route.request().url().startsWith(baseUrl) ? route.continue() : route.abort()));
+        await c.clock.setFixedTime(new Date(iso));
+        await c.addInitScript(s => {
+          if (!localStorage.getItem('__seeded')) {
+            localStorage.setItem('__seeded', '1');
+            localStorage.setItem('stack_neon_mix9_calendar_v1', JSON.stringify(s));
+          }
+        }, seedState(months));
+        const p = await c.newPage();
+        p.on('pageerror', e => jsErrors.push('[calendar] ' + e.message));
+        await p.goto(`${baseUrl}/index.html`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+        await p.waitForSelector('.v29-nav', { timeout: 15000 });
+        await p.waitForTimeout(1200);
+        return { c, p };
+      };
+      {
+        const { c, p } = await openAt('2027-08-15T12:00:00', 12);
+        const a = await p.evaluate(() => ({
+          len: MONTHS.length,
+          idx: dateToMonthIndex(new Date()),
+          stateLen: state.months.length,
+          first12: JSON.stringify(state.months.slice(0, 12)),
+        }));
+        const okAug = a.len >= 16 && a.idx === 12 && a.stateLen === a.len && a.first12 === old12;
+        if (okAug)
+          note(`  scenario OK: Aug 2027 — window extended to ${a.len} months, the 12 old months byte-identical`);
+        else
+          fail(
+            `scenario: Aug 2027 calendar (${JSON.stringify({ len: a.len, idx: a.idx, stateLen: a.stateLen, old12Same: a.first12 === old12 })})`
+          );
+        await p.click('.v29-nav [data-v29-nav="today"]');
+        await p.waitForTimeout(300);
+        await p.click('.v29-row[data-v29-index="0"] .v29-status');
+        await p.waitForTimeout(300);
+        const m = await p.evaluate(() => ({
+          live: state.months[12][0][14],
+          stored: JSON.parse(localStorage.getItem('stack_neon_mix9_calendar_v1')).months[12][0][14],
+        }));
+        if (m.live === '✓' && m.stored === '✓') note('  scenario OK: Today status is recorded and saved in Aug 2027');
+        else fail(`scenario: no mark recorded in Aug 2027 (${JSON.stringify(m)})`);
+        const ch = await p.evaluate(() => {
+          const ix = chartMonths();
+          renderChart();
+          openProcessDetail(0);
+          const lab = sel =>
+            [...document.querySelectorAll(sel + ' text.axis')].filter(t => /[А-Яа-я]{3}/.test(t.textContent)).length;
+          const r = { first: ix[0], last: ix[11], year: lab('#chart'), proc: lab('#detailChart') };
+          document.getElementById('processDetailModal').classList.remove('active');
+          return r;
+        });
+        if (ch.first === 1 && ch.last === 12 && ch.year === 12 && ch.proc === 12)
+          note('  scenario OK: year charts show the 12 months ending Aug 2027');
+        else fail(`scenario: year charts at Aug 2027 (${JSON.stringify(ch)})`);
+        for (const section of SECTIONS) {
+          await p.click(`.v29-nav [data-v29-nav="${section}"]`);
+          await p.waitForTimeout(350);
+          if (await p.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth))
+            fail(`horizontal overflow on ${section} in Aug 2027`);
         }
-      }, seedState(months));
-      const p = await c.newPage();
-      p.on('pageerror', e => jsErrors.push('[calendar] ' + e.message));
-      await p.goto(`${baseUrl}/index.html`, { waitUntil: 'domcontentloaded', timeout: 20000 });
-      await p.waitForSelector('.v29-nav', { timeout: 15000 });
-      await p.waitForTimeout(1200);
-      return { c, p };
-    };
-    {
-      const { c, p } = await openAt('2027-08-15T12:00:00', 12);
-      const a = await p.evaluate(() => ({
-        len: MONTHS.length,
-        idx: dateToMonthIndex(new Date()),
-        stateLen: state.months.length,
-        first12: JSON.stringify(state.months.slice(0, 12)),
-      }));
-      const okAug = a.len >= 16 && a.idx === 12 && a.stateLen === a.len && a.first12 === old12;
-      if (okAug) note(`  scenario OK: Aug 2027 — window extended to ${a.len} months, the 12 old months byte-identical`);
-      else
-        fail(
-          `scenario: Aug 2027 calendar (${JSON.stringify({ len: a.len, idx: a.idx, stateLen: a.stateLen, old12Same: a.first12 === old12 })})`
-        );
-      await p.click('.v29-nav [data-v29-nav="today"]');
-      await p.waitForTimeout(300);
-      await p.click('.v29-row[data-v29-index="0"] .v29-status');
-      await p.waitForTimeout(300);
-      const m = await p.evaluate(() => ({
-        live: state.months[12][0][14],
-        stored: JSON.parse(localStorage.getItem('stack_neon_mix9_calendar_v1')).months[12][0][14],
-      }));
-      if (m.live === '✓' && m.stored === '✓') note('  scenario OK: Today status is recorded and saved in Aug 2027');
-      else fail(`scenario: no mark recorded in Aug 2027 (${JSON.stringify(m)})`);
-      const ch = await p.evaluate(() => {
-        const ix = chartMonths();
-        renderChart();
-        openProcessDetail(0);
-        const lab = sel =>
-          [...document.querySelectorAll(sel + ' text.axis')].filter(t => /[А-Яа-я]{3}/.test(t.textContent)).length;
-        const r = { first: ix[0], last: ix[11], year: lab('#chart'), proc: lab('#detailChart') };
-        document.getElementById('processDetailModal').classList.remove('active');
-        return r;
-      });
-      if (ch.first === 1 && ch.last === 12 && ch.year === 12 && ch.proc === 12)
-        note('  scenario OK: year charts show the 12 months ending Aug 2027');
-      else fail(`scenario: year charts at Aug 2027 (${JSON.stringify(ch)})`);
-      for (const section of SECTIONS) {
-        await p.click(`.v29-nav [data-v29-nav="${section}"]`);
-        await p.waitForTimeout(350);
-        if (await p.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth))
-          fail(`horizontal overflow on ${section} in Aug 2027`);
+        await c.close();
       }
-      await c.close();
-    }
-    {
-      const { c, p } = await openAt('2028-02-29T12:00:00', 12);
-      const l = await p.evaluate(() => {
-        const k = dateToMonthIndex(new Date());
-        return { name: MONTHS[k][0], days: MONTHS[k][3], marks: state.months[k][0].length };
-      });
-      if (l.name === 'Февраль 2028' && l.days === 29 && l.marks === 29) note('  scenario OK: Feb 2028 has 29 days');
-      else fail(`scenario: leap day (${JSON.stringify(l)})`);
-      await c.close();
-    }
-    {
-      const { c, p } = await openAt('2026-10-04T12:00:00', 16);
-      const r = await p.evaluate(() => ({ len: state.months.length, months: MONTHS.length }));
-      if (r.len === 16 && r.months === 16)
-        note('  scenario OK: a stored 16-month state is never truncated, even on an earlier date');
-      else fail(`scenario: 16-month state truncated (${JSON.stringify(r)})`);
-      await c.close();
-    }
-    {
-      const { c, p } = await openAt('2026-10-04T12:00:00', 12);
-      const r = await p.evaluate(() => ({ len: MONTHS.length, state: state.months.length }));
-      if (r.len === 12 && r.state === 12)
-        note('  scenario OK: today the window is still exactly 12 months (nothing appended)');
-      else fail(`scenario: window changed without need (${JSON.stringify(r)})`);
-      await c.close();
+      {
+        const { c, p } = await openAt('2028-02-29T12:00:00', 12);
+        const l = await p.evaluate(() => {
+          const k = dateToMonthIndex(new Date());
+          return { name: MONTHS[k][0], days: MONTHS[k][3], marks: state.months[k][0].length };
+        });
+        if (l.name === 'Февраль 2028' && l.days === 29 && l.marks === 29) note('  scenario OK: Feb 2028 has 29 days');
+        else fail(`scenario: leap day (${JSON.stringify(l)})`);
+        await c.close();
+      }
+      {
+        const { c, p } = await openAt('2026-10-04T12:00:00', 16);
+        const r = await p.evaluate(() => ({ len: state.months.length, months: MONTHS.length }));
+        if (r.len === 16 && r.months === 16)
+          note('  scenario OK: a stored 16-month state is never truncated, even on an earlier date');
+        else fail(`scenario: 16-month state truncated (${JSON.stringify(r)})`);
+        await c.close();
+      }
+      {
+        const { c, p } = await openAt('2026-10-04T12:00:00', 12);
+        const r = await p.evaluate(() => ({ len: MONTHS.length, state: state.months.length }));
+        if (r.len === 12 && r.state === 12)
+          note('  scenario OK: today the window is still exactly 12 months (nothing appended)');
+        else fail(`scenario: window changed without need (${JSON.stringify(r)})`);
+        await c.close();
+      }
     }
 
-    await runCrudScenarios(browser, baseUrl, args, note, fail, jsErrors);
-    await runProgramScenarios(browser, baseUrl, args, note, fail, jsErrors);
-    await runDataScenarios(browser, baseUrl, args, note, fail, jsErrors);
-    await runTodayScenarios(browser, baseUrl, args, note, fail, jsErrors);
-    await runServiceWorkerScenarios(chromium, launchOpts, root, args.port + 1, note, fail, jsErrors);
+    if (want('crud')) await runCrudScenarios(browser, baseUrl, args, note, fail, jsErrors);
+    if (want('deals')) await runDealsScenarios(browser, baseUrl, args, note, fail, jsErrors);
+    if (want('analytics')) await runAnalyticsScenarios(browser, baseUrl, args, note, fail, jsErrors);
+    if (want('program')) await runProgramScenarios(browser, baseUrl, args, note, fail, jsErrors);
+    if (want('data')) await runDataScenarios(browser, baseUrl, args, note, fail, jsErrors);
+    if (want('today')) await runTodayScenarios(browser, baseUrl, args, note, fail, jsErrors);
+    if (want('sw')) await runServiceWorkerScenarios(chromium, launchOpts, root, args.port + 1, note, fail, jsErrors);
 
     if (jsErrors.length) {
       for (const e of jsErrors) fail('JS error: ' + e);

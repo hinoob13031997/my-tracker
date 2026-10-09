@@ -104,10 +104,10 @@
     const cards =
       cur === 'RUB'
         ? [
-            ['МОЖНО ОТЛОЖИТЬ', money(m.free, 'RUB')],
+            ['МОЖНО ОТЛОЖИТЬ', n(m.income) > 0 ? money(m.free, 'RUB') : '—'],
             ['ВСЕ НАКОПЛЕНИЯ · ₽', money(totalRub(), 'RUB')],
-            ['ДОХОД', money(m.income, 'RUB')],
-            ['ПЛАН ЦЕЛЕЙ', money(m.plan, 'RUB')],
+            ['ДОХОД', n(m.income) > 0 ? money(m.income, 'RUB') : 'не указан'],
+            ['ПЛАН ЦЕЛЕЙ', n(m.plan) > 0 ? money(m.plan, 'RUB') : 'не задан'],
           ]
         : [
             ['АКТИВНЫХ ЦЕЛЕЙ', String(gs.length)],
@@ -117,12 +117,12 @@
           ];
     const editor =
       cur === 'RUB'
-        ? '<section class="f25-card"><div class="f25-eye">ФИНАНСЫ ЗА МЕСЯЦ</div><h2>Доход и обязательные суммы</h2><div class="f25-inputs"><label>Доход<input data-f25-income="income" inputmode="decimal" value="' +
-          n(m.income) +
-          '"></label><label>Обязательные расходы<input data-f25-income="expenses" inputmode="decimal" value="' +
-          n(m.expenses) +
-          '"></label><label>Резерв на жизнь<input data-f25-income="reserve" inputmode="decimal" value="' +
-          n(m.reserve) +
+        ? '<section class="f25-card"><div class="f25-eye">ФИНАНСЫ ЗА МЕСЯЦ</div><h2>Доход и обязательные суммы</h2><div class="f25-inputs"><label>Доход<input data-f25-income="income" inputmode="decimal" placeholder="0" value="' +
+          (n(m.income) || '') +
+          '"></label><label>Обязательные расходы<input data-f25-income="expenses" inputmode="decimal" placeholder="0" value="' +
+          (n(m.expenses) || '') +
+          '"></label><label>Резерв на жизнь<input data-f25-income="reserve" inputmode="decimal" placeholder="0" value="' +
+          (n(m.reserve) || '') +
           '"></label></div><p class="f25-note">Можно отложить = доход − обязательные расходы − резерв.</p></section>'
         : '';
     return (
@@ -390,8 +390,10 @@
     try {
       const key = 'stack_income_tracker_v1',
         x = JSON.parse(localStorage.getItem(key) || '{}') || {};
-      x[field] = x[field] && typeof x[field] === 'object' ? x[field] : {};
-      x[field][month()] = Math.max(0, Number(String(value).replace(',', '.')) || 0);
+      /* the income lives under `values` (what STACK_FINANCE and the yearly view read); this form used to write `income`, which nothing reads */
+      const f = field === 'income' ? 'values' : field;
+      x[f] = x[f] && typeof x[f] === 'object' ? x[f] : {};
+      x[f][month()] = Math.max(0, Number(String(value).replace(',', '.')) || 0);
       localStorage.setItem(key, JSON.stringify(x));
       window.dispatchEvent(new CustomEvent('stack:data-changed', { detail: { source: 'finance-month-input' } }));
     } catch (_e) {}

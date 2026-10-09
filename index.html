@@ -9,17 +9,17 @@
      v29.84: the same frame for ANY top-level page wider than 720px — a tablet, a phone turned to landscape (the old layout used to appear there).
      That check runs right after the viewport meta below, where innerWidth is already right (before it a phone reports 980); a page that gets
      wider while open (rotation) reloads into the frame. -->
-<script>(function(){function frame(){try{window.stop();var src=location.pathname+(location.search?location.search+'&':'?')+'frame=1'+location.hash;document.documentElement.innerHTML='<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#01050b"><link rel="icon" href="./icon.svg"><title>STACK — Персональная система управления</title><style>html,body{margin:0;height:100%;overflow:hidden;background:radial-gradient(circle at 50% -10%,#11133f 0,#030817 45%,#01050b 80%)}body{display:flex;align-items:center;justify-content:center}iframe{display:block;width:min(430px,100vw);height:min(100vh,940px);border:1px solid #243653;border-radius:22px;background:#01050b;box-shadow:0 0 44px #0877f322,0 0 90px #9133e414}@media(max-height:940px){iframe{border-radius:0;border-top:0;border-bottom:0}}</style></head><body><iframe src="'+src.replace(/"/g,'&quot;')+'" title="STACK" allow="clipboard-write"></iframe></body>'}catch(e){}}try{if(window.top!==window||/[?&]frame=1(&|$)/.test(location.search))return;if(screen.width>720&&matchMedia('(hover:hover) and (pointer:fine)').matches){frame();return}window.__stackFrame=frame}catch(e){}})();</script>
+<script>(function(){function frame(){try{window.stop();var src=location.pathname+(location.search?location.search+'&':'?')+'frame=1'+location.hash;document.documentElement.innerHTML='<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#01050b"><link rel="icon" href="./icon.svg"><title>STACK — Персональная система управления</title><style>html,body{margin:0;height:100%;overflow:hidden;background:radial-gradient(circle at 50% -10%,#11133f 0,#030817 45%,#01050b 80%)}body{display:flex;align-items:center;justify-content:center}iframe{display:block;width:min(430px,100vw);height:min(100vh,940px);border:1px solid #243653;border-radius:22px;background:#01050b;box-shadow:0 0 44px #0877f322,0 0 90px #9133e414}@media(max-height:940px){iframe{border-radius:0;border-top:0;border-bottom:0}}</style></head><body><iframe src="'+src.replace(/"/g,'&quot;')+'" title="STACK" allow="clipboard-write; web-share"></iframe></body>'}catch(e){}}try{if(window.top!==window||/[?&]frame=1(&|$)/.test(location.search))return;if(screen.width>720&&matchMedia('(hover:hover) and (pointer:fine)').matches){frame();return}window.__stackFrame=frame}catch(e){}})();</script>
 <!-- STACK v29 shell markers, baked in so the very first page load (before the service
      worker in sw.js is registered/active) also gets the new shell instead of a legacy-UI
      flash. Mirrors GATE_STYLE + V29_HEAD in sw.js exactly — keep both in sync if the v29
      script list or gate CSS changes; sw.js skips re-injecting once it sees this markup. -->
 <style id="stackV29NetworkGate">@media(max-width:720px){html:not(.stack-v29-ready) body{overflow:hidden!important}html:not(.stack-v29-ready) body::before{content:'';position:fixed;inset:0;z-index:2147483646;background:radial-gradient(circle at 50% -15%,#101142 0,#030817 35%,#01050b 72%)}html:not(.stack-v29-ready) body::after{content:'STACK';position:fixed;left:0;right:0;top:42%;z-index:2147483647;text-align:center;color:#eef4ff;font:900 18px Arial,sans-serif;letter-spacing:.18em;text-shadow:0 0 18px #9133e477}}</style>
 <script>window.__STACK_V29__=true;</script>
-<script defer src="./stack-v29-owner-kit.js?build=29.86.0"></script>
-<script defer src="./stack-v29-shell.js?build=29.86.0"></script>
-<script defer src="./stack-v29-deals-polish.js?build=29.86.0"></script>
-<script defer src="./stack-v29-analytics.js?build=29.86.0"></script>
+<script defer src="./stack-v29-owner-kit.js?build=29.90.0"></script>
+<script defer src="./stack-v29-shell.js?build=29.90.0"></script>
+<script defer src="./stack-v29-deals-polish.js?build=29.90.0"></script>
+<script defer src="./stack-v29-analytics.js?build=29.90.0"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=5,viewport-fit=cover">
 <script>(function(){try{var f=window.__stackFrame;if(!f)return;var wide=function(){return innerWidth>720&&innerWidth!==980};if(wide()){f();return}addEventListener('resize',function(){if(wide())location.reload()})}catch(e){}})();</script>
@@ -274,6 +274,14 @@ body{overflow-x:hidden}
   .trend-head .panel-title{font-size:8px}
   .trend-head select{height:30px;font-size:9px;padding:4px 7px}
   .trend-chart{height:190px;padding:7px 8px}
+}
+/* v29.89: the three history charts keep the aspect ratio of their drawing (viewBox = real pixels), text is a readable 10–11px */
+@media(max-width:720px){
+ .chart,.trend-chart,#processDetailModal .detail-chart{height:auto}
+ #chart,#trendChart,#detailChart{display:block;height:auto}
+ #chart{aspect-ratio:360/160}#trendChart{aspect-ratio:360/200}#detailChart{aspect-ratio:360/200}
+ #chart .axis,#trendChart .axis,#detailChart .axis{font-size:10px}
+ #trendChart .trend-goal-label{font-size:10px}#trendChart .trend-empty-note,#chart .trend-empty-note{font-size:11px}
 }
 
 
@@ -764,10 +772,6 @@ body:has(#screenSavings.active) .app,body.savings-active .app{padding-top:max(6p
  <div class="neon sav-history"><div class="panel-title">ИСТОРИЯ ОПЕРАЦИЙ</div><div id="savHistory"></div></div>
 </section>
 <section id="screenTasks" class="mobile-screen">
-  <div class="bottom">
-    <div class="neon journal"><div class="panel-title">ЖУРНАЛ ЗАДАЧ И НАПОМИНАНИЙ</div><table><thead><tr><th>Дата</th><th>Задача / напоминание</th><th>Срок</th><th>Приоритет</th><th>Статус</th><th>Примечание</th></tr></thead><tbody id="journalBody"></tbody></table><button class="btn" id="addJournal" aria-label="Добавить запись в журнал" style="margin:4px">+ запись</button></div>
-    <div class="neon legend"><div><b>Приоритет</b><span class="pill" style="background:#f12bb8">Высокий</span><span class="pill" style="background:#0877f3">Средний</span><span class="pill" style="background:#68a83f">Низкий</span></div><div><b>Статус</b><p>○ Не начато</p><p style="color:#0877f3">● В работе</p><p style="color:#9133e4">● Готово</p></div><div><b>Отметки</b><p>✓ выполнено</p><p style="color:#8f4cff">◐ частично выполнено</p><p>○ не выполнено</p><p>— не требовалось</p></div></div>
-  </div>
   </section>
   <div class="foot">ⓘ Календарь и итоги автоматически пересчитываются по выбранному месяцу и всем добавленным процессам.</div>
 
@@ -1170,13 +1174,16 @@ function openProcessDetail(p){
  modal.classList.add('active')
 }
 function renderProcessDetailChart(p,allRates){
- const idx=chartMonths(),rates=idx.map(i=>allRates[i]);
- const svg=document.getElementById('detailChart'),W=700,H=180,L=30,R=10,T=15,B=25,w=W-L-R,h=H-T-B;
- const vals=rates.map(v=>v??0),pts=vals.map((v,i)=>[L+i*w/11,T+(1-v)*h]);
- let z=`<defs><linearGradient id="detailLine"><stop stop-color="${state.processes[p].color}"/><stop offset="1" stop-color="#f12bb8"/></linearGradient></defs>`;
- for(let i=0;i<5;i++){const y=T+i*h/4;z+=`<line x1="${L}" x2="${W-R}" y1="${y}" y2="${y}" stroke="#142137"/><text x="1" y="${y+2}" class="axis">${100-i*25}%</text>`}
- z+=`<path d="${monotoneSvgPath(pts)}" fill="none" stroke="url(#detailLine)" stroke-width="3" stroke-linecap="round"/>`;
- pts.forEach((pt,i)=>{z+=`<circle cx="${pt[0]}" cy="${pt[1]}" r="3" fill="${rates[i]===null?'#293246':state.processes[p].color}"/><text x="${pt[0]}" y="${H-6}" text-anchor="middle" class="axis">${MONTHS[idx[i]][0].slice(0,3)}</text>`});
+ const idx=chartMonths(),rates=idx.map(i=>allRates[i]),svg=document.getElementById('detailChart'),W=360,H=200,L=34,R=16,T=16,B=24,w=W-L-R,h=H-T-B,color=state.processes[p].color,
+ pts=rates.map((v,i)=>v===null||v===undefined?null:[L+i*w/(idx.length-1),T+(1-v)*h]);
+ svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+ let z=`<defs><linearGradient id="detailLine"><stop stop-color="${color}"/><stop offset="1" stop-color="#f12bb8"/></linearGradient></defs>`;
+ for(let i=0;i<5;i++){const y=T+i*h/4;z+=`<line x1="${L}" x2="${W-R}" y1="${y}" y2="${y}" stroke="#142137"/><text x="1" y="${y+3.5}" class="axis">${100-i*25}%</text>`}
+ chartGaps(pts).forEach(run=>{z+=`<path d="${monotoneSvgPath(run)}" fill="none" stroke="url(#detailLine)" stroke-width="3" stroke-linecap="round"/>`});
+ pts.forEach((pt,i)=>{
+   if(pt)z+=`<circle cx="${pt[0]}" cy="${pt[1]}" r="3.4" fill="${color}"/>`;
+   z+=`<text x="${L+i*w/(idx.length-1)}" y="${H-6}" text-anchor="middle" class="axis">${MONTHS[idx[i]][0].slice(0,3)}</text>`
+ });
  svg.innerHTML=z
 }
 
@@ -1237,7 +1244,30 @@ function renderKPIs(){
  const root=document.getElementById('kpis');root.innerHTML='';data.forEach((d,i)=>{const el=document.createElement('div');el.className='neon kpi';
  const extra=i===5&&todayStats().monthIndex>=0?`<small style="color:#777f90">${new Date().toLocaleDateString('ru-RU',{day:'2-digit',month:'long'})}</small>`:'';
  el.innerHTML=`<h3>${d[0]}</h3><div class="ring" style="--v:${d[1]*100};--c1:${d[4]};--c2:${d[5]}"><span style="color:${d[6]}">${i===4?`<input id="goalInput" class="goal" value="${pct(state.goal)}">%`:d[2]}</span></div><small class="${i===6?'good':''}">${d[3]}</small>${extra}`;root.appendChild(el)});const g=document.getElementById('goalInput');if(g)g.onchange=()=>{state.goal=Math.max(0,Math.min(1,(parseFloat(g.value)||80)/100));save();renderAll()}}
-function renderChart(){const idx=chartMonths(),vals=idx.map(i=>mm(i)??0),svg=document.getElementById('chart'),W=500,H=118,L=25,T=8,B=15,w=468,h=92,pts=vals.map((v,i)=>[L+i*w/11,T+(1-v)*h]);let z='<defs><linearGradient id="lg"><stop stop-color="#0877f3"/><stop offset=".5" stop-color="#9133e4"/><stop offset="1" stop-color="#f12bb8"/></linearGradient><linearGradient id="ag" x2="0" y2="1"><stop stop-color="#9133e4" stop-opacity=".34"/><stop offset=".5" stop-color="#0877f3" stop-opacity=".10"/><stop offset="1" stop-color="#9133e4" stop-opacity="0"/></linearGradient><filter id="gl"><feGaussianBlur stdDeviation="1.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>';for(let i=0;i<5;i++){const y=T+i*h/4;z+=`<line x1="${L}" x2="493" y1="${y}" y2="${y}" stroke="#121d30"/><text x="1" y="${y+2}" class="axis">${100-i*25}%</text>`}const line=pts.map((p,i)=>(i?'L':'M')+p.join(',')).join(' '),area=`M${pts[0][0]},101 `+pts.map(p=>`L${p[0]},${p[1]}`).join(' ')+` L${pts.at(-1)[0]},101Z`;z+=`<path d="${area}" fill="url(#ag)"/><path d="${line}" fill="none" stroke="url(#lg)" stroke-width="2" filter="url(#gl)"/>`;pts.forEach((p,i)=>{z+=`<circle cx="${p[0]}" cy="${p[1]}" r="2.8" fill="${i<3?'#0877f3':'#f12bb8'}" filter="url(#gl)"/>`;if(vals[i])z+=`<text x="${p[0]}" y="${p[1]-4}" text-anchor="middle" fill="#e7e9ef" font-size="5.7">${pct(vals[i])}%</text>`;z+=`<text x="${p[0]}" y="115" text-anchor="middle" class="axis">${MONTHS[idx[i]][0].slice(0,3)}</text>`});svg.innerHTML=z}
+/* v29.89: the history charts are drawn in real pixels on a phone (viewBox = the box on screen, CSS keeps its aspect ratio) — they were a 500/700/900-wide
+   drawing shrunk to ~350px: axis text 2–4px tall, the plot 48px high in a 190px box — and a month without data was drawn as 0% (the line fell off a cliff
+   through every future month). A month with no data is a gap now. */
+function chartGaps(points){const runs=[];let run=[];points.forEach(p=>{if(p){run.push(p)}else if(run.length){runs.push(run);run=[]}});if(run.length)runs.push(run);return runs}
+function renderChart(){
+ const idx=chartMonths(),vals=idx.map(i=>mm(i)),svg=document.getElementById('chart'),W=360,H=160,L=34,R=16,T=16,B=22,w=W-L-R,h=H-T-B,
+ pts=vals.map((v,i)=>v===null||v===undefined?null:[L+i*w/(idx.length-1),T+(1-v)*h]),last=pts.reduce((a,p,i)=>p?i:a,-1),have=pts.filter(Boolean).length;
+ svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+ let z='<defs><linearGradient id="lg"><stop stop-color="#0877f3"/><stop offset=".5" stop-color="#9133e4"/><stop offset="1" stop-color="#f12bb8"/></linearGradient><linearGradient id="ag" x2="0" y2="1"><stop stop-color="#9133e4" stop-opacity=".34"/><stop offset=".5" stop-color="#0877f3" stop-opacity=".10"/><stop offset="1" stop-color="#9133e4" stop-opacity="0"/></linearGradient><filter id="gl"><feGaussianBlur stdDeviation="1.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>';
+ for(let i=0;i<5;i++){const y=T+i*h/4;z+=`<line x1="${L}" x2="${W-R}" y1="${y}" y2="${y}" stroke="#121d30"/><text x="1" y="${y+3.5}" class="axis">${100-i*25}%</text>`}
+ chartGaps(pts).forEach(run=>{
+   if(run.length>1){z+=`<path d="M${run[0][0]},${T+h} `+run.map(p=>`L${p[0]},${p[1]}`).join(' ')+` L${run.at(-1)[0]},${T+h}Z" fill="url(#ag)"/>`}
+   z+=`<path d="${run.map((p,i)=>(i?'L':'M')+p.join(',')).join(' ')}" fill="none" stroke="url(#lg)" stroke-width="2" filter="url(#gl)"/>`
+ });
+ pts.forEach((p,i)=>{
+   if(p){
+     z+=`<circle cx="${p[0]}" cy="${p[1]}" r="${i===last?4:3}" fill="${i===last?'#f12bb8':'#0877f3'}" filter="url(#gl)"/>`;
+     if(i===last||have<=5)z+=`<text x="${p[0]}" y="${p[1]-8}" text-anchor="middle" fill="#e7e9ef" font-size="11" font-weight="700">${pct(vals[i])}%</text>`
+   }
+   z+=`<text x="${L+i*w/(idx.length-1)}" y="${H-6}" text-anchor="middle" class="axis">${MONTHS[idx[i]][0].slice(0,3)}</text>`
+ });
+ if(!have)z+=`<text x="${W/2}" y="${H/2}" text-anchor="middle" class="trend-empty-note">Нет данных для построения графика</text>`;
+ svg.innerHTML=z
+}
 
 function dayProgressForMonth(mi,dayIndex){
  const vals=state.processes.map((_,p)=>state.months?.[mi]?.[p]?.[dayIndex]||'');
@@ -1324,7 +1354,8 @@ function renderTrendChart(){
    tooltip.textContent=isMobile?'Нажмите на точку графика, чтобы увидеть значение.':''
  }
 
- const W=900,H=130,L=38,R=12,T=10,B=23,w=W-L-R,h=H-T-B;
+ const W=isMobile?360:900,H=isMobile?200:130,L=isMobile?34:38,R=isMobile?18:12,T=isMobile?16:10,B=isMobile?26:23,w=W-L-R,h=H-T-B;
+ svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
  const xAt=i=>L+(data.length===1?0:w*i/(data.length-1));
  const yAt=v=>T+(1-v)*h;
 
@@ -1353,7 +1384,7 @@ function renderTrendChart(){
  for(let i=0;i<5;i++){
    const y=T+i*h/4;
    z+=`<line x1="${L}" x2="${W-R}" y1="${y}" y2="${y}" stroke="#121d30"/>
-       <text x="3" y="${y+2}" class="axis">${100-i*25}%</text>`
+       <text x="1" y="${y+(isMobile?3.5:2)}" class="axis">${100-i*25}%</text>`
  }
 
  const gy=yAt(goal);
@@ -1566,39 +1597,6 @@ function renderMonthSummary(){
  <div class="sumrow"><span><span class="icon" style="color:#0877f3">↑</span>Лучший день</span><span class="val">${best===null?'—':pct(best)+'%'}</span></div>
  <div class="sumrow"><span><span class="icon" style="color:#f12bb8">↓</span>Худший день</span><span class="val">${worst===null?'—':pct(worst)+'%'}</span></div>`
 }
-function opts(a,v){return a.map(x=>`<option ${x===(v||a[0])?'selected':''}>${x}</option>`).join('')}
-function journalPriorityClass(v){
-  return v==='Высокий'?'priority-high':v==='Низкий'?'priority-low':'priority-medium'
-}
-function journalStatusClass(v){
-  return v==='Готово'?'status-done':v==='В работе'?'status-work':'status-notstarted'
-}
-function paintJournalSelect(el){
-  if(el.dataset.k==='priority'){
-    el.classList.remove('priority-high','priority-medium','priority-low');
-    el.classList.add(journalPriorityClass(el.value));
-  }
-  if(el.dataset.k==='status'){
-    el.classList.remove('status-notstarted','status-work','status-done');
-    el.classList.add(journalStatusClass(el.value));
-  }
-}
-function renderJournal(){
-  const r=document.getElementById('journalBody');
-  r.innerHTML=state.journal.map((j,i)=>`<tr>
-    <td><input data-i="${i}" data-k="date" type="date" value="${j.date||''}"></td>
-    <td><input data-i="${i}" data-k="task" value="${esc(j.task||'')}"></td>
-    <td><input data-i="${i}" data-k="due" type="date" value="${j.due||''}"></td>
-    <td><select class="${journalPriorityClass(j.priority||'Средний')}" data-i="${i}" data-k="priority">${opts(['Высокий','Средний','Низкий'],j.priority)}</select></td>
-    <td><select class="${journalStatusClass(j.status||'Не начато')}" data-i="${i}" data-k="status">${opts(['Не начато','В работе','Готово'],j.status)}</select></td>
-    <td><input data-i="${i}" data-k="note" value="${esc(j.note||'')}"></td>
-  </tr>`).join('');
-  r.querySelectorAll('input,select').forEach(e=>e.onchange=()=>{
-    state.journal[+e.dataset.i][e.dataset.k]=e.value;
-    if(e.tagName==='SELECT')paintJournalSelect(e);
-    save()
-  })
-}
 
 const SAV_SYMBOL={RUB:'₽',USD:'$',EUR:'€'};
 
@@ -1756,7 +1754,6 @@ function renderAll(){
    if(!hidden.analytics){renderKPIs();renderChart();renderTrendChart();renderBars();renderDots();}
    renderMonthSelect();
    if(!hidden.tracker){renderTracker();renderMobileTracker();renderProcessSummary();renderCalendar();renderMonthSummary();}
-   renderJournal();
  }catch(err){
    console.error('STACK render error:',err);
    const root=document.getElementById('kpis');
@@ -1787,8 +1784,19 @@ document.getElementById('editFromDetail').onclick=()=>{
  document.getElementById('processDetailModal').classList.remove('active');openProcessModal(p)
 };
 document.getElementById('addProcess').onclick=addProcess;
-document.getElementById('addJournal').onclick=()=>{state.journal.push({priority:'Средний',status:'Не начато'});save();renderJournal()};
-document.getElementById('exportBtn').onclick=()=>{const D=window.STACK_DATA,a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(D?.exportFull?D.exportFull(state):state,null,2)],{type:'application/json'}));a.download='STACK_backup_'+(D?.dateKey?D.dateKey():new Date().toISOString().slice(0,10))+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);D?.touchBackupMeta?.(true)};
+/* v29.90: on a phone the file goes through the system share sheet («Сохранить в Файлы» / iCloud Drive): a blob link from an installed iOS web app opens a viewer or does nothing, and this file is the only copy that survives a lost phone. The date of the last copy is written only when the share really happened (a cancelled sheet is not a backup). Desktop, a browser without file sharing, or a refused share fall back to the plain download. */
+function saveBackupFile(){
+ const D=window.STACK_DATA,name='STACK_backup_'+(D?.dateKey?D.dateKey():new Date().toISOString().slice(0,10))+'.json',text=JSON.stringify(D?.exportFull?D.exportFull(state):state,null,2);
+ const download=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'application/json'}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);D?.touchBackupMeta?.(true)};
+ let file=null;
+ try{file=new File([text],name,{type:'application/json'})}catch(e){}
+ if(file&&navigator.canShare&&navigator.share&&matchMedia('(pointer:coarse)').matches&&navigator.canShare({files:[file]})){
+   navigator.share({files:[file],title:'STACK — резервная копия'}).then(()=>D?.touchBackupMeta?.(true),e=>{if(!(e&&e.name==='AbortError'))download()});
+   return
+ }
+ download()
+}
+document.getElementById('exportBtn').onclick=saveBackupFile;
 
 function validateImportedState(x){
  if(!x||typeof x!=='object')throw new Error('Неверный формат');
