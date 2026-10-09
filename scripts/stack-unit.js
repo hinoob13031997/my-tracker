@@ -446,6 +446,84 @@ console.log('stack-data.js');
   });
 }
 
+console.log('tasks (deadline groups, tick, reschedule)');
+{
+  const { D } = boot();
+  const TODAY = '2026-10-09';
+  const t = (o = {}) => ({ date: '', task: 'x', due: '', priority: 'Средний', status: 'Не начато', note: '', ...o });
+  test('done is read from the status, the English legacy words too', () => {
+    for (const v of ['Готово', 'готово', 'Выполнено', 'done', 'Complete'])
+      assert.strictEqual(D.isTaskDone({ status: v }), true, v);
+    for (const v of ['Не начато', 'В работе', '', undefined])
+      assert.strictEqual(D.isTaskDone({ status: v }), false, String(v));
+  });
+  test('groups: a past deadline is overdue, a task without one is never late', () => {
+    const b = o => D.taskBucket(t(o), TODAY);
+    assert.strictEqual(b({ due: '2026-10-08' }), 'overdue');
+    assert.strictEqual(b({ due: '2026-10-09' }), 'today');
+    assert.strictEqual(b({ date: '2026-10-09' }), 'today', 'a task planned for today');
+    assert.strictEqual(b({ due: '2026-10-10' }), 'tomorrow');
+    assert.strictEqual(b({ due: '2026-10-16' }), 'week');
+    assert.strictEqual(b({ due: '2026-10-17' }), 'later');
+    assert.strictEqual(b({ date: '2026-10-12' }), 'week', 'planned day, no deadline');
+    assert.strictEqual(
+      b({ date: '2026-10-03' }),
+      'nodate',
+      'planned day has passed, no deadline: not late, not forgotten into «this week»'
+    );
+    assert.strictEqual(b({}), 'nodate');
+    assert.strictEqual(b({ due: '2026-10-01', status: 'Готово' }), 'done');
+    assert.strictEqual(b({ due: 'garbage', date: 'x' }), 'nodate');
+  });
+  test('days late', () => {
+    assert.strictEqual(D.daysLate(t({ due: '2026-10-05' }), TODAY), 4);
+    assert.strictEqual(D.daysLate(t({ due: '2026-10-09' }), TODAY), 0);
+    assert.strictEqual(D.daysLate(t({ due: '2026-10-05', status: 'Готово' }), TODAY), 0);
+    assert.strictEqual(D.daysLate(t({ due: '2026-09-28' }), '2026-10-02'), 4, 'across a month edge');
+  });
+  test('tick and un-tick give the previous status back', () => {
+    const a = t({ status: 'В работе' }),
+      b = t();
+    assert.strictEqual(D.toggleTaskDone(a), true);
+    assert.deepStrictEqual([a.status, a.prevStatus], ['Готово', 'В работе']);
+    assert.strictEqual(D.toggleTaskDone(a), false);
+    assert.deepStrictEqual([a.status, 'prevStatus' in a], ['В работе', false]);
+    D.toggleTaskDone(b);
+    assert.strictEqual('prevStatus' in b, false, '«Не начато» needs no memory');
+    D.toggleTaskDone(b);
+    assert.strictEqual(b.status, 'Не начато');
+    const c = t({ status: 'Готово' });
+    D.toggleTaskDone(c);
+    assert.strictEqual(c.status, 'Не начато', 'a task that was done from the start has no earlier status');
+  });
+  test('reschedule moves the deadline, and a planned day of today with it; nothing else', () => {
+    const a = t({ date: '2026-10-01', due: '2026-10-05', task: 'keep', priority: 'Высокий', note: 'n' });
+    assert.strictEqual(D.rescheduleTask(a, '2026-10-10', TODAY), true);
+    assert.deepStrictEqual(
+      a,
+      t({ date: '2026-10-01', due: '2026-10-10', task: 'keep', priority: 'Высокий', note: 'n' })
+    );
+    const b = t({ date: TODAY, due: '2026-10-05' });
+    D.rescheduleTask(b, '2026-10-10', TODAY);
+    assert.deepStrictEqual([b.date, b.due], ['2026-10-10', '2026-10-10']);
+    assert.strictEqual(D.taskBucket(b, TODAY), 'tomorrow');
+    const c = t({ date: TODAY, due: '2026-10-05' });
+    D.rescheduleTask(c, TODAY, TODAY);
+    assert.deepStrictEqual([c.date, c.due], [TODAY, TODAY], 'moving to today keeps the planned day');
+    assert.strictEqual(D.rescheduleTask(t(), '2026-13-40', TODAY), false);
+    assert.strictEqual(D.rescheduleTask(t(), '', TODAY), false);
+    assert.strictEqual(D.rescheduleTask(null, '2026-10-10', TODAY), false);
+  });
+  test('day labels: relative near today, short date further, the year only when it differs', () => {
+    assert.deepStrictEqual(
+      ['2026-10-09', '2026-10-10', '2026-10-08', '2026-10-21', '2027-01-05', 'junk'].map(k => D.formatDay(k, TODAY)),
+      ['Сегодня', 'Завтра', 'Вчера', '21 окт', '5 янв 2027', '']
+    );
+    assert.strictEqual(D.shiftKey('2026-12-31', 1), '2027-01-01');
+    assert.strictEqual(D.shiftKey('2028-02-28', 1), '2028-02-29');
+  });
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) {
   console.log('RESULT: FAIL\n' + failures.map(f => '  - ' + f).join('\n'));

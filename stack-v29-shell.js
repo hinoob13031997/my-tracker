@@ -10,7 +10,7 @@
    v29.6.0 — one secondary line «Питание · факт / цель ккал» under the list; tap → Fitness → Питание. */
 (() => {
   'use strict';
-  const BUILD = '29.86.0';
+  const BUILD = '29.87.0';
   const MOBILE = () => innerWidth <= 720;
   const esc = v =>
     String(v ?? '').replace(
@@ -50,7 +50,8 @@
     return out;
   }
   function taskDone(t) {
-    return /готов|выполн|done|complete/.test(String(t?.status || '').toLowerCase());
+    const D = globalThis.STACK_DATA;
+    return D?.isTaskDone ? D.isTaskDone(t) : /готов|выполн|done|complete/.test(String(t?.status || '').toLowerCase());
   }
   /* v29.82: overdue tasks (a past `due`, not done) are shown too — «Сегодня» used to hide exactly what was already late. At most OVERDUE_SHOWN, newest
    deadline first, the rest behind one «Ещё N» row; a task ticked off here stays on screen until you leave «Сегодня». */
@@ -124,6 +125,7 @@
     if (FOOD_NAME.test(n)) return '🍽';
     return '↻';
   }
+  const MOVE_ICON = `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3"/><path d="M4 10h16M8 3v4M16 3v4M9.5 15h5M12.5 12.5l2.5 2.5-2.5 2.5"/></svg>`;
   function markIcon(mark) {
     return mark === '✓' ? '✓' : mark === '○' ? '○' : mark === '—' ? '—' : mark === '◐' ? '◐' : '';
   }
@@ -142,7 +144,7 @@
     if (document.getElementById('stackV29Style')) return;
     const s = document.createElement('style');
     s.id = 'stackV29Style';
-    s.textContent = `@media(max-width:720px){html.stack-v29-ready.stack-minimal-gate body::before,html.stack-v29-ready.stack-minimal-gate body::after{display:none!important}body.v29-native-today>.app{display:none!important}#mobileNav{display:none!important}#stackV29Root{position:relative;z-index:1000;min-height:100dvh;color:#eef4ff;font-family:Arial,Segoe UI,sans-serif}#stackV29Root.v29-legacy{pointer-events:none;min-height:0}#stackV29Root.v29-legacy .v29-main{display:none}#stackV29Root.v29-legacy .v29-nav{pointer-events:auto}.v29-main{min-height:100dvh;padding:max(14px,env(safe-area-inset-top)) 12px calc(86px + env(safe-area-inset-bottom));background:radial-gradient(circle at 50% -12%,#11133f 0,#040917 34%,#01050b 72%)}.v29-kicker{font-size:9px;letter-spacing:.12em;color:#7e8da5;font-weight:900}.v29-title{margin:4px 0 2px;font-size:30px;line-height:1}.v29-date{font-size:11px;color:#8592a7}.v29-progress{display:grid;grid-template-columns:76px 1fr;align-items:center;gap:14px;margin-top:16px;padding:15px;border:1px solid #29415f;border-radius:18px;background:linear-gradient(155deg,#071522,#030914)}.v29-progress>b{font-size:30px;line-height:1}.v29-progress strong,.v29-progress small{display:block}.v29-progress strong{font-size:14px}.v29-progress small{margin-top:5px;color:#8290a6;font-size:10px}.v29-section-label{margin:17px 3px 7px;font-size:9px;color:#7f8da2;letter-spacing:.08em;font-weight:900}.v29-list{overflow:hidden;border:1px solid #203753;border-radius:17px;background:#040c17}.v29-row{min-height:59px;display:grid;grid-template-columns:36px minmax(0,1fr) 44px;gap:10px;align-items:center;padding:8px 10px 8px 12px;border-top:1px solid #14263c}.v29-row:first-child{border-top:0}.v29-action-icon{width:34px;height:34px;display:grid;place-items:center;border:1px solid color-mix(in srgb,var(--a) 62%,#253653);border-radius:11px;background:color-mix(in srgb,var(--a) 9%,#06101e);color:var(--a);font-size:17px;font-style:normal;box-shadow:0 0 10px color-mix(in srgb,var(--a) 18%,transparent)}.v29-action-icon.workout{border-color:#7650b8;background:radial-gradient(circle at 50% 45%,#1d1232 0,#07101c 72%);box-shadow:0 0 12px #9133e44f,inset 0 0 10px #0877f31f}.v29-workout-glyph{position:relative;width:18px;height:4px;border-radius:999px;background:linear-gradient(90deg,#0ed2e7,#9b5cff 52%,#f12bb8);box-shadow:0 0 8px #9b5cff,0 0 13px #0877f355}.v29-workout-glyph::before,.v29-workout-glyph::after{content:'';position:absolute;top:50%;width:4px;height:15px;border-radius:999px;transform:translateY(-50%);background:linear-gradient(180deg,#0ed2e7,#b15cff 55%,#f12bb8);box-shadow:0 0 7px #9b5cff}.v29-workout-glyph::before{left:-2px}.v29-workout-glyph::after{right:-2px}.v29-open{min-width:0;min-height:44px;padding:0;border:0;background:transparent;color:#eef4ff;text-align:left;font-size:13px;font-weight:800}.v29-status{width:44px;height:44px;border:1px solid #263d5f;border-radius:11px;background:#07111f;color:var(--a);font-size:18px;font-weight:900}.v29-row .v29-status[data-mark=""]::after{content:"";display:block;width:16px;height:16px;margin:auto;border:2px solid var(--a);border-radius:50%;opacity:.75}.v29-status[data-mark="—"]{color:#e0ad37;border-color:#695423}.v29-status[data-mark="○"]{color:#f04b6c;border-color:#653143}.v29-status[data-mark="◐"]{color:#8f4cff;border-color:#4d3478}.v29-status[data-mark="✓"]{color:#68d43f;border-color:#315d38}.v29-food{width:100%;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:4px 10px;margin-top:10px;padding:12px 14px;border:1px solid #203753;border-radius:15px;background:#040c17;color:#eef4ff;text-align:left}.v29-food span{grid-row:span 2;color:#7f8da2;font-size:9px;font-weight:900;letter-spacing:.08em}.v29-food b{font-size:14px}.v29-food small{grid-column:2;color:#8290a6;font-size:10px}.v29-food i{grid-row:1/span 2;grid-column:3;font-style:normal;color:#7f8da2;font-size:18px}.v29-late{display:block;margin-top:2px;color:#f08a5d;font-size:10px;font-weight:700}.v29-more{width:100%;min-height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;border:0;border-top:1px solid #14263c;background:transparent;color:#f08a5d;font-size:12px;font-weight:800;text-align:left}.v29-more i{font-style:normal;color:#7f8da2;font-size:18px}.v29-empty{padding:26px 18px;text-align:center;color:#7f8da2;font-size:11px}.v29-nav{--dock:#f55bd1;--dock-glow:#f12bb866;position:fixed;z-index:2147483000;left:10px;right:10px;bottom:max(8px,env(safe-area-inset-bottom));height:62px;display:grid;grid-template-columns:repeat(5,1fr);padding:0 6px;filter:drop-shadow(0 8px 20px #0877f31f)}.v29-dock-bg{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible;pointer-events:none}.v29-dock-bg path{fill:rgba(2,7,16,.97);stroke:#243653;stroke-width:1}.v29-bead{position:absolute;z-index:2;left:0;top:-27px;width:50px;height:50px;border-radius:50%;display:grid;place-items:center;background:var(--dock);color:#050912;box-shadow:inset 0 0 0 1px #ffffff2e,0 6px 18px var(--dock-glow);transition:background .3s,box-shadow .3s;touch-action:none;cursor:grab;will-change:transform}.v29-bead.drag{cursor:grabbing;transform-origin:center}.v29-bead svg{display:block;stroke-width:2}.v29-nav button{position:relative;z-index:1;min-width:0;height:62px;display:grid;place-items:center;align-content:center;gap:3px;border:0;background:transparent;color:#7f8da2;font-size:9px;font-weight:800;-webkit-tap-highlight-color:transparent}.v29-nav button i{display:grid;place-items:center;width:22px;height:22px;font-style:normal}.v29-nav button i svg{display:block}.v29-nav button.active{align-content:end;padding-bottom:10px;color:var(--dock);text-shadow:0 0 8px var(--dock-glow)}.v29-nav button.active i{display:none}#screenTasks.v233-mode-tasks #v2212Tasks .v2212-add{width:44px!important;height:44px!important;min-width:44px!important;padding:0!important;font-size:0!important;border-radius:12px!important;display:grid!important;place-items:center!important}#screenTasks.v233-mode-tasks #v2212Tasks .v2212-add::after{content:'+';font-size:25px;line-height:1;color:#eef4ff;text-shadow:0 0 9px #9133e4,0 0 14px #0877f366}body:not(.v29-native-today){padding-bottom:72px!important}}`;
+    s.textContent = `@media(max-width:720px){html.stack-v29-ready.stack-minimal-gate body::before,html.stack-v29-ready.stack-minimal-gate body::after{display:none!important}body.v29-native-today>.app{display:none!important}#mobileNav{display:none!important}#stackV29Root{position:relative;z-index:1000;min-height:100dvh;color:#eef4ff;font-family:Arial,Segoe UI,sans-serif}#stackV29Root.v29-legacy{pointer-events:none;min-height:0}#stackV29Root.v29-legacy .v29-main{display:none}#stackV29Root.v29-legacy .v29-nav{pointer-events:auto}.v29-main{min-height:100dvh;padding:max(14px,env(safe-area-inset-top)) 12px calc(86px + env(safe-area-inset-bottom));background:radial-gradient(circle at 50% -12%,#11133f 0,#040917 34%,#01050b 72%)}.v29-kicker{font-size:9px;letter-spacing:.12em;color:#7e8da5;font-weight:900}.v29-title{margin:4px 0 2px;font-size:30px;line-height:1}.v29-date{font-size:11px;color:#8592a7}.v29-progress{display:grid;grid-template-columns:76px 1fr;align-items:center;gap:14px;margin-top:16px;padding:15px;border:1px solid #29415f;border-radius:18px;background:linear-gradient(155deg,#071522,#030914)}.v29-progress>b{font-size:30px;line-height:1}.v29-progress strong,.v29-progress small{display:block}.v29-progress strong{font-size:14px}.v29-progress small{margin-top:5px;color:#8290a6;font-size:10px}.v29-section-label{margin:17px 3px 7px;font-size:9px;color:#7f8da2;letter-spacing:.08em;font-weight:900}.v29-list{overflow:hidden;border:1px solid #203753;border-radius:17px;background:#040c17}.v29-row{min-height:59px;display:grid;grid-template-columns:36px minmax(0,1fr) 44px;gap:10px;align-items:center;padding:8px 10px 8px 12px;border-top:1px solid #14263c}.v29-row:first-child{border-top:0}.v29-action-icon{width:34px;height:34px;display:grid;place-items:center;border:1px solid color-mix(in srgb,var(--a) 62%,#253653);border-radius:11px;background:color-mix(in srgb,var(--a) 9%,#06101e);color:var(--a);font-size:17px;font-style:normal;box-shadow:0 0 10px color-mix(in srgb,var(--a) 18%,transparent)}.v29-action-icon.workout{border-color:#7650b8;background:radial-gradient(circle at 50% 45%,#1d1232 0,#07101c 72%);box-shadow:0 0 12px #9133e44f,inset 0 0 10px #0877f31f}.v29-workout-glyph{position:relative;width:18px;height:4px;border-radius:999px;background:linear-gradient(90deg,#0ed2e7,#9b5cff 52%,#f12bb8);box-shadow:0 0 8px #9b5cff,0 0 13px #0877f355}.v29-workout-glyph::before,.v29-workout-glyph::after{content:'';position:absolute;top:50%;width:4px;height:15px;border-radius:999px;transform:translateY(-50%);background:linear-gradient(180deg,#0ed2e7,#b15cff 55%,#f12bb8);box-shadow:0 0 7px #9b5cff}.v29-workout-glyph::before{left:-2px}.v29-workout-glyph::after{right:-2px}.v29-open{min-width:0;min-height:44px;padding:0;border:0;background:transparent;color:#eef4ff;text-align:left;font-size:13px;font-weight:800}.v29-status{width:44px;height:44px;border:1px solid #263d5f;border-radius:11px;background:#07111f;color:var(--a);font-size:18px;font-weight:900}.v29-row .v29-status[data-mark=""]::after{content:"";display:block;width:16px;height:16px;margin:auto;border:2px solid var(--a);border-radius:50%;opacity:.75}.v29-status[data-mark="—"]{color:#e0ad37;border-color:#695423}.v29-status[data-mark="○"]{color:#f04b6c;border-color:#653143}.v29-status[data-mark="◐"]{color:#8f4cff;border-color:#4d3478}.v29-status[data-mark="✓"]{color:#68d43f;border-color:#315d38}.v29-food{width:100%;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:4px 10px;margin-top:10px;padding:12px 14px;border:1px solid #203753;border-radius:15px;background:#040c17;color:#eef4ff;text-align:left}.v29-food span{grid-row:span 2;color:#7f8da2;font-size:9px;font-weight:900;letter-spacing:.08em}.v29-food b{font-size:14px}.v29-food small{grid-column:2;color:#8290a6;font-size:10px}.v29-food i{grid-row:1/span 2;grid-column:3;font-style:normal;color:#7f8da2;font-size:18px}.v29-late{display:block;margin-top:2px;color:#f08a5d;font-size:10px;font-weight:700}.v29-more{width:100%;min-height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;border:0;border-top:1px solid #14263c;background:transparent;color:#f08a5d;font-size:12px;font-weight:800;text-align:left}.v29-more i{font-style:normal;color:#7f8da2;font-size:18px}.v29-empty{padding:26px 18px;text-align:center;color:#7f8da2;font-size:11px}.v29-nav{--dock:#f55bd1;--dock-glow:#f12bb866;position:fixed;z-index:2147483000;left:10px;right:10px;bottom:max(8px,env(safe-area-inset-bottom));height:62px;display:grid;grid-template-columns:repeat(5,1fr);padding:0 6px;filter:drop-shadow(0 8px 20px #0877f31f)}.v29-dock-bg{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible;pointer-events:none}.v29-dock-bg path{fill:rgba(2,7,16,.97);stroke:#243653;stroke-width:1}.v29-bead{position:absolute;z-index:2;left:0;top:-27px;width:50px;height:50px;border-radius:50%;display:grid;place-items:center;background:var(--dock);color:#050912;box-shadow:inset 0 0 0 1px #ffffff2e,0 6px 18px var(--dock-glow);transition:background .3s,box-shadow .3s;touch-action:none;cursor:grab;will-change:transform}.v29-bead.drag{cursor:grabbing;transform-origin:center}.v29-bead svg{display:block;stroke-width:2}.v29-nav button{position:relative;z-index:1;min-width:0;height:62px;display:grid;place-items:center;align-content:center;gap:3px;border:0;background:transparent;color:#7f8da2;font-size:9px;font-weight:800;-webkit-tap-highlight-color:transparent}.v29-nav button i{display:grid;place-items:center;width:22px;height:22px;font-style:normal}.v29-nav button i svg{display:block}.v29-nav button.active{align-content:end;padding-bottom:10px;color:var(--dock);text-shadow:0 0 8px var(--dock-glow)}.v29-nav button.active i{display:none}#screenTasks.v233-mode-tasks #v2212Tasks .v2212-add{width:44px!important;height:44px!important;min-width:44px!important;padding:0!important;font-size:0!important;border-radius:12px!important;display:grid!important;place-items:center!important}#screenTasks.v233-mode-tasks #v2212Tasks .v2212-add::after{content:'+';font-size:25px;line-height:1;color:#eef4ff;text-shadow:0 0 9px #9133e4,0 0 14px #0877f366}body:not(.v29-native-today){padding-bottom:72px!important}.v29-row.v29-row-late{grid-template-columns:36px minmax(0,1fr) 44px 44px}.v29-move{width:44px;height:44px;display:grid;place-items:center;padding:0;border:1px solid #6b3d2a;border-radius:11px;background:#150d0b;color:#f08a5d}.v29-move svg{display:block}.v29-sheet-bg{position:fixed;inset:0;z-index:2147483100;display:flex;align-items:flex-end;justify-content:center;background:#01050bd9}.v29-sheet{box-sizing:border-box;width:100%;max-width:430px;padding:16px 14px max(18px,env(safe-area-inset-bottom));border:1px solid #29476f;border-bottom:0;border-radius:20px 20px 0 0;background:linear-gradient(155deg,#071423,#030914);color:#eef4ff;font-family:Arial,Segoe UI,sans-serif}.v29-sheet>b{display:block;font-size:10px;letter-spacing:.1em;color:#7f8da2;font-weight:900}.v29-sheet-name{margin:6px 0 10px;font-size:14px;font-weight:800;line-height:1.3;overflow-wrap:anywhere}.v29-sheet button,.v29-sheet-date{box-sizing:border-box;width:100%;min-height:48px;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px;padding:0 14px;border:1px solid #263d5f;border-radius:12px;background:#07111f;color:#eef4ff;font-size:14px;font-weight:800;text-align:left}.v29-sheet button small{color:#8290a6;font-size:11px;font-weight:700}.v29-sheet-date input{min-width:0;border:0;background:transparent;color:#eef4ff;color-scheme:dark;font:inherit;font-size:16px;text-align:right}.v29-sheet .v29-sheet-cancel{justify-content:center;border-color:#1b2d46;background:transparent;color:#8290a6}}`;
     document.head.appendChild(s);
   }
   function root() {
@@ -257,7 +259,7 @@
       date = x.d.toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' }),
       r = root();
     r.className = '';
-    r.innerHTML = `<main class="v29-main"><div class="v29-kicker">STACK · СЕГОДНЯ</div><h1 class="v29-title">Сегодня</h1><div class="v29-date">${esc(date)}</div><section class="v29-progress"><b>${p.head}</b><div><strong>${esc(p.strong)}</strong><small>${esc(p.small)}</small></div></section><div class="v29-section-label">ЧТО ДЕЛАТЬ СЕЙЧАС</div><section class="v29-list">${x.rows.length ? x.rows.map(a => `<div class="v29-row" data-v29-kind="${a.kind}" data-v29-index="${a.index ?? ''}" data-v29-route="${isWorkout(a) ? 'fitness' : 'deals'}" data-v29-tab="${a.kind === 'task' ? 'tasks' : 'processes'}" style="--a:${a.color}"><i class="v29-action-icon ${isWorkout(a) ? 'workout' : ''}">${actionIcon(a)}</i><button class="v29-open" type="button">${esc(a.name)}${a.late ? `<small class="v29-late">просрочено · ${a.late} дн.</small>` : ''}</button>${a.kind === 'process' ? `<button class="v29-status" type="button" data-mark="${a.mark}" aria-label="${esc(markLabel(a.mark))}">${markIcon(a.mark)}</button>` : `<button class="v29-status" type="button" data-mark="${a.mark}" aria-label="${a.mark ? 'Выполнено — снять отметку' : 'Отметить выполненной'}">${a.mark ? '✓' : ''}</button>`}</div>`).join('') : `<div class="v29-empty">На сегодня ничего не запланировано</div>`}${x.overdueMore ? `<button type="button" class="v29-more" data-v29-more>Ещё ${x.overdueMore} просроченных<i>›</i></button>` : ''}</section>${nutritionLine()}${backupLine()}</main>${navHtml()}`;
+    r.innerHTML = `<main class="v29-main"><div class="v29-kicker">STACK · СЕГОДНЯ</div><h1 class="v29-title">Сегодня</h1><div class="v29-date">${esc(date)}</div><section class="v29-progress"><b>${p.head}</b><div><strong>${esc(p.strong)}</strong><small>${esc(p.small)}</small></div></section><div class="v29-section-label">ЧТО ДЕЛАТЬ СЕЙЧАС</div><section class="v29-list">${x.rows.length ? x.rows.map(a => `<div class="v29-row${a.late && !a.mark ? ' v29-row-late' : ''}" data-v29-kind="${a.kind}" data-v29-index="${a.index ?? ''}" data-v29-route="${isWorkout(a) ? 'fitness' : 'deals'}" data-v29-tab="${a.kind === 'task' ? 'tasks' : 'processes'}" style="--a:${a.color}"><i class="v29-action-icon ${isWorkout(a) ? 'workout' : ''}">${actionIcon(a)}</i><button class="v29-open" type="button">${esc(a.name)}${a.late ? `<small class="v29-late">просрочено · ${a.late} дн.</small>` : ''}</button>${a.late && !a.mark ? `<button class="v29-move" type="button" data-v29-move aria-label="Перенести: ${esc(a.name)}">${MOVE_ICON}</button>` : ''}${a.kind === 'process' ? `<button class="v29-status" type="button" data-mark="${a.mark}" aria-label="${esc(markLabel(a.mark))}">${markIcon(a.mark)}</button>` : `<button class="v29-status" type="button" data-mark="${a.mark}" aria-label="${a.mark ? 'Выполнено — снять отметку' : 'Отметить выполненной'}">${a.mark ? '✓' : ''}</button>`}</div>`).join('') : `<div class="v29-empty">На сегодня ничего не запланировано</div>`}${x.overdueMore ? `<button type="button" class="v29-more" data-v29-more>Ещё ${x.overdueMore} просроченных<i>›</i></button>` : ''}</section>${nutritionLine()}${backupLine()}</main>${navHtml()}`;
     wire();
     release();
   }
@@ -287,6 +289,7 @@
     } catch (_) {}
   }
   function open(id, mode = 'push', tab) {
+    closeMove();
     if (id !== 'today') justDone = new WeakSet();
     const item = NAV.find(x => x[0] === id) || NAV[0];
     syncHistory(item[0], mode);
@@ -349,20 +352,8 @@
     }
     renderToday();
   }
-  function toggleTask(index) {
-    const s = liveState(),
-      t = s?.journal?.[index];
-    if (!t) return;
-    if (taskDone(t)) {
-      const was = String(t.prevStatus || '');
-      t.status = was && !taskDone({ status: was }) ? was : 'Не начато';
-      delete t.prevStatus;
-    } else {
-      if (t.status && t.status !== 'Не начато') t.prevStatus = t.status;
-      else delete t.prevStatus;
-      t.status = 'Готово';
-      justDone.add(t);
-    }
+  /* a task changed on this screen: save, tell the other modules, redraw once */
+  function commitTask() {
     try {
       if (typeof save === 'function') save();
     } catch (_) {}
@@ -373,6 +364,52 @@
       if (typeof renderAll === 'function') renderAll();
     } catch (_) {}
     renderToday();
+  }
+  function toggleTask(index) {
+    const t = liveState()?.journal?.[index];
+    if (!t || !globalThis.STACK_DATA?.toggleTaskDone) return;
+    if (globalThis.STACK_DATA.toggleTaskDone(t)) justDone.add(t);
+    commitTask();
+  }
+  /* v29.87: a late task can be moved to another day without leaving «Сегодня» — only its `due` (and a planned day of today) changes */
+  function closeMove() {
+    document.getElementById('v29MoveSheet')?.remove();
+    document.removeEventListener('keydown', moveKeys);
+  }
+  function moveKeys(e) {
+    if (e.key === 'Escape') closeMove();
+  }
+  function openMove(index) {
+    const D = globalThis.STACK_DATA,
+      t = liveState()?.journal?.[index];
+    if (!t || !D?.rescheduleTask) return;
+    closeMove();
+    const today = dateKey(),
+      tomorrow = D.shiftKey(today, 1),
+      short = k => {
+        const d = new Date(+k.slice(0, 4), +k.slice(5, 7) - 1, +k.slice(8, 10));
+        return d.toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' }).replace(/\./g, '');
+      },
+      el = document.createElement('div');
+    el.id = 'v29MoveSheet';
+    el.className = 'v29-sheet-bg';
+    el.innerHTML = `<div class="v29-sheet" role="dialog" aria-modal="true" aria-label="Перенести задачу"><b>ПЕРЕНЕСТИ НА</b><div class="v29-sheet-name">${esc(t.task || 'Без названия')}</div><button type="button" data-v29-to="${today}">Сегодня<small>${esc(short(today))}</small></button><button type="button" data-v29-to="${tomorrow}">Завтра<small>${esc(short(tomorrow))}</small></button><label class="v29-sheet-date"><span>Другая дата</span><input type="date" min="${today}" aria-label="Другая дата"></label><button type="button" class="v29-sheet-cancel">Отмена</button></div>`;
+    const apply = key => {
+      closeMove();
+      if (!liveState()?.journal?.includes(t) || !D.rescheduleTask(t, key, dateKey())) return;
+      commitTask();
+    };
+    el.addEventListener('click', e => {
+      if (e.target === el || e.target.closest('.v29-sheet-cancel')) closeMove();
+      const to = e.target.closest('[data-v29-to]');
+      if (to) apply(to.dataset.v29To);
+    });
+    el.querySelector('input[type=date]').addEventListener('change', e => {
+      if (e.target.value) apply(e.target.value);
+    });
+    document.addEventListener('keydown', moveKeys);
+    document.body.appendChild(el);
+    el.querySelector('[data-v29-to]')?.focus();
   }
   const DOCK_COLORS = {
     today: ['#f55bd1', '#f12bb866'],
@@ -481,6 +518,7 @@
       row
         .querySelector('.v29-open')
         ?.addEventListener('click', () => open(row.dataset.v29Route || 'deals', 'push', row.dataset.v29Tab));
+      row.querySelector('[data-v29-move]')?.addEventListener('click', () => openMove(+row.dataset.v29Index));
       row.querySelector('.v29-status')?.addEventListener('click', () => {
         if (row.dataset.v29Kind === 'process') cycleProcess(+row.dataset.v29Index);
         else toggleTask(+row.dataset.v29Index);

@@ -10,7 +10,7 @@
  * overflow on mobile, and DOM-mutation loops (MutationObserver ping-pong).
  *
  * Usage:
- *   node scripts/stack-verify.js [--width=390] [--height=844] [--port=8811]
+ *   node scripts/stack-verify.js [--width=390] [--height=844] [--port=8811] [--only=today,crud,program,data,sw]
  *
  * Requires Playwright + a Chromium build. In this project's usual sandbox
  * that means the global install at /opt/node22/lib/node_modules and the
@@ -1334,6 +1334,120 @@ async function runTodayScenarios(browser, baseUrl, args, note, fail, jsErrors) {
     );
   });
 
+  await step('move an overdue task to another day', async () => {
+    await refresh();
+    const rows = await page.evaluate(() => {
+      const row = [...document.querySelectorAll('.v29-row[data-v29-kind="task"]')].find(e =>
+        e.textContent.includes('OVERDUE_ONE')
+      );
+      const b = row?.querySelector('[data-v29-move]')?.getBoundingClientRect();
+      return {
+        has: !!b,
+        w: Math.round(b?.width || 0),
+        h: Math.round(b?.height || 0),
+        label: row?.querySelector('[data-v29-move]')?.getAttribute('aria-label') || '',
+        processMoves: document.querySelectorAll('.v29-row[data-v29-kind="process"] [data-v29-move]').length,
+        overflow: document.documentElement.scrollWidth > innerWidth,
+      };
+    });
+    check(
+      rows.has &&
+        rows.w >= 44 &&
+        rows.h >= 44 &&
+        /OVERDUE_ONE/.test(rows.label) &&
+        !rows.processMoves &&
+        !rows.overflow,
+      `a late task has a 44px «перенести» button, processes have none (${JSON.stringify(rows)})`
+    );
+    const before = await page.evaluate(() => JSON.stringify(state.journal.find(t => t.id === 'od1')));
+    const moveSel = '.v29-row[data-v29-kind="task"]:has-text("OVERDUE_ONE") [data-v29-move]';
+    await page.click(moveSel);
+    await page.waitForSelector('#v29MoveSheet');
+    const sheet = await page.evaluate(() => {
+      const s = document.querySelector('#v29MoveSheet .v29-sheet').getBoundingClientRect();
+      return {
+        buttons: [...document.querySelectorAll('#v29MoveSheet button')].map(b => b.firstChild.textContent.trim()),
+        date: !!document.querySelector('#v29MoveSheet input[type=date]'),
+        inside: s.left >= 0 && Math.round(s.right) <= innerWidth,
+        small: [...document.querySelectorAll('#v29MoveSheet button')].some(b => b.getBoundingClientRect().height < 44),
+      };
+    });
+    check(
+      sheet.buttons.join() === 'Сегодня,Завтра,Отмена' && sheet.date && sheet.inside && !sheet.small,
+      `the sheet offers Сегодня / Завтра / date / Отмена inside the screen, taps ≥44px (${JSON.stringify(sheet)})`
+    );
+    await page.keyboard.press('Escape');
+    const closed = await page.evaluate(() => ({
+      gone: !document.getElementById('v29MoveSheet'),
+      same: JSON.stringify(state.journal.find(t => t.id === 'od1')),
+    }));
+    check(closed.gone && closed.same === before, 'Escape closes the sheet and changes nothing');
+    await page.click(moveSel);
+    await page.waitForSelector('#v29MoveSheet');
+    await page.click('#v29MoveSheet [data-v29-to]:has-text("Завтра")');
+    await page.waitForTimeout(400);
+    const moved = await page.evaluate(() => {
+      const t = state.journal.find(x => x.id === 'od1');
+      const tomorrow = STACK_DATA.shiftKey(STACK_DATA.dateKey(), 1);
+      const group = [...document.querySelectorAll('#v2212Tasks .v2212-group')].find(g =>
+        g.textContent.includes('OVERDUE_ONE')
+      );
+      return {
+        due: t.due === tomorrow,
+        status: t.status,
+        title: t.task,
+        date: t.date,
+        onToday: [...document.querySelectorAll('.v29-row')].some(e => e.textContent.includes('OVERDUE_ONE')),
+        sheetGone: !document.getElementById('v29MoveSheet'),
+        dealsGroup: group?.querySelector('.v2212-gh span')?.textContent || '',
+      };
+    });
+    const was = JSON.parse(before);
+    check(
+      moved.due &&
+        moved.status === was.status &&
+        moved.title === was.task &&
+        moved.date === was.date &&
+        !moved.onToday &&
+        moved.sheetGone,
+      `«Завтра» moves only the deadline: the row leaves «Сегодня», status/title/date stay (${JSON.stringify(moved)})`
+    );
+    check(/Завтра/.test(moved.dealsGroup), `the moved task sits in «Дела → Завтра» (${moved.dealsGroup})`);
+    await page.click('.v29-row[data-v29-kind="task"]:has-text("OVERDUE_BULK_0") [data-v29-move]');
+    await page.click('#v29MoveSheet [data-v29-to]:has-text("Сегодня")');
+    await page.waitForTimeout(400);
+    const today = await page.evaluate(() => {
+      const t = state.journal.find(x => x.id === 'odb0');
+      const row = [...document.querySelectorAll('.v29-row')].find(e => e.textContent.includes('OVERDUE_BULK_0'));
+      return { due: t.due === STACK_DATA.dateKey(), stays: !!row, late: !!row?.querySelector('.v29-late') };
+    });
+    check(
+      today.due && today.stays && !today.late,
+      `«Сегодня» keeps the task on the screen without the late mark (${JSON.stringify(today)})`
+    );
+    await page.click('.v29-row[data-v29-kind="task"]:has-text("OVERDUE_BULK_1") [data-v29-move]');
+    const target = await page.evaluate(() => STACK_DATA.shiftKey(STACK_DATA.dateKey(), 5));
+    await page.fill('#v29MoveSheet input[type=date]', target);
+    await page.waitForTimeout(400);
+    const picked = await page.evaluate(() => ({
+      due: state.journal.find(x => x.id === 'odb1').due,
+      onToday: [...document.querySelectorAll('.v29-row')].some(e => e.textContent.includes('OVERDUE_BULK_1')),
+      count: state.journal.length,
+    }));
+    check(
+      picked.due === target && !picked.onToday,
+      `a picked date is saved and the task leaves «Сегодня» (${JSON.stringify(picked)})`
+    );
+    const rest = await page.evaluate(() => ({
+      late: document.querySelectorAll('.v29-row[data-v29-kind="task"] .v29-late').length,
+      more: !!document.querySelector('[data-v29-more]'),
+    }));
+    check(
+      rest.late === 5 && !rest.more,
+      `after 3 moves the remaining 5 overdue tasks all fit and the «Ещё N» row is gone (${JSON.stringify(rest)})`
+    );
+  });
+
   await step('workout recognition by word', async () => {
     const r = await page.evaluate(() =>
       Object.fromEntries(
@@ -1714,6 +1828,9 @@ async function runServiceWorkerScenarios(chromium, launchOpts, root, port, note,
 async function run() {
   const { chromium } = loadPlaywright();
   const args = parseArgs(process.argv);
+  /* --only=today,crud,program,data,sw runs just those scenario groups (the quick loop while working on one screen); a full run is the default */
+  const only = args.only ? String(args.only).split(',') : null;
+  const want = name => !only || only.includes(name);
   const root = path.resolve(__dirname, '..');
   const server = await serveRepo(root, args.port);
   const baseUrl = `http://localhost:${args.port}`;
@@ -1767,322 +1884,325 @@ async function run() {
     await page.waitForSelector('.v29-nav', { timeout: 15000 });
     note('Loaded shell OK.');
 
-    async function checkOverflow(label) {
-      const overflow = await page.evaluate(
-        () => document.documentElement.scrollWidth > document.documentElement.clientWidth
-      );
-      if (overflow) fail(`horizontal overflow on ${label}`);
-      else note(`  overflow OK (${label})`);
-    }
-
-    for (const section of SECTIONS) {
-      await page.click(`.v29-nav [data-v29-nav="${section}"]`);
-      await page.waitForTimeout(500);
-      await checkOverflow(section);
-    }
-
-    // Fitness tab round trip, including the Program drill-down from Progress.
-    await page.click('.v29-nav [data-v29-nav="fitness"]');
-    await page.waitForTimeout(500);
-    for (const tab of FITNESS_TABS) {
-      await page.click(`.v234-tabs [data-v234="${tab}"]`);
-      await page.waitForTimeout(400);
-      await checkOverflow(`fitness/${tab}`);
-    }
-    // The Program drill-down button only lives inside the Progress panel,
-    // so switch back there first (the tab loop above ends on Nutrition).
-    await page.click('.v234-tabs [data-v234="progress"]');
-    await page.waitForTimeout(300);
-    const programBtn = await page.$('#v234Progress button[data-v234="program"]');
-    if (programBtn) {
-      await programBtn.click();
-      await page.waitForTimeout(300);
-      await checkOverflow('fitness/program');
-      const backBtn = await page.$('[data-v234="progress"]');
-      if (backBtn) await backBtn.click();
-    } else {
-      note('  (no Program drill-down button found — skipping that check)');
-    }
-
-    // DOM-churn check: settle on Fitness Today, then verify mutations stop.
-    await page.click('.v234-tabs [data-v234="today"]');
-    await page.waitForTimeout(1500);
-    await page.evaluate(() => {
-      window.__stackVerifyMut = 0;
-      new MutationObserver(m => {
-        window.__stackVerifyMut += m.length;
-      }).observe(document.getElementById('v234Fitness') || document.body, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        characterData: true,
-      });
-    });
-    await page.waitForTimeout(2500);
-    const idleMutations = await page.evaluate(() => window.__stackVerifyMut);
-    if (idleMutations > 0)
-      fail(`${idleMutations} DOM mutations while idle on Fitness/Today (possible MutationObserver loop)`);
-    else note(`  0 idle DOM mutations on Fitness/Today (2.5s) — no observer loop`);
-
-    // ---- Behaviour scenarios (bugs that shipped once and slipped past the
-    // navigation-only checks above). Each runs on this throwaway context's
-    // own localStorage, so seeding data here never touches real user data.
-    await runScenarios(page, baseUrl, note, fail);
-
-    // Desktop (v29.69): a wide top-level page shows the same app in a phone-width
-    // frame (index.html?frame=1) and does not run the app itself.
-    const desk = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' });
-    await desk.route('**/*', route => (route.request().url().startsWith(baseUrl) ? route.continue() : route.abort()));
-    const dp = await desk.newPage();
-    dp.on('pageerror', e => jsErrors.push('[desktop] ' + e.message));
-    await dp.goto(`${baseUrl}/index.html`, { waitUntil: 'commit', timeout: 20000 });
-    await dp.waitForTimeout(2500);
-    const frame = dp.frames().find(f => /[?&]frame=1/.test(f.url()));
-    const parentRunsApp = await dp.evaluate(() => typeof state !== 'undefined');
-    const frameOk = frame
-      ? await frame.evaluate(() => innerWidth <= 720 && !!document.querySelector('.v29-nav'))
-      : false;
-    if (frameOk && !parentRunsApp) note('  desktop OK: app in phone-width frame, parent page runs no app code');
-    else fail(`desktop frame (frame=${!!frame}, frameOk=${frameOk}, parentRunsApp=${parentRunsApp})`);
-    await desk.close();
-
-    // v29.84: the old wide layout must not appear on touch devices either — a tablet and a phone turned to landscape get the same
-    // phone-width frame; a phone in portrait runs the app directly; rotating a running phone moves it into the frame.
-    for (const [label, w, h] of [
-      ['phone landscape 844×390', 844, 390],
-      ['tablet 820×1180', 820, 1180],
-    ]) {
-      const c = await browser.newContext({
-        viewport: { width: w, height: h },
-        isMobile: true,
-        hasTouch: true,
-        serviceWorkers: 'block',
-      });
-      await c.route('**/*', route => (route.request().url().startsWith(baseUrl) ? route.continue() : route.abort()));
-      const p = await c.newPage();
-      p.on('pageerror', e => jsErrors.push(`[${label}] ` + e.message));
-      await p.goto(`${baseUrl}/index.html`, { waitUntil: 'commit', timeout: 20000 });
-      await p.waitForTimeout(2500);
-      const f = p.frames().find(x => /[?&]frame=1/.test(x.url()));
-      const parentApp = await p.evaluate(() => typeof state !== 'undefined');
-      const ok = f
-        ? await f.evaluate(
-            () =>
-              innerWidth <= 720 &&
-              !!document.querySelector('.v29-nav') &&
-              !document.querySelector('.today-screen.active')
-          )
-        : false;
-      if (ok && !parentApp) note(`  scenario OK: ${label} shows the phone-width app, not the old wide layout`);
-      else fail(`scenario: ${label} (frame=${!!f}, frameOk=${ok}, parentRunsApp=${parentApp})`);
-      await c.close();
-    }
-    {
-      const c = await browser.newContext({
-        viewport: { width: 390, height: 844 },
-        isMobile: true,
-        hasTouch: true,
-        serviceWorkers: 'block',
-      });
-      await c.route('**/*', route => (route.request().url().startsWith(baseUrl) ? route.continue() : route.abort()));
-      const p = await c.newPage();
-      p.on('pageerror', e => jsErrors.push('[rotation] ' + e.message));
-      await p.goto(`${baseUrl}/index.html`, { waitUntil: 'domcontentloaded', timeout: 20000 });
-      await p.waitForSelector('.v29-nav', { timeout: 15000 });
-      const direct = p.frames().length === 1;
-      await p.setViewportSize({ width: 844, height: 390 });
-      await p.waitForTimeout(3500);
-      const f = p.frames().find(x => /[?&]frame=1/.test(x.url()));
-      const ok = f ? await f.evaluate(() => innerWidth <= 720 && !!document.querySelector('.v29-nav')) : false;
-      if (direct && ok)
-        note(
-          '  scenario OK: a phone in portrait runs the app directly; turning it to landscape moves it into the phone-width frame'
+    if (!only) {
+      async function checkOverflow(label) {
+        const overflow = await page.evaluate(
+          () => document.documentElement.scrollWidth > document.documentElement.clientWidth
         );
-      else fail(`scenario: rotation (direct=${direct}, framed=${ok})`);
-      await c.close();
-    }
+        if (overflow) fail(`horizontal overflow on ${label}`);
+        else note(`  overflow OK (${label})`);
+      }
 
-    // Local day, not the UTC day (v29.76): at 01:30 in Moscow the UTC date is still yesterday,
-    // which put «+ Операция» on the previous day (and, on the 1st, in the previous month).
-    const tz = await browser.newContext({
-      viewport: { width: args.width, height: args.height },
-      isMobile: true,
-      hasTouch: true,
-      serviceWorkers: 'block',
-      timezoneId: 'Europe/Moscow',
-    });
-    await tz.route('**/*', route => (route.request().url().startsWith(baseUrl) ? route.continue() : route.abort()));
-    await tz.clock.setFixedTime(new Date('2026-10-01T22:30:00Z'));
-    const tp = await tz.newPage();
-    tp.on('pageerror', e => jsErrors.push('[timezone] ' + e.message));
-    await tp.goto(`${baseUrl}/index.html`, { waitUntil: 'domcontentloaded', timeout: 20000 });
-    await tp.waitForSelector('.v29-nav', { timeout: 15000 });
-    const txDate = await tp.evaluate(() => {
-      state.savings.goals.push({
-        id: 'gverify',
-        name: 'verify',
-        target: 1000,
-        start: 0,
-        monthly: 0,
-        deadline: '',
-        currency: 'RUB',
-        color: '#0877f3',
-        icon: 'home',
-        tx: [],
+      for (const section of SECTIONS) {
+        await page.click(`.v29-nav [data-v29-nav="${section}"]`);
+        await page.waitForTimeout(500);
+        await checkOverflow(section);
+      }
+
+      // Fitness tab round trip, including the Program drill-down from Progress.
+      await page.click('.v29-nav [data-v29-nav="fitness"]');
+      await page.waitForTimeout(500);
+      for (const tab of FITNESS_TABS) {
+        await page.click(`.v234-tabs [data-v234="${tab}"]`);
+        await page.waitForTimeout(400);
+        await checkOverflow(`fitness/${tab}`);
+      }
+      // The Program drill-down button only lives inside the Progress panel,
+      // so switch back there first (the tab loop above ends on Nutrition).
+      await page.click('.v234-tabs [data-v234="progress"]');
+      await page.waitForTimeout(300);
+      const programBtn = await page.$('#v234Progress button[data-v234="program"]');
+      if (programBtn) {
+        await programBtn.click();
+        await page.waitForTimeout(300);
+        await checkOverflow('fitness/program');
+        const backBtn = await page.$('[data-v234="progress"]');
+        if (backBtn) await backBtn.click();
+      } else {
+        note('  (no Program drill-down button found — skipping that check)');
+      }
+
+      // DOM-churn check: settle on Fitness Today, then verify mutations stop.
+      await page.click('.v234-tabs [data-v234="today"]');
+      await page.waitForTimeout(1500);
+      await page.evaluate(() => {
+        window.__stackVerifyMut = 0;
+        new MutationObserver(m => {
+          window.__stackVerifyMut += m.length;
+        }).observe(document.getElementById('v234Fitness') || document.body, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+          characterData: true,
+        });
       });
-      state.savings.selectedId = 'gverify';
-      state.savings.currency = 'RUB';
-      openSavingsTx(1);
-      return stDate.value;
-    });
-    if (txDate === '2026-10-02')
-      note('  scenario OK: «+ Операция» defaults to the local day at 01:30 MSK (2026-10-02)');
-    else fail(`scenario: «+ Операция» default date at 01:30 MSK is ${txDate}, expected 2026-10-02`);
-    await tz.close();
+      await page.waitForTimeout(2500);
+      const idleMutations = await page.evaluate(() => window.__stackVerifyMut);
+      if (idleMutations > 0)
+        fail(`${idleMutations} DOM mutations while idle on Fitness/Today (possible MutationObserver loop)`);
+      else note(`  0 idle DOM mutations on Fitness/Today (2.5s) — no observer loop`);
 
-    // Calendar window (v29.78): it used to end in Jul 2027 — from 1 Aug 2027 no mark could be saved, silently.
-    // Opens the app on later dates with a stored 12-month state and checks the window grows by appending only.
-    const MD = [
-      ['Август', 2026, 7, 31],
-      ['Сентябрь', 2026, 8, 30],
-      ['Октябрь', 2026, 9, 31],
-      ['Ноябрь', 2026, 10, 30],
-      ['Декабрь', 2026, 11, 31],
-      ['Январь', 2027, 0, 31],
-      ['Февраль', 2027, 1, 28],
-      ['Март', 2027, 2, 31],
-      ['Апрель', 2027, 3, 30],
-      ['Май', 2027, 4, 31],
-      ['Июнь', 2027, 5, 30],
-      ['Июль', 2027, 6, 31],
-      ['Август', 2027, 7, 31],
-      ['Сентябрь', 2027, 8, 30],
-      ['Октябрь', 2027, 9, 31],
-      ['Ноябрь', 2027, 10, 30],
-    ];
-    const seedState = n => {
-      const procs = ['Тренировка', 'Чтение'].map(name => ({
-        name,
-        goal: 0.8,
-        color: '#0877f3',
-        schedule: [1, 1, 1, 1, 1, 1, 1],
-        scheduleType: 'daily',
-        monthDay: 1,
-        lastDay: false,
-      }));
-      const marks = ['✓', '○', '—', ''];
-      return {
-        goal: 0.8,
-        currentMonth: 11,
-        processes: procs,
-        months: MD.slice(0, n).map((m, mi) =>
-          procs.map((_, pi) => Array.from({ length: m[3] }, (_, d) => marks[(mi + pi + d) % 4]))
-        ),
-        journal: [],
-        savings: { currency: 'RUB', selectedId: null, goals: [] },
-      };
-    };
-    const old12 = JSON.stringify(seedState(12).months);
-    const openAt = async (iso, months) => {
-      const c = await browser.newContext({
+      // ---- Behaviour scenarios (bugs that shipped once and slipped past the
+      // navigation-only checks above). Each runs on this throwaway context's
+      // own localStorage, so seeding data here never touches real user data.
+      await runScenarios(page, baseUrl, note, fail);
+
+      // Desktop (v29.69): a wide top-level page shows the same app in a phone-width
+      // frame (index.html?frame=1) and does not run the app itself.
+      const desk = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' });
+      await desk.route('**/*', route => (route.request().url().startsWith(baseUrl) ? route.continue() : route.abort()));
+      const dp = await desk.newPage();
+      dp.on('pageerror', e => jsErrors.push('[desktop] ' + e.message));
+      await dp.goto(`${baseUrl}/index.html`, { waitUntil: 'commit', timeout: 20000 });
+      await dp.waitForTimeout(2500);
+      const frame = dp.frames().find(f => /[?&]frame=1/.test(f.url()));
+      const parentRunsApp = await dp.evaluate(() => typeof state !== 'undefined');
+      const frameOk = frame
+        ? await frame.evaluate(() => innerWidth <= 720 && !!document.querySelector('.v29-nav'))
+        : false;
+      if (frameOk && !parentRunsApp) note('  desktop OK: app in phone-width frame, parent page runs no app code');
+      else fail(`desktop frame (frame=${!!frame}, frameOk=${frameOk}, parentRunsApp=${parentRunsApp})`);
+      await desk.close();
+
+      // v29.84: the old wide layout must not appear on touch devices either — a tablet and a phone turned to landscape get the same
+      // phone-width frame; a phone in portrait runs the app directly; rotating a running phone moves it into the frame.
+      for (const [label, w, h] of [
+        ['phone landscape 844×390', 844, 390],
+        ['tablet 820×1180', 820, 1180],
+      ]) {
+        const c = await browser.newContext({
+          viewport: { width: w, height: h },
+          isMobile: true,
+          hasTouch: true,
+          serviceWorkers: 'block',
+        });
+        await c.route('**/*', route => (route.request().url().startsWith(baseUrl) ? route.continue() : route.abort()));
+        const p = await c.newPage();
+        p.on('pageerror', e => jsErrors.push(`[${label}] ` + e.message));
+        await p.goto(`${baseUrl}/index.html`, { waitUntil: 'commit', timeout: 20000 });
+        await p.waitForTimeout(2500);
+        const f = p.frames().find(x => /[?&]frame=1/.test(x.url()));
+        const parentApp = await p.evaluate(() => typeof state !== 'undefined');
+        const ok = f
+          ? await f.evaluate(
+              () =>
+                innerWidth <= 720 &&
+                !!document.querySelector('.v29-nav') &&
+                !document.querySelector('.today-screen.active')
+            )
+          : false;
+        if (ok && !parentApp) note(`  scenario OK: ${label} shows the phone-width app, not the old wide layout`);
+        else fail(`scenario: ${label} (frame=${!!f}, frameOk=${ok}, parentRunsApp=${parentApp})`);
+        await c.close();
+      }
+      {
+        const c = await browser.newContext({
+          viewport: { width: 390, height: 844 },
+          isMobile: true,
+          hasTouch: true,
+          serviceWorkers: 'block',
+        });
+        await c.route('**/*', route => (route.request().url().startsWith(baseUrl) ? route.continue() : route.abort()));
+        const p = await c.newPage();
+        p.on('pageerror', e => jsErrors.push('[rotation] ' + e.message));
+        await p.goto(`${baseUrl}/index.html`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+        await p.waitForSelector('.v29-nav', { timeout: 15000 });
+        const direct = p.frames().length === 1;
+        await p.setViewportSize({ width: 844, height: 390 });
+        await p.waitForTimeout(3500);
+        const f = p.frames().find(x => /[?&]frame=1/.test(x.url()));
+        const ok = f ? await f.evaluate(() => innerWidth <= 720 && !!document.querySelector('.v29-nav')) : false;
+        if (direct && ok)
+          note(
+            '  scenario OK: a phone in portrait runs the app directly; turning it to landscape moves it into the phone-width frame'
+          );
+        else fail(`scenario: rotation (direct=${direct}, framed=${ok})`);
+        await c.close();
+      }
+
+      // Local day, not the UTC day (v29.76): at 01:30 in Moscow the UTC date is still yesterday,
+      // which put «+ Операция» on the previous day (and, on the 1st, in the previous month).
+      const tz = await browser.newContext({
         viewport: { width: args.width, height: args.height },
         isMobile: true,
         hasTouch: true,
         serviceWorkers: 'block',
         timezoneId: 'Europe/Moscow',
       });
-      await c.route('**/*', route => (route.request().url().startsWith(baseUrl) ? route.continue() : route.abort()));
-      await c.clock.setFixedTime(new Date(iso));
-      await c.addInitScript(s => {
-        if (!localStorage.getItem('__seeded')) {
-          localStorage.setItem('__seeded', '1');
-          localStorage.setItem('stack_neon_mix9_calendar_v1', JSON.stringify(s));
+      await tz.route('**/*', route => (route.request().url().startsWith(baseUrl) ? route.continue() : route.abort()));
+      await tz.clock.setFixedTime(new Date('2026-10-01T22:30:00Z'));
+      const tp = await tz.newPage();
+      tp.on('pageerror', e => jsErrors.push('[timezone] ' + e.message));
+      await tp.goto(`${baseUrl}/index.html`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+      await tp.waitForSelector('.v29-nav', { timeout: 15000 });
+      const txDate = await tp.evaluate(() => {
+        state.savings.goals.push({
+          id: 'gverify',
+          name: 'verify',
+          target: 1000,
+          start: 0,
+          monthly: 0,
+          deadline: '',
+          currency: 'RUB',
+          color: '#0877f3',
+          icon: 'home',
+          tx: [],
+        });
+        state.savings.selectedId = 'gverify';
+        state.savings.currency = 'RUB';
+        openSavingsTx(1);
+        return stDate.value;
+      });
+      if (txDate === '2026-10-02')
+        note('  scenario OK: «+ Операция» defaults to the local day at 01:30 MSK (2026-10-02)');
+      else fail(`scenario: «+ Операция» default date at 01:30 MSK is ${txDate}, expected 2026-10-02`);
+      await tz.close();
+
+      // Calendar window (v29.78): it used to end in Jul 2027 — from 1 Aug 2027 no mark could be saved, silently.
+      // Opens the app on later dates with a stored 12-month state and checks the window grows by appending only.
+      const MD = [
+        ['Август', 2026, 7, 31],
+        ['Сентябрь', 2026, 8, 30],
+        ['Октябрь', 2026, 9, 31],
+        ['Ноябрь', 2026, 10, 30],
+        ['Декабрь', 2026, 11, 31],
+        ['Январь', 2027, 0, 31],
+        ['Февраль', 2027, 1, 28],
+        ['Март', 2027, 2, 31],
+        ['Апрель', 2027, 3, 30],
+        ['Май', 2027, 4, 31],
+        ['Июнь', 2027, 5, 30],
+        ['Июль', 2027, 6, 31],
+        ['Август', 2027, 7, 31],
+        ['Сентябрь', 2027, 8, 30],
+        ['Октябрь', 2027, 9, 31],
+        ['Ноябрь', 2027, 10, 30],
+      ];
+      const seedState = n => {
+        const procs = ['Тренировка', 'Чтение'].map(name => ({
+          name,
+          goal: 0.8,
+          color: '#0877f3',
+          schedule: [1, 1, 1, 1, 1, 1, 1],
+          scheduleType: 'daily',
+          monthDay: 1,
+          lastDay: false,
+        }));
+        const marks = ['✓', '○', '—', ''];
+        return {
+          goal: 0.8,
+          currentMonth: 11,
+          processes: procs,
+          months: MD.slice(0, n).map((m, mi) =>
+            procs.map((_, pi) => Array.from({ length: m[3] }, (_, d) => marks[(mi + pi + d) % 4]))
+          ),
+          journal: [],
+          savings: { currency: 'RUB', selectedId: null, goals: [] },
+        };
+      };
+      const old12 = JSON.stringify(seedState(12).months);
+      const openAt = async (iso, months) => {
+        const c = await browser.newContext({
+          viewport: { width: args.width, height: args.height },
+          isMobile: true,
+          hasTouch: true,
+          serviceWorkers: 'block',
+          timezoneId: 'Europe/Moscow',
+        });
+        await c.route('**/*', route => (route.request().url().startsWith(baseUrl) ? route.continue() : route.abort()));
+        await c.clock.setFixedTime(new Date(iso));
+        await c.addInitScript(s => {
+          if (!localStorage.getItem('__seeded')) {
+            localStorage.setItem('__seeded', '1');
+            localStorage.setItem('stack_neon_mix9_calendar_v1', JSON.stringify(s));
+          }
+        }, seedState(months));
+        const p = await c.newPage();
+        p.on('pageerror', e => jsErrors.push('[calendar] ' + e.message));
+        await p.goto(`${baseUrl}/index.html`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+        await p.waitForSelector('.v29-nav', { timeout: 15000 });
+        await p.waitForTimeout(1200);
+        return { c, p };
+      };
+      {
+        const { c, p } = await openAt('2027-08-15T12:00:00', 12);
+        const a = await p.evaluate(() => ({
+          len: MONTHS.length,
+          idx: dateToMonthIndex(new Date()),
+          stateLen: state.months.length,
+          first12: JSON.stringify(state.months.slice(0, 12)),
+        }));
+        const okAug = a.len >= 16 && a.idx === 12 && a.stateLen === a.len && a.first12 === old12;
+        if (okAug)
+          note(`  scenario OK: Aug 2027 — window extended to ${a.len} months, the 12 old months byte-identical`);
+        else
+          fail(
+            `scenario: Aug 2027 calendar (${JSON.stringify({ len: a.len, idx: a.idx, stateLen: a.stateLen, old12Same: a.first12 === old12 })})`
+          );
+        await p.click('.v29-nav [data-v29-nav="today"]');
+        await p.waitForTimeout(300);
+        await p.click('.v29-row[data-v29-index="0"] .v29-status');
+        await p.waitForTimeout(300);
+        const m = await p.evaluate(() => ({
+          live: state.months[12][0][14],
+          stored: JSON.parse(localStorage.getItem('stack_neon_mix9_calendar_v1')).months[12][0][14],
+        }));
+        if (m.live === '✓' && m.stored === '✓') note('  scenario OK: Today status is recorded and saved in Aug 2027');
+        else fail(`scenario: no mark recorded in Aug 2027 (${JSON.stringify(m)})`);
+        const ch = await p.evaluate(() => {
+          const ix = chartMonths();
+          renderChart();
+          openProcessDetail(0);
+          const lab = sel =>
+            [...document.querySelectorAll(sel + ' text.axis')].filter(t => /[А-Яа-я]{3}/.test(t.textContent)).length;
+          const r = { first: ix[0], last: ix[11], year: lab('#chart'), proc: lab('#detailChart') };
+          document.getElementById('processDetailModal').classList.remove('active');
+          return r;
+        });
+        if (ch.first === 1 && ch.last === 12 && ch.year === 12 && ch.proc === 12)
+          note('  scenario OK: year charts show the 12 months ending Aug 2027');
+        else fail(`scenario: year charts at Aug 2027 (${JSON.stringify(ch)})`);
+        for (const section of SECTIONS) {
+          await p.click(`.v29-nav [data-v29-nav="${section}"]`);
+          await p.waitForTimeout(350);
+          if (await p.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth))
+            fail(`horizontal overflow on ${section} in Aug 2027`);
         }
-      }, seedState(months));
-      const p = await c.newPage();
-      p.on('pageerror', e => jsErrors.push('[calendar] ' + e.message));
-      await p.goto(`${baseUrl}/index.html`, { waitUntil: 'domcontentloaded', timeout: 20000 });
-      await p.waitForSelector('.v29-nav', { timeout: 15000 });
-      await p.waitForTimeout(1200);
-      return { c, p };
-    };
-    {
-      const { c, p } = await openAt('2027-08-15T12:00:00', 12);
-      const a = await p.evaluate(() => ({
-        len: MONTHS.length,
-        idx: dateToMonthIndex(new Date()),
-        stateLen: state.months.length,
-        first12: JSON.stringify(state.months.slice(0, 12)),
-      }));
-      const okAug = a.len >= 16 && a.idx === 12 && a.stateLen === a.len && a.first12 === old12;
-      if (okAug) note(`  scenario OK: Aug 2027 — window extended to ${a.len} months, the 12 old months byte-identical`);
-      else
-        fail(
-          `scenario: Aug 2027 calendar (${JSON.stringify({ len: a.len, idx: a.idx, stateLen: a.stateLen, old12Same: a.first12 === old12 })})`
-        );
-      await p.click('.v29-nav [data-v29-nav="today"]');
-      await p.waitForTimeout(300);
-      await p.click('.v29-row[data-v29-index="0"] .v29-status');
-      await p.waitForTimeout(300);
-      const m = await p.evaluate(() => ({
-        live: state.months[12][0][14],
-        stored: JSON.parse(localStorage.getItem('stack_neon_mix9_calendar_v1')).months[12][0][14],
-      }));
-      if (m.live === '✓' && m.stored === '✓') note('  scenario OK: Today status is recorded and saved in Aug 2027');
-      else fail(`scenario: no mark recorded in Aug 2027 (${JSON.stringify(m)})`);
-      const ch = await p.evaluate(() => {
-        const ix = chartMonths();
-        renderChart();
-        openProcessDetail(0);
-        const lab = sel =>
-          [...document.querySelectorAll(sel + ' text.axis')].filter(t => /[А-Яа-я]{3}/.test(t.textContent)).length;
-        const r = { first: ix[0], last: ix[11], year: lab('#chart'), proc: lab('#detailChart') };
-        document.getElementById('processDetailModal').classList.remove('active');
-        return r;
-      });
-      if (ch.first === 1 && ch.last === 12 && ch.year === 12 && ch.proc === 12)
-        note('  scenario OK: year charts show the 12 months ending Aug 2027');
-      else fail(`scenario: year charts at Aug 2027 (${JSON.stringify(ch)})`);
-      for (const section of SECTIONS) {
-        await p.click(`.v29-nav [data-v29-nav="${section}"]`);
-        await p.waitForTimeout(350);
-        if (await p.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth))
-          fail(`horizontal overflow on ${section} in Aug 2027`);
+        await c.close();
       }
-      await c.close();
-    }
-    {
-      const { c, p } = await openAt('2028-02-29T12:00:00', 12);
-      const l = await p.evaluate(() => {
-        const k = dateToMonthIndex(new Date());
-        return { name: MONTHS[k][0], days: MONTHS[k][3], marks: state.months[k][0].length };
-      });
-      if (l.name === 'Февраль 2028' && l.days === 29 && l.marks === 29) note('  scenario OK: Feb 2028 has 29 days');
-      else fail(`scenario: leap day (${JSON.stringify(l)})`);
-      await c.close();
-    }
-    {
-      const { c, p } = await openAt('2026-10-04T12:00:00', 16);
-      const r = await p.evaluate(() => ({ len: state.months.length, months: MONTHS.length }));
-      if (r.len === 16 && r.months === 16)
-        note('  scenario OK: a stored 16-month state is never truncated, even on an earlier date');
-      else fail(`scenario: 16-month state truncated (${JSON.stringify(r)})`);
-      await c.close();
-    }
-    {
-      const { c, p } = await openAt('2026-10-04T12:00:00', 12);
-      const r = await p.evaluate(() => ({ len: MONTHS.length, state: state.months.length }));
-      if (r.len === 12 && r.state === 12)
-        note('  scenario OK: today the window is still exactly 12 months (nothing appended)');
-      else fail(`scenario: window changed without need (${JSON.stringify(r)})`);
-      await c.close();
+      {
+        const { c, p } = await openAt('2028-02-29T12:00:00', 12);
+        const l = await p.evaluate(() => {
+          const k = dateToMonthIndex(new Date());
+          return { name: MONTHS[k][0], days: MONTHS[k][3], marks: state.months[k][0].length };
+        });
+        if (l.name === 'Февраль 2028' && l.days === 29 && l.marks === 29) note('  scenario OK: Feb 2028 has 29 days');
+        else fail(`scenario: leap day (${JSON.stringify(l)})`);
+        await c.close();
+      }
+      {
+        const { c, p } = await openAt('2026-10-04T12:00:00', 16);
+        const r = await p.evaluate(() => ({ len: state.months.length, months: MONTHS.length }));
+        if (r.len === 16 && r.months === 16)
+          note('  scenario OK: a stored 16-month state is never truncated, even on an earlier date');
+        else fail(`scenario: 16-month state truncated (${JSON.stringify(r)})`);
+        await c.close();
+      }
+      {
+        const { c, p } = await openAt('2026-10-04T12:00:00', 12);
+        const r = await p.evaluate(() => ({ len: MONTHS.length, state: state.months.length }));
+        if (r.len === 12 && r.state === 12)
+          note('  scenario OK: today the window is still exactly 12 months (nothing appended)');
+        else fail(`scenario: window changed without need (${JSON.stringify(r)})`);
+        await c.close();
+      }
     }
 
-    await runCrudScenarios(browser, baseUrl, args, note, fail, jsErrors);
-    await runProgramScenarios(browser, baseUrl, args, note, fail, jsErrors);
-    await runDataScenarios(browser, baseUrl, args, note, fail, jsErrors);
-    await runTodayScenarios(browser, baseUrl, args, note, fail, jsErrors);
-    await runServiceWorkerScenarios(chromium, launchOpts, root, args.port + 1, note, fail, jsErrors);
+    if (want('crud')) await runCrudScenarios(browser, baseUrl, args, note, fail, jsErrors);
+    if (want('program')) await runProgramScenarios(browser, baseUrl, args, note, fail, jsErrors);
+    if (want('data')) await runDataScenarios(browser, baseUrl, args, note, fail, jsErrors);
+    if (want('today')) await runTodayScenarios(browser, baseUrl, args, note, fail, jsErrors);
+    if (want('sw')) await runServiceWorkerScenarios(chromium, launchOpts, root, args.port + 1, note, fail, jsErrors);
 
     if (jsErrors.length) {
       for (const e of jsErrors) fail('JS error: ' + e);
