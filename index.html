@@ -873,11 +873,14 @@ const KEY='stack_neon_mix9_calendar_v1';
 function esc(v){
  return String(v??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))
 }
-function validMark(v){return v==='✓'||v==='○'||v==='—'||v===''}
+/* Marks: «✓» done, «○» missed, «—» not required, '' not marked (cycle '' → ✓ → ○ → — → ''). «◐» (partial) was written by the pre-v29 tracker only: it is
+   still accepted on load/import and counted as half — so history keeps its percentages — but nothing writes it any more. This is the only
+   implementation: v22.2.js used to replace these three functions at runtime, so the code and the documented cycle disagreed. */
+function validMark(v){return v==='✓'||v==='◐'||v==='○'||v==='—'||v===''}
 function activeCompletion(arr){
- let y=0,n=0;
- arr.forEach(v=>{if(v==='✓')y++;else if(v==='○')n++});
- return {rate:y+n?y/(y+n):null,done:y,total:y+n}
+ let pts=0,total=0,done=0;
+ arr.forEach(v=>{if(v==='✓'){pts+=1;total++;done++}else if(v==='◐'){pts+=.5;total++}else if(v==='○')total++});
+ return {rate:total?pts/total:null,done,total}
 }
 function processMonthStats(m,p){return activeCompletion(state.months?.[m]?.[p]||[])}
 function monthHasData(m){
@@ -1554,7 +1557,7 @@ function renderDots(){
    return `<div class="barrow"><span>${esc(p.name||'Процесс '+(i+1))}</span><div class="dots">${filled}<span class="dots-empty">${'○'.repeat(10-n)}</span></div><span>${raw===null?'—':pct(v)+'%'}</span></div>`
  }).join('')
 }
-function cycle(v){return v===''?'✓':v==='✓'?'○':v==='○'?'—':''}
+function cycle(v){return v===''?'✓':v==='✓'?'○':v==='○'?'—':v==='◐'?'○':''}
 function renderTracker(){const mi=state.currentMonth,days=MONTHS[mi][3],t=document.getElementById('tracker');let h='<thead><tr><th class="name">Процесс / привычка</th><th class="goalcol">Цель</th>';for(let d=1;d<=days;d++)h+=`<th class="day">${d}</th>`;h+='<th></th></tr></thead><tbody>';state.processes.forEach((p,pi)=>{h+=`<tr><td class="name"><span class="proc-dot" style="--pc:${p.color}"></span><input style="width:calc(100% - 70px)" data-name="${pi}" value="${esc(p.name||'')}" placeholder="Процесс ${pi+1}"><span class="reorder-buttons"><button data-up="${pi}">↑</button><button data-down="${pi}">↓</button><button data-detail="${pi}">⌁</button></span></td><td class="goalcol"><input data-goal="${pi}" value="${pct(p.goal||.8)}%"></td>`;for(let d=0;d<days;d++){const v=state.months[mi][pi][d],cl=v==='✓'?'done':v==='○'?'fail':v==='—'?'skip':'';h+=`<td class="day ${cl}" data-p="${pi}" data-d="${d}" style="--pc:${p.color}">${v}</td>`}h+=`<td class="remove" data-rm="${pi}">✕</td></tr>`});h+='</tbody>';t.innerHTML=h;t.querySelectorAll('[data-p]').forEach(td=>td.onclick=()=>{const p=+td.dataset.p,d=+td.dataset.d;state.months[mi][p][d]=cycle(state.months[mi][p][d]);save();renderAll()});t.querySelectorAll('[data-name]').forEach(i=>i.onchange=()=>{state.processes[+i.dataset.name].name=i.value.trim();save();renderAll()});t.querySelectorAll('[data-goal]').forEach(i=>i.onchange=()=>{const v=parseFloat(i.value);state.processes[+i.dataset.goal].goal=Math.max(0,Math.min(1,(isNaN(v)?80:v)/100));save();renderAll()});t.querySelectorAll('[data-rm]').forEach(x=>x.onclick=()=>removeProcess(+x.dataset.rm));
 t.querySelectorAll('[data-up]').forEach(x=>x.onclick=()=>moveProcess(+x.dataset.up,+x.dataset.up-1));
 t.querySelectorAll('[data-down]').forEach(x=>x.onclick=()=>moveProcess(+x.dataset.down,+x.dataset.down+1));

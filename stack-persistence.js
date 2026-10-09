@@ -8,7 +8,7 @@
    is gone — it resurrected fields the app had deleted. */
 (()=>{'use strict';
 const BUILD='v29-81-restore-points';
-const VERSION='v29.82';
+const VERSION='v29.83';
 const SNAP='snap:',META='snapm:',END='￿';
 const LEGACY_LISTS=['stack_recovery_v2242','stack_backups_v21'];
 const RECOVER_MARK='stack_v2250_recovered_once';

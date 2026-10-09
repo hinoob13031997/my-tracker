@@ -796,6 +796,27 @@ async function runTodayScenarios(browser, baseUrl, args, note, fail, jsErrors) {
     check(!(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)), 'no horizontal overflow with overdue rows');
   });
 
+  await step('mark rules have one implementation', async () => {
+    const r = await page.evaluate(() => ({
+      chain: ['', '✓', '○', '—'].map((v) => cycle(v)).join('|'),
+      legacy: cycle('◐'),
+      valid: validMark('◐') && validMark('✓') && validMark('○') && validMark('—') && validMark('') && !validMark('x'),
+      rate: activeCompletion(['✓', '○', '—', '']).rate,
+      half: activeCompletion(['✓', '◐']).rate,
+      none: activeCompletion(['—', '—', '']).rate,
+      arrow: !/=>/.test(cycle.toString().slice(0, 12)),
+    }));
+    check(r.chain === '✓|○|—|' && r.legacy === '○', `the documented cycle ✓ → ○ → — → empty is the only one (${r.chain}, ◐→${r.legacy})`);
+    check(r.valid && r.rate === 0.5 && r.none === null && r.half === 0.75, `✓/(✓+○) with — and empty ignored, all-«—» day has no percent; legacy ◐ still counts half (${r.rate}, ${r.none}, ${r.half})`);
+    const kept = await page.evaluate(() => { const mi = dateToMonthIndex(new Date()), d = new Date().getDate() - 1; state.months[mi][0][d] = '◐'; save(); STACK_V29_SHELL.refresh(); return { mi, d }; });
+    await page.waitForTimeout(250);
+    const shown = await page.evaluate(() => document.querySelector('.v29-row[data-v29-kind="process"][data-v29-index="0"] .v29-status')?.dataset.mark);
+    await page.click('.v29-row[data-v29-kind="process"][data-v29-index="0"] .v29-status');
+    await page.waitForTimeout(250);
+    const after = await page.evaluate((k) => state.months[k.mi][0][k.d], kept);
+    check(shown === '◐' && after === '○', `an old ◐ mark is kept, shown, and moves on to ○ on tap (${shown} → ${after})`);
+  });
+
   await step('nutrition guard rails', async () => {
     const r = await page.evaluate(() => {
       const t = (goal, profile) => STACK_DATA.nutritionTargets({ goal, profile });
