@@ -850,6 +850,111 @@ async function runTodayScenarios(browser, baseUrl, args, note, fail, jsErrors) {
   await ctx.close();
 }
 
+
+/* v29.85 — everything the release ritual has to move together must agree (see scripts/bump-version.js). */
+function checkVersions(root, note, fail) {
+  const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
+  const sw = read('sw.js'), pers = read('stack-persistence.js'), shell = read('stack-v29-shell.js'), html = read('index.html'), manifest = JSON.parse(read('manifest.webmanifest'));
+  const build = (sw.match(/const BUILD='([\d.]+)';/) || [])[1];
+  const cache = (sw.match(/const CACHE='([^']+)';/) || [])[1];
+  const label = (pers.match(/const VERSION='v([\d.]+)';/) || [])[1];
+  const shellBuild = (shell.match(/^const BUILD='([\d.]+)';/m) || [])[1];
+  const queries = [...html.matchAll(/stack-v29-[a-z-]+\.js\?build=([\d.]+)/g)].map((m) => m[1]);
+  const short = build ? build.replace(/\.0$/, '') : '';
+  const problems = [];
+  if (!build) problems.push('sw.js BUILD missing');
+  if (label !== short) problems.push(`stack-persistence.js VERSION v${label} ≠ sw.js BUILD ${build}`);
+  if (shellBuild !== build) problems.push(`stack-v29-shell.js BUILD ${shellBuild} ≠ ${build}`);
+  if (!queries.length || queries.some((q) => q !== build)) problems.push(`index.html v29 ?build= ${[...new Set(queries)].join('/') || 'none'} ≠ ${build}`);
+  if (!cache || !cache.startsWith('stack-v' + short.replace('.', '-') + '-')) problems.push(`sw.js CACHE «${cache}» does not carry ${short}`);
+  const missing = (manifest.icons || []).filter((i) => !fs.existsSync(path.join(root, i.src))).map((i) => i.src);
+  if (missing.length) problems.push('manifest icons missing: ' + missing.join(', '));
+  const touch = (html.match(/rel="apple-touch-icon" href="([^"]+)"/) || [])[1];
+  if (!touch || !/\.png$/.test(touch) || !fs.existsSync(path.join(root, touch))) problems.push(`apple-touch-icon must be an existing PNG (${touch})`);
+  const precached = ['icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png'].filter((f) => !sw.includes(`'${f}'`));
+  if (precached.length) problems.push('icons not in the service worker precache: ' + precached.join(', '));
+  if (problems.length) problems.forEach((x) => fail('versions: ' + x)); else note(`  versions OK: ${build} / ${cache} / v${label}, icons present and precached`);
+}
+
+
+/* v29.85 — the real service worker (the other scenarios block it): a cold launch revalidates instead of re-downloading, a slow or dead network
+   never keeps the app on the splash, and a new build never reloads a window that is on screen. Own mini server: ETag/304, delay, outage, new sw.js. */
+async function runServiceWorkerScenarios(chromium, launchOpts, root, port, note, fail, jsErrors) {
+  const crypto = require('crypto');
+  const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.webp': 'image/webp', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
+  let log = [], delay = 0, down = false, swVersion = 1;
+  const server = http.createServer((q, r) => {
+    if (down) { q.socket.destroy(); return; }
+    let p = decodeURIComponent(q.url.split('?')[0]); if (p === '/') p = '/index.html';
+    const f = path.join(root, p);
+    if (!f.startsWith(root) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { r.writeHead(404); r.end(); return; }
+    let body = fs.readFileSync(f);
+    if (p === '/sw.js') body = Buffer.concat([body, Buffer.from(`\n/* test build ${swVersion} */`)]);
+    const etag = '"' + crypto.createHash('md5').update(body).digest('hex') + '"', cond = q.headers['if-none-match'] === etag;
+    const go = () => { log.push([cond ? 304 : 200, cond ? 0 : body.length]); if (cond) { r.writeHead(304, { etag, 'cache-control': 'max-age=600' }); r.end(); return; } r.writeHead(200, { 'content-type': MIME[path.extname(f)] || 'application/octet-stream', etag, 'cache-control': 'max-age=600' }); r.end(body); };
+    if (delay) setTimeout(go, delay); else go();
+  });
+  await new Promise((resolve) => server.listen(port, resolve));
+  // --process-per-tab: every new tab is a cold start (fresh renderer, empty memory cache), like opening the installed app
+  const browser = await chromium.launch({ ...launchOpts, args: [...(launchOpts.args || []), '--process-per-tab'] });
+  const check = (ok, label) => (ok ? note(`  scenario OK: ${label}`) : fail(`scenario: ${label}`));
+  try {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    const url = `http://localhost:${port}/index.html?app=1`;
+    const first = await ctx.newPage();
+    first.on('pageerror', (e) => jsErrors.push('[sw] ' + e.message));
+    await first.goto(url);
+    await first.waitForSelector('html.stack-v29-ready', { timeout: 20000 });
+    await first.evaluate(() => navigator.serviceWorker.ready);
+    await first.waitForTimeout(6000); // install: precache finishes
+    await first.close();
+    const launch = async (wait) => {
+      log = [];
+      const p = await ctx.newPage();
+      const t = Date.now();
+      await p.goto(url, { waitUntil: 'commit' }).catch(() => {});
+      let ready = true;
+      try { await p.waitForSelector('html.stack-v29-ready', { timeout: wait }); } catch (e) { ready = false; }
+      const ms = Date.now() - t;
+      await p.waitForTimeout(600);
+      const res = { ready, ms, n200: log.filter((x) => x[0] === 200).length, n304: log.filter((x) => x[0] === 304).length, bytes: log.reduce((a, x) => a + x[1], 0) };
+      await p.close();
+      return res;
+    };
+    const warm = await launch(20000);
+    check(warm.ready && warm.bytes < 20000 && warm.n304 > 20, `a cold launch revalidates (${warm.n304} × 304, ${warm.bytes} bytes downloaded) instead of re-downloading every file`);
+    delay = 9000;
+    const slow = await launch(30000);
+    check(slow.ready && slow.ms < 9000, `a slow network (9 s per request) does not hold the app on the splash (ready in ${slow.ms} ms)`);
+    delay = 0;
+    await new Promise((resolve) => setTimeout(resolve, 9500)); // let the slow requests drain
+    down = true;
+    const off = await launch(20000);
+    check(off.ready && off.ms < 5000, `offline: the app opens from the cache (${off.ms} ms)`);
+    down = false;
+
+    // a new build while the window is on screen: no forced reload; it reloads itself once hidden
+    const live = await ctx.newPage();
+    live.on('pageerror', (e) => jsErrors.push('[sw/live] ' + e.message));
+    await live.goto(url, { waitUntil: 'commit' });
+    await live.waitForSelector('html.stack-v29-ready', { timeout: 20000 });
+    await live.waitForTimeout(1500);
+    await live.evaluate(() => { window.__before = 1; window.__changed = new Promise((res) => navigator.serviceWorker.addEventListener('controllerchange', () => res(true), { once: true })); });
+    swVersion = 2;
+    await live.evaluate(() => navigator.serviceWorker.getRegistration().then((r) => r.update()));
+    const took = await live.evaluate(() => Promise.race([window.__changed, new Promise((res) => setTimeout(() => res(false), 12000))]));
+    await live.waitForTimeout(2500);
+    const still = await live.evaluate(() => window.__before === 1);
+    check(took && still, `a new build takes over without reloading the visible window (took over=${took}, window kept=${still})`);
+    await live.evaluate(() => { Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' }); document.dispatchEvent(new Event('visibilitychange')); });
+    const reloaded = await live.waitForFunction(() => window.__before === undefined, null, { timeout: 8000 }).then(() => true).catch(() => false);
+    check(reloaded, 'the page reloads itself onto the new build once it is hidden');
+  } finally {
+    await browser.close();
+    server.close();
+  }
+}
+
 async function run() {
   const { chromium } = loadPlaywright();
   const args = parseArgs(process.argv);
@@ -860,6 +965,7 @@ async function run() {
   const failures = [];
   const note = (msg) => console.log(msg);
   const fail = (msg) => { failures.push(msg); console.log('FAIL: ' + msg); };
+  checkVersions(root, note, fail);
 
   const launchOpts = { args: ['--no-sandbox'] };
   const chromiumPath = findChromium();
@@ -1088,6 +1194,7 @@ async function run() {
     await runProgramScenarios(browser, baseUrl, args, note, fail, jsErrors);
     await runDataScenarios(browser, baseUrl, args, note, fail, jsErrors);
     await runTodayScenarios(browser, baseUrl, args, note, fail, jsErrors);
+    await runServiceWorkerScenarios(chromium, launchOpts, root, args.port + 1, note, fail, jsErrors);
 
     if (jsErrors.length) {
       for (const e of jsErrors) fail('JS error: ' + e);

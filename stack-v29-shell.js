@@ -9,7 +9,7 @@
    one render per change, redraw on resume/midnight, 44px tap zones.
    v29.6.0 — one secondary line «Питание · факт / цель ккал» under the list; tap → Fitness → Питание. */
 (()=>{'use strict';
-const BUILD='29.84.0';
+const BUILD='29.85.0';
 const MOBILE=()=>innerWidth<=720;
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const read=(k,f={})=>{try{return JSON.parse(localStorage.getItem(k)||'null')??f}catch(_){return f}};
