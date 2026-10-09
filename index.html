@@ -9,17 +9,17 @@
      v29.84: the same frame for ANY top-level page wider than 720px — a tablet, a phone turned to landscape (the old layout used to appear there).
      That check runs right after the viewport meta below, where innerWidth is already right (before it a phone reports 980); a page that gets
      wider while open (rotation) reloads into the frame. -->
-<script>(function(){function frame(){try{window.stop();var src=location.pathname+(location.search?location.search+'&':'?')+'frame=1'+location.hash;document.documentElement.innerHTML='<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#01050b"><link rel="icon" href="./icon.svg"><title>STACK — Персональная система управления</title><style>html,body{margin:0;height:100%;overflow:hidden;background:radial-gradient(circle at 50% -10%,#11133f 0,#030817 45%,#01050b 80%)}body{display:flex;align-items:center;justify-content:center}iframe{display:block;width:min(430px,100vw);height:min(100vh,940px);border:1px solid #243653;border-radius:22px;background:#01050b;box-shadow:0 0 44px #0877f322,0 0 90px #9133e414}@media(max-height:940px){iframe{border-radius:0;border-top:0;border-bottom:0}}</style></head><body><iframe src="'+src.replace(/"/g,'&quot;')+'" title="STACK" allow="clipboard-write"></iframe></body>'}catch(e){}}try{if(window.top!==window||/[?&]frame=1(&|$)/.test(location.search))return;if(screen.width>720&&matchMedia('(hover:hover) and (pointer:fine)').matches){frame();return}window.__stackFrame=frame}catch(e){}})();</script>
+<script>(function(){function frame(){try{window.stop();var src=location.pathname+(location.search?location.search+'&':'?')+'frame=1'+location.hash;document.documentElement.innerHTML='<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#01050b"><link rel="icon" href="./icon.svg"><title>STACK — Персональная система управления</title><style>html,body{margin:0;height:100%;overflow:hidden;background:radial-gradient(circle at 50% -10%,#11133f 0,#030817 45%,#01050b 80%)}body{display:flex;align-items:center;justify-content:center}iframe{display:block;width:min(430px,100vw);height:min(100vh,940px);border:1px solid #243653;border-radius:22px;background:#01050b;box-shadow:0 0 44px #0877f322,0 0 90px #9133e414}@media(max-height:940px){iframe{border-radius:0;border-top:0;border-bottom:0}}</style></head><body><iframe src="'+src.replace(/"/g,'&quot;')+'" title="STACK" allow="clipboard-write; web-share"></iframe></body>'}catch(e){}}try{if(window.top!==window||/[?&]frame=1(&|$)/.test(location.search))return;if(screen.width>720&&matchMedia('(hover:hover) and (pointer:fine)').matches){frame();return}window.__stackFrame=frame}catch(e){}})();</script>
 <!-- STACK v29 shell markers, baked in so the very first page load (before the service
      worker in sw.js is registered/active) also gets the new shell instead of a legacy-UI
      flash. Mirrors GATE_STYLE + V29_HEAD in sw.js exactly — keep both in sync if the v29
      script list or gate CSS changes; sw.js skips re-injecting once it sees this markup. -->
 <style id="stackV29NetworkGate">@media(max-width:720px){html:not(.stack-v29-ready) body{overflow:hidden!important}html:not(.stack-v29-ready) body::before{content:'';position:fixed;inset:0;z-index:2147483646;background:radial-gradient(circle at 50% -15%,#101142 0,#030817 35%,#01050b 72%)}html:not(.stack-v29-ready) body::after{content:'STACK';position:fixed;left:0;right:0;top:42%;z-index:2147483647;text-align:center;color:#eef4ff;font:900 18px Arial,sans-serif;letter-spacing:.18em;text-shadow:0 0 18px #9133e477}}</style>
 <script>window.__STACK_V29__=true;</script>
-<script defer src="./stack-v29-owner-kit.js?build=29.89.0"></script>
-<script defer src="./stack-v29-shell.js?build=29.89.0"></script>
-<script defer src="./stack-v29-deals-polish.js?build=29.89.0"></script>
-<script defer src="./stack-v29-analytics.js?build=29.89.0"></script>
+<script defer src="./stack-v29-owner-kit.js?build=29.90.0"></script>
+<script defer src="./stack-v29-shell.js?build=29.90.0"></script>
+<script defer src="./stack-v29-deals-polish.js?build=29.90.0"></script>
+<script defer src="./stack-v29-analytics.js?build=29.90.0"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=5,viewport-fit=cover">
 <script>(function(){try{var f=window.__stackFrame;if(!f)return;var wide=function(){return innerWidth>720&&innerWidth!==980};if(wide()){f();return}addEventListener('resize',function(){if(wide())location.reload()})}catch(e){}})();</script>
@@ -1784,7 +1784,19 @@ document.getElementById('editFromDetail').onclick=()=>{
  document.getElementById('processDetailModal').classList.remove('active');openProcessModal(p)
 };
 document.getElementById('addProcess').onclick=addProcess;
-document.getElementById('exportBtn').onclick=()=>{const D=window.STACK_DATA,a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(D?.exportFull?D.exportFull(state):state,null,2)],{type:'application/json'}));a.download='STACK_backup_'+(D?.dateKey?D.dateKey():new Date().toISOString().slice(0,10))+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);D?.touchBackupMeta?.(true)};
+/* v29.90: on a phone the file goes through the system share sheet («Сохранить в Файлы» / iCloud Drive): a blob link from an installed iOS web app opens a viewer or does nothing, and this file is the only copy that survives a lost phone. The date of the last copy is written only when the share really happened (a cancelled sheet is not a backup). Desktop, a browser without file sharing, or a refused share fall back to the plain download. */
+function saveBackupFile(){
+ const D=window.STACK_DATA,name='STACK_backup_'+(D?.dateKey?D.dateKey():new Date().toISOString().slice(0,10))+'.json',text=JSON.stringify(D?.exportFull?D.exportFull(state):state,null,2);
+ const download=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'application/json'}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);D?.touchBackupMeta?.(true)};
+ let file=null;
+ try{file=new File([text],name,{type:'application/json'})}catch(e){}
+ if(file&&navigator.canShare&&navigator.share&&matchMedia('(pointer:coarse)').matches&&navigator.canShare({files:[file]})){
+   navigator.share({files:[file],title:'STACK — резервная копия'}).then(()=>D?.touchBackupMeta?.(true),e=>{if(!(e&&e.name==='AbortError'))download()});
+   return
+ }
+ download()
+}
+document.getElementById('exportBtn').onclick=saveBackupFile;
 
 function validateImportedState(x){
  if(!x||typeof x!=='object')throw new Error('Неверный формат');

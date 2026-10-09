@@ -1538,6 +1538,65 @@ async function runDataScenarios(browser, baseUrl, args, note, fail, jsErrors) {
     );
   });
 
+  await step('backup through the share sheet', async () => {
+    let downloads = 0;
+    const onDownload = () => downloads++;
+    page.on('download', onDownload);
+    const old = JSON.stringify({ since: new Date(Date.now() - 20 * 864e5).toISOString(), last: null });
+    const run = async mode => {
+      downloads = 0;
+      await page.evaluate(
+        ([m, o]) => {
+          localStorage.setItem('stack_backup_meta_v1', o);
+          window.__shared = null;
+          Object.defineProperty(navigator, 'canShare', {
+            value: d => m !== 'unsupported' && !!d.files,
+            configurable: true,
+          });
+          Object.defineProperty(navigator, 'share', {
+            configurable: true,
+            value: async d => {
+              if (m === 'cancel') throw Object.assign(new Error('cancelled'), { name: 'AbortError' });
+              if (m === 'refused') throw Object.assign(new Error('refused'), { name: 'NotAllowedError' });
+              window.__shared = { name: d.files[0].name, type: d.files[0].type, text: await d.files[0].text() };
+            },
+          });
+          document.getElementById('exportBtn').click();
+        },
+        [mode, old]
+      );
+      await page.waitForTimeout(500);
+      return page.evaluate(() => ({
+        shared: window.__shared,
+        last: JSON.parse(localStorage.getItem('stack_backup_meta_v1')).last,
+      }));
+    };
+    const ok = await run('ok');
+    const file = ok.shared ? JSON.parse(ok.shared.text) : null;
+    check(
+      !!ok.shared &&
+        /^STACK_backup_\d{4}-\d{2}-\d{2}\.json$/.test(ok.shared.name) &&
+        ok.shared.type === 'application/json' &&
+        file.format === 'stack-full-backup' &&
+        downloads === 0 &&
+        !!ok.last,
+      `on a phone the file goes to the share sheet as ${ok.shared && ok.shared.name}, nothing is downloaded, the date is recorded`
+    );
+    const cancel = await run('cancel');
+    check(
+      !cancel.last && downloads === 0,
+      'a cancelled share sheet is not a backup: no date recorded, no stray download'
+    );
+    const refused = await run('refused');
+    check(
+      downloads === 1 && !!refused.last,
+      `a refused share falls back to the plain download (${downloads} download)`
+    );
+    const unsupported = await run('unsupported');
+    check(downloads === 1 && !!unsupported.last, 'a browser that cannot share files downloads as before');
+    page.off('download', onDownload);
+  });
+
   await step('restore sheet in Analytics', async () => {
     await page.click('.v29-nav [data-v29-nav="analytics"]');
     await page.waitForTimeout(600);
@@ -2067,6 +2126,89 @@ async function runTodayScenarios(browser, baseUrl, args, note, fail, jsErrors) {
     check(
       r.teen?.warning && r.child === null,
       `minors get maintenance only, implausible input gets nothing (${r.teen?.warning ? 'note' : 'no note'}, child=${r.child})`
+    );
+  });
+
+  await step('«осталось» does not count a missed day', async () => {
+    await page.click('.v29-nav [data-v29-nav="today"]');
+    await page.evaluate(() => {
+      const d = new Date(),
+        mi = dateToMonthIndex(d),
+        day = d.getDate() - 1;
+      ['✓', '○', '—', '', ''].forEach((v, i) => (state.months[mi][i][day] = v));
+      save();
+      STACK_V29_SHELL.refresh();
+    });
+    await page.waitForTimeout(300);
+    const t = await page.evaluate(() => document.querySelector('.v29-progress').innerText.replace(/\s+/g, ' ').trim());
+    check(
+      /1 из 4 обязательных выполнено/.test(t) && /2 осталось · 1 пропущено · 1 не требовалось/.test(t),
+      `1 done, 1 missed, 1 not required, 2 unmarked → «2 осталось · 1 пропущено · 1 не требовалось» (${t})`
+    );
+  });
+
+  await step('Finance: a dash and a hint instead of zeros while the income is not entered', async () => {
+    await page.click('.v29-nav [data-v29-nav="finance"]');
+    await page.waitForSelector('.f25-grid');
+    const cards = () =>
+      page.evaluate(() =>
+        Object.fromEntries(
+          [...document.querySelectorAll('.f25-grid > div')].map(d => [
+            d.querySelector('span').textContent,
+            d.querySelector('b').textContent.trim(),
+          ])
+        )
+      );
+    const before = await cards();
+    check(
+      before['МОЖНО ОТЛОЖИТЬ'] === '—' && before['ДОХОД'] === 'не указан' && before['ПЛАН ЦЕЛЕЙ'] === 'не задан',
+      `no income entered → «—» / «не указан» / «не задан», not 0 ₽ (${JSON.stringify(before)})`
+    );
+    const input = await page.evaluate(() => {
+      const i = document.querySelector('[data-f25-income="income"]');
+      return { value: i.value, placeholder: i.placeholder };
+    });
+    check(
+      input.value === '' && input.placeholder === '0',
+      `the income field is empty with a «0» hint (${JSON.stringify(input)})`
+    );
+    await page.fill('[data-f25-income="income"]', '100000');
+    await page.locator('[data-f25-income="income"]').blur();
+    await page.waitForTimeout(300);
+    await page.fill('[data-f25-income="expenses"]', '40000');
+    await page.locator('[data-f25-income="expenses"]').blur();
+    await page.waitForTimeout(500);
+    const after = await cards();
+    check(
+      /60\s?000/.test(after['МОЖНО ОТЛОЖИТЬ']) && /100\s?000/.test(after['ДОХОД']),
+      `with an income the numbers appear (${JSON.stringify(after)})`
+    );
+    /* the app is minimised / closed: nothing typed on this screen may be erased (v22.3-income.js used to rewrite the key with its stale copy) */
+    await page.evaluate(() => {
+      window.dispatchEvent(new Event('pagehide'));
+      Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+    });
+    await page.waitForTimeout(400);
+    const kept = await page.evaluate(() => {
+      const x = JSON.parse(localStorage.getItem('stack_income_tracker_v1') || '{}');
+      const k = Object.keys(x.values || {})[0];
+      return { income: x.values?.[k], expenses: x.expenses?.[k], stray: 'income' in x };
+    });
+    check(
+      kept.income === 100000 && kept.expenses === 40000 && !kept.stray,
+      `minimising the app keeps the income and expenses, stored under «values» (${JSON.stringify(kept)})`
+    );
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('.v29-nav', { timeout: 15000 });
+    await page.waitForTimeout(1500);
+    await page.click('.v29-nav [data-v29-nav="finance"]');
+    await page.waitForSelector('.f25-grid');
+    const back = await cards();
+    check(
+      /60\s?000/.test(back['МОЖНО ОТЛОЖИТЬ']) && /100\s?000/.test(back['ДОХОД']),
+      `and after a restart the screen still shows them (${JSON.stringify(back)})`
     );
   });
 

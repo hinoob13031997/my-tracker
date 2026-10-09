@@ -54,9 +54,14 @@
       return clean(null);
     }
   }
-  function save() {
+  /* v29.90: this module used to rewrite the key with its in-memory copy on every start and on every pagehide / hidden tab. That copy knows
+   nothing of what the live «Финансы» screen (stack-v25-finance.js) typed after the app opened, so the income, expenses and reserve entered
+   there were erased the moment the app was minimised. Now an edit is a read-modify-write of the ONE changed cell on the stored value, and
+   nothing else is ever written. */
+  function write(x) {
+    model = x;
     try {
-      localStorage.setItem(KEY, JSON.stringify(model));
+      localStorage.setItem(KEY, JSON.stringify(x));
     } catch (e) {}
     idbSave();
     try {
@@ -100,18 +105,23 @@
   function richness(x) {
     return ['values', 'expenses', 'reserve'].reduce((s, f) => s + Object.keys(x?.[f] || {}).length, 0);
   }
+  /* the stored value is the truth; the IndexedDB copy only refills a storage that is empty (it used to win whenever it had more months, and
+   then overwrote newer entries) */
   async function restore() {
-    const a = local(),
-      b = clean(await idbLoad());
-    model = richness(b) > richness(a) ? b : a;
-    save();
+    const a = local();
+    if (richness(a)) model = a;
+    else {
+      const b = clean(await idbLoad());
+      if (richness(b)) write(b);
+    }
     render();
   }
   function set(f, k, v) {
-    const n = num(v);
-    if (n) model[f][k] = n;
-    else delete model[f][k];
-    save();
+    const n = num(v),
+      cur = local();
+    if (n) cur[f][k] = n;
+    else delete cur[f][k];
+    write(cur);
     render();
   }
   function roll(n, from = view) {
@@ -212,6 +222,7 @@
       css();
       const e = host();
       if (!e) return;
+      model = local();
       const k = ym(view),
         income = num(model.values[k]),
         expenses = num(model.expenses[k]),
@@ -290,10 +301,6 @@
     wrap();
     render();
     restore();
-    window.addEventListener('pagehide', save);
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') save();
-    });
     console.info('STACK', BUILD);
   }
   if (document.readyState === 'loading')

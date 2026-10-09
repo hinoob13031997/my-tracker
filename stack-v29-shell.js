@@ -10,7 +10,7 @@
    v29.6.0 — one secondary line «Питание · факт / цель ккал» under the list; tap → Fitness → Питание. */
 (() => {
   'use strict';
-  const BUILD = '29.89.0';
+  const BUILD = '29.90.0';
   const MOBILE = () => innerWidth <= 720;
   const esc = v =>
     String(v ?? '').replace(
@@ -99,6 +99,9 @@
       done = active.filter(x => x.mark === '✓').length,
       skipped = processes.filter(x => x.mark === '—').length,
       total = active.length,
+      /* «осталось» = not marked yet; a ○ is a day already missed, not a thing left to do (v29.90) */
+      left = active.filter(x => x.mark === '' || x.mark === '◐').length,
+      missed = active.filter(x => x.mark === '○').length,
       pct = total ? Math.round((done / total) * 100) : 0;
     return {
       d,
@@ -107,6 +110,8 @@
       active,
       done,
       skipped,
+      left,
+      missed,
       total,
       pct,
       overdueMore: due.overdueMore,
@@ -199,7 +204,7 @@
       return {
         head: `${x.pct}%`,
         strong: `${x.done} из ${x.total} обязательных выполнено`,
-        small: `${Math.max(0, x.total - x.done)} осталось${x.skipped ? ` · ${x.skipped} не требовалось` : ''}`,
+        small: `${x.left} осталось${x.missed ? ` · ${x.missed} пропущено` : ''}${x.skipped ? ` · ${x.skipped} не требовалось` : ''}`,
       };
     if (x.skipped)
       return { head: '—', strong: 'Сегодня обязательных нет', small: `${x.skipped} отмечено как «не требовалось»` };
