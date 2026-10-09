@@ -5,20 +5,24 @@
      computer (mouse pointer + screen wider than 720px; innerWidth is NOT usable here — before the
      viewport meta is parsed a phone reports 980) the top-level page stops here and shows the same app in a phone-width frame
      (index.html?frame=1), so desktop gets exactly the mobile UI and the same localStorage data —
-     instead of the old desktop layout. Only one copy of the app ever runs (the frame). -->
-<script>(function(){try{if(window.top!==window||/[?&]frame=1(&|$)/.test(location.search))return;if(!(screen.width>720&&matchMedia('(hover:hover) and (pointer:fine)').matches))return;window.stop();var src=location.pathname+(location.search?location.search+'&':'?')+'frame=1'+location.hash;document.documentElement.innerHTML='<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#01050b"><link rel="icon" href="./icon.svg"><title>STACK — Персональная система управления</title><style>html,body{margin:0;height:100%;overflow:hidden;background:radial-gradient(circle at 50% -10%,#11133f 0,#030817 45%,#01050b 80%)}body{display:flex;align-items:center;justify-content:center}iframe{display:block;width:min(430px,100vw);height:min(100vh,940px);border:1px solid #243653;border-radius:22px;background:#01050b;box-shadow:0 0 44px #0877f322,0 0 90px #9133e414}@media(max-height:940px){iframe{border-radius:0;border-top:0;border-bottom:0}}</style></head><body><iframe src="'+src.replace(/"/g,'&quot;')+'" title="STACK" allow="clipboard-write"></iframe></body>'}catch(e){}})();</script>
+     instead of the old desktop layout. Only one copy of the app ever runs (the frame).
+     v29.84: the same frame for ANY top-level page wider than 720px — a tablet, a phone turned to landscape (the old layout used to appear there).
+     That check runs right after the viewport meta below, where innerWidth is already right (before it a phone reports 980); a page that gets
+     wider while open (rotation) reloads into the frame. -->
+<script>(function(){function frame(){try{window.stop();var src=location.pathname+(location.search?location.search+'&':'?')+'frame=1'+location.hash;document.documentElement.innerHTML='<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#01050b"><link rel="icon" href="./icon.svg"><title>STACK — Персональная система управления</title><style>html,body{margin:0;height:100%;overflow:hidden;background:radial-gradient(circle at 50% -10%,#11133f 0,#030817 45%,#01050b 80%)}body{display:flex;align-items:center;justify-content:center}iframe{display:block;width:min(430px,100vw);height:min(100vh,940px);border:1px solid #243653;border-radius:22px;background:#01050b;box-shadow:0 0 44px #0877f322,0 0 90px #9133e414}@media(max-height:940px){iframe{border-radius:0;border-top:0;border-bottom:0}}</style></head><body><iframe src="'+src.replace(/"/g,'&quot;')+'" title="STACK" allow="clipboard-write"></iframe></body>'}catch(e){}}try{if(window.top!==window||/[?&]frame=1(&|$)/.test(location.search))return;if(screen.width>720&&matchMedia('(hover:hover) and (pointer:fine)').matches){frame();return}window.__stackFrame=frame}catch(e){}})();</script>
 <!-- STACK v29 shell markers, baked in so the very first page load (before the service
      worker in sw.js is registered/active) also gets the new shell instead of a legacy-UI
      flash. Mirrors GATE_STYLE + V29_HEAD in sw.js exactly — keep both in sync if the v29
      script list or gate CSS changes; sw.js skips re-injecting once it sees this markup. -->
 <style id="stackV29NetworkGate">@media(max-width:720px){html:not(.stack-v29-ready) body{overflow:hidden!important}html:not(.stack-v29-ready) body::before{content:'';position:fixed;inset:0;z-index:2147483646;background:radial-gradient(circle at 50% -15%,#101142 0,#030817 35%,#01050b 72%)}html:not(.stack-v29-ready) body::after{content:'STACK';position:fixed;left:0;right:0;top:42%;z-index:2147483647;text-align:center;color:#eef4ff;font:900 18px Arial,sans-serif;letter-spacing:.18em;text-shadow:0 0 18px #9133e477}}</style>
 <script>window.__STACK_V29__=true;</script>
-<script defer src="./stack-v29-owner-kit.js?build=29.44.0"></script>
-<script defer src="./stack-v29-shell.js?build=29.44.0"></script>
-<script defer src="./stack-v29-deals-polish.js?build=29.44.0"></script>
-<script defer src="./stack-v29-analytics.js?build=29.44.0"></script>
+<script defer src="./stack-v29-owner-kit.js?build=29.86.0"></script>
+<script defer src="./stack-v29-shell.js?build=29.86.0"></script>
+<script defer src="./stack-v29-deals-polish.js?build=29.86.0"></script>
+<script defer src="./stack-v29-analytics.js?build=29.86.0"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=5,viewport-fit=cover">
+<script>(function(){try{var f=window.__stackFrame;if(!f)return;var wide=function(){return innerWidth>720&&innerWidth!==980};if(wide()){f();return}addEventListener('resize',function(){if(wide())location.reload()})}catch(e){}})();</script>
 <title>STACK • Рабочий трекер 2026/2027</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#030914">
@@ -26,7 +30,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="STACK">
-<link rel="apple-touch-icon" href="icon.svg">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
 :root{
   --bg:#01050b;--panel:#030914;--panel2:#06101e;--text:#f3f4f8;--muted:#8992a4;
@@ -478,29 +482,10 @@ body{overflow-x:hidden}
 
 /* ===== MAJOR MOBILE APP UPGRADE ===== */
 .mobile-screen{display:block}
-.today-screen,.process-detail-modal,.process-modal{display:none}
-.today-screen.active,.process-detail-modal.active,.process-modal.active{display:block}
+.process-detail-modal,.process-modal{display:none}
+.process-detail-modal.active,.process-modal.active{display:block}
 
 /* Today */
-.today-hero{--a:#f12bb8;--b:#0877f3;margin-top:6px;padding:10px}
-.today-date{display:flex;justify-content:space-between;align-items:center;gap:8px}
-.today-date strong{font-size:11px;color:#f35bc9}
-.today-date span{font-size:8px;color:#7f899c}
-.today-progress-wrap{display:grid;grid-template-columns:88px 1fr;gap:10px;align-items:center;margin-top:8px}
-.today-big-ring{width:82px;height:82px}
-.today-big-ring span{font-size:19px}
-.today-summary strong{display:block;font-size:17px}
-.today-summary small{font-size:9px;color:#8d96a7}
-.today-list{display:grid;gap:7px;margin-top:8px}
-.today-card{--pc:#9133e4;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:10px;border:1px solid #1b2a43;border-radius:9px;background:linear-gradient(180deg,#06101e,#030914)}
-.today-card-main{min-width:0}
-.today-card-name{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700}
-.today-card-meta{font-size:8px;color:#7e8899;margin-top:3px}
-.today-actions{display:flex;gap:5px}
-.today-status{width:38px;height:38px;border-radius:9px;border:1px solid #263a5a;background:#07111f;color:#8f98a8;font-size:18px;font-weight:800;cursor:pointer}
-.today-status.done{color:var(--pc);border-color:var(--pc);box-shadow:0 0 8px color-mix(in srgb,var(--pc) 35%,transparent)}
-.today-status.fail{color:#f04b6c;border-color:#f04b6c88}
-.today-status.skip{color:#e0ad37;border-color:#e0ad3788}
 
 /* Schedules */
 .schedule-badges{display:flex;gap:3px;flex-wrap:wrap}
@@ -542,16 +527,9 @@ body{overflow-x:hidden}
   body{padding-bottom:76px}
   .mobile-screen{display:none}
   .mobile-screen.active{display:block}
-  .today-screen{display:none}
-  .today-screen.active{display:block}
   .app-modal{align-items:flex-end}
-  .today-progress-wrap{grid-template-columns:90px 1fr}
-  .today-card-name{font-size:13px}
-  .today-card-meta{font-size:9px}
-  .today-status{width:44px;height:44px}
 }
 @media(min-width:721px){
-  .today-screen{display:block}
   .app-modal{align-items:center}
   .modal-card{border-radius:14px}
 }
@@ -582,7 +560,7 @@ body{overflow-x:hidden}
 .sav-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}.sav-actions .btn{min-height:44px}
 .sav-chart{height:190px}.sav-chart svg{width:100%;height:100%}
 .sav-history-row{display:grid;grid-template-columns:72px 1fr auto;gap:8px;padding:8px 2px;border-bottom:1px solid #132038;font-size:9px}.sav-history-row .plus{color:#45d38a}.sav-history-row .minus{color:#f04b6c}.sav-empty{padding:18px;text-align:center;color:#737e91;font-size:10px}
-@media(max-width:720px){.mobile-nav{grid-template-columns:repeat(5,1fr)!important}.mobile-nav button{font-size:8px!important}.sav-detail{grid-template-columns:116px 1fr;padding:10px 8px}.sav-ring{width:106px;height:106px}.sav-ring span{font-size:19px}.sav-goal-card{flex-basis:72vw;max-width:270px}.sav-chart{height:220px}}
+@media(max-width:720px){.sav-detail{grid-template-columns:116px 1fr;padding:10px 8px}.sav-ring{width:106px;height:106px}.sav-ring span{font-size:19px}.sav-goal-card{flex-basis:72vw;max-width:270px}.sav-chart{height:220px}}
 
 
 .fx-note{margin-top:4px;font-size:8px;color:#7f899c;line-height:1.35}
@@ -645,7 +623,6 @@ body{overflow-x:hidden}
  .sav-actions{gap:7px!important;margin-top:8px!important}.sav-actions .btn{min-height:46px!important;height:46px!important;font-size:12px!important;border-radius:10px!important}
  .sav-chart-panel{margin-top:8px!important;padding:10px!important;border-radius:13px!important}.sav-chart-head .panel-title{font-size:9px!important;line-height:1.25}.sav-chart-head select{min-width:104px;height:38px!important;font-size:11px}.sav-chart{height:205px!important}
  .sav-history{margin-top:8px!important;padding:10px!important;border-radius:13px!important}.sav-history .panel-title{font-size:9px!important}.sav-history-row{grid-template-columns:66px minmax(0,1fr) auto!important;gap:6px!important;padding:8px 1px!important;font-size:8.5px!important}.sav-history-row span:nth-child(2){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sav-history-row strong{white-space:nowrap}
- .mobile-nav{min-height:64px;border-top-color:#20314c!important;box-shadow:0 -6px 18px #0008}.mobile-nav button{min-height:49px!important;font-size:7.5px!important;line-height:1.1}.mobile-nav button span{font-size:17px!important}
  .modal-card{max-height:calc(100vh - max(22px,env(safe-area-inset-top)) - max(18px,env(safe-area-inset-bottom)))!important;padding:13px!important}
 }
 @media(max-width:390px){#screenSavings{padding-left:6px!important;padding-right:6px!important}.sav-goal-card{flex-basis:78vw!important}.sav-detail{grid-template-columns:96px 1fr!important}.sav-ring{width:90px!important;height:90px!important}.sav-chart{height:190px!important}}
@@ -734,16 +711,6 @@ body:has(#screenSavings.active) .app,body.savings-active .app{padding-top:max(6p
     <div><div class="period">Август 2026 — Июль 2027</div><div class="actions"><button class="btn" id="exportBtn" aria-label="Экспортировать данные">Экспорт</button><button class="btn" id="importBtn" aria-label="Импортировать данные">Импорт</button><input id="fileInput" type="file" accept="application/json" hidden></div></div>
   </div>
   <div class="variant">9. НЕОНОВЫЙ МИКС (ВСЕ АКЦЕНТЫ СБАЛАНСИРОВАНЫ)</div>
-  <section id="screenToday" class="today-screen mobile-screen active">
-    <div class="neon today-hero">
-      <div class="today-date"><strong id="todayTitle">СЕГОДНЯ</strong><span id="todayFullDate"></span></div>
-      <div class="today-progress-wrap">
-        <div class="ring today-big-ring" id="todayHeroRing" style="--v:0;--c1:#9b36ff;--c2:#f12bb8"><span id="todayHeroPct">0%</span></div>
-        <div class="today-summary"><strong id="todayHeroText">Выполнено 0 из 0</strong><small id="todayHeroNote">Отмечайте процессы ниже</small></div>
-      </div>
-      <div class="today-list" id="todayList"></div>
-    </div>
-  </section>
 <div class="mobile-hint">На телефоне календарь можно прокручивать горизонтально пальцем.</div>
   <section id="screenAnalytics" class="mobile-screen"><div class="kpis" id="kpis"></div><div class="mobile-kpi-hint">← KPI можно листать пальцем →</div>
 
@@ -873,11 +840,14 @@ const KEY='stack_neon_mix9_calendar_v1';
 function esc(v){
  return String(v??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))
 }
-function validMark(v){return v==='✓'||v==='○'||v==='—'||v===''}
+/* Marks: «✓» done, «○» missed, «—» not required, '' not marked (cycle '' → ✓ → ○ → — → ''). «◐» (partial) was written by the pre-v29 tracker only: it is
+   still accepted on load/import and counted as half — so history keeps its percentages — but nothing writes it any more. This is the only
+   implementation: v22.2.js used to replace these three functions at runtime, so the code and the documented cycle disagreed. */
+function validMark(v){return v==='✓'||v==='◐'||v==='○'||v==='—'||v===''}
 function activeCompletion(arr){
- let y=0,n=0;
- arr.forEach(v=>{if(v==='✓')y++;else if(v==='○')n++});
- return {rate:y+n?y/(y+n):null,done:y,total:y+n}
+ let pts=0,total=0,done=0;
+ arr.forEach(v=>{if(v==='✓'){pts+=1;total++;done++}else if(v==='◐'){pts+=.5;total++}else if(v==='○')total++});
+ return {rate:total?pts/total:null,done,total}
 }
 function processMonthStats(m,p){return activeCompletion(state.months?.[m]?.[p]||[])}
 function monthHasData(m){
@@ -990,6 +960,9 @@ function migrateStoredState(x){
    const old=Array.isArray(x.months?.[mi]?.[pi])?x.months[mi][pi]:[];
    return Array.from({length:m[3]},(_,d)=>validMark(old[d])?old[d]:'')
  }));
+ /* _meta (revision/updatedAt, v22.2) travels with the state from the first load: a save() before v22.2 installs itself used to write the state without it,
+    the revision restarted at 0 and reconcile took the older IndexedDB copy as the newer one */
+ if(x._meta&&typeof x._meta==='object'&&!Array.isArray(x._meta))clean._meta={...x._meta};
  return clean
 }
 function normalize(){
@@ -1017,9 +990,18 @@ function normalize(){
  state.processes.forEach((_,i)=>ensureScheduleSkipsForProcess(i));
 }
 normalize();
+/* The IndexedDB copy is written once the taps settle (and when the page is hidden), not on every tap: each write clones the whole state. */
+let idbTimer=0;
+function idbSaveSoon(){clearTimeout(idbTimer);idbTimer=setTimeout(()=>{idbTimer=0;idbSaveState(state)},1500)}
+function idbFlush(){if(idbTimer){clearTimeout(idbTimer);idbTimer=0;idbSaveState(state)}}
+/* Returns true only when the main key was really written: callers (the «Сохранено» toast) must not claim a save that failed. */
 function save(){
-  try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){console.warn('STACK localStorage save failed',e)}
-  idbSaveState(state)
+  let ok=false;
+  /* revision counter: a copy with a higher revision wins in reconcile (v22.2.js), so it grows here, in the one place every write passes through */
+  try{const m=state._meta&&typeof state._meta==='object'?state._meta:(state._meta={});m.revision=(Number(m.revision)||0)+1;m.updatedAt=new Date().toISOString()}catch(e){}
+  try{localStorage.setItem(KEY,JSON.stringify(state));ok=true}catch(e){console.warn('STACK localStorage save failed',e)}
+  idbSaveSoon();
+  return ok
 }
 const pct=v=>Math.round((v||0)*100);
 function completion(a){const s=activeCompletion(a);return s.rate??0}
@@ -1162,48 +1144,6 @@ function saveProcessModal(){
  }
  save();closeProcessModal();renderAll()
 }
-function renderTodayScreen(){
- const root=document.getElementById('todayList');if(!root)return;
- const d=new Date(),mi=dateToMonthIndex(d);
- document.getElementById('todayFullDate').textContent=d.toLocaleDateString('ru-RU',{weekday:'long',day:'numeric',month:'long'});
- if(mi<0){
-   root.innerHTML='<div style="color:#7f899c;font-size:10px;padding:8px">Сегодня вне периода трекера.</div>';
-   document.getElementById('todayHeroPct').textContent='—';return
- }
- const day=d.getDate()-1;
- let doneN=0,total=0;
- const cards=[];
- state.processes.forEach((p,i)=>{
-   const scheduled=isScheduledOnDate(i,d);
-   let v=state.months[mi][i][day]||'';
-   if(!scheduled && v==='')v='—';
-   if(v==='✓'){doneN++;total++}else if(v==='○'){total++}
-   const st=streakStats(i);
-   cards.push(`<div class="today-card" style="--pc:${p.color}">
-     <div class="today-card-main">
-       <div class="today-card-name"><span class="proc-dot" style="--pc:${p.color}"></span><span class="process-open" data-open-detail="${i}">${esc(p.name||'Процесс '+(i+1))}</span></div>
-       <div class="today-card-meta">Цель ${pct(p.goal||.8)}% • ${scheduleText(i)} • серия ${st.current} • рекорд ${st.best}</div>
-     </div>
-     <div class="today-actions">
-       <button class="today-status ${v==='✓'?'done':''}" data-today-p="${i}" data-today-v="✓" style="--pc:${p.color}">✓</button>
-       <button class="today-status ${v==='○'?'fail':''}" data-today-p="${i}" data-today-v="○">○</button>
-       <button class="today-status ${v==='—'?'skip':''}" data-today-p="${i}" data-today-v="—">—</button>
-     </div>
-   </div>`)
- });
- const rate=total?doneN/total:0;
- document.getElementById('todayHeroRing').style.setProperty('--v',rate*100);
- document.getElementById('todayHeroPct').textContent=pct(rate)+'%';
- document.getElementById('todayHeroText').textContent=`Выполнено ${doneN} из ${total}`;
- document.getElementById('todayHeroNote').textContent=total?'Процент считается только по обязательным процессам':'Сегодня пока нет обязательных отметок';
- root.innerHTML=cards.join('');
- root.querySelectorAll('[data-today-p]').forEach(b=>b.onclick=()=>{
-   const p=+b.dataset.todayP,val=b.dataset.todayV;
-   state.months[mi][p][day]=state.months[mi][p][day]===val?'':val;
-   save();renderAll()
- });
- root.querySelectorAll('[data-open-detail]').forEach(x=>x.onclick=()=>openProcessDetail(+x.dataset.openDetail))
-}
 /* Year charts show 12 months: Aug 2026–Jul 2027 first, then the 12 months ending at the current one. */
 function chartMonths(){const end=Math.min(MONTHS.length-1,Math.max(11,dateToMonthIndex(new Date())));return Array.from({length:12},(_,k)=>end-11+k)}
 function processDetailData(p){
@@ -1240,7 +1180,7 @@ function renderProcessDetailChart(p,allRates){
  svg.innerHTML=z
 }
 
-function removeProcess(i){if(state.processes.length<=1)return;if(!confirm('Удалить процесс и его отметки за все месяцы?'))return;state.processes.splice(i,1);state.months.forEach(m=>m.splice(i,1));save();renderAll()}
+function removeProcess(i){if(state.processes.length<=1)return;if(!confirm('Удалить процесс и его отметки за все месяцы?'))return;try{STACK_RECOVERY.snapshotNow('before-delete')}catch(_){}state.processes.splice(i,1);state.months.forEach(m=>m.splice(i,1));save();renderAll()}
 function prevDelta(){
  const mi=state.currentMonth;
  const cur=mm(mi);
@@ -1542,7 +1482,7 @@ function renderDots(){
    return `<div class="barrow"><span>${esc(p.name||'Процесс '+(i+1))}</span><div class="dots">${filled}<span class="dots-empty">${'○'.repeat(10-n)}</span></div><span>${raw===null?'—':pct(v)+'%'}</span></div>`
  }).join('')
 }
-function cycle(v){return v===''?'✓':v==='✓'?'○':v==='○'?'—':''}
+function cycle(v){return v===''?'✓':v==='✓'?'○':v==='○'?'—':v==='◐'?'○':''}
 function renderTracker(){const mi=state.currentMonth,days=MONTHS[mi][3],t=document.getElementById('tracker');let h='<thead><tr><th class="name">Процесс / привычка</th><th class="goalcol">Цель</th>';for(let d=1;d<=days;d++)h+=`<th class="day">${d}</th>`;h+='<th></th></tr></thead><tbody>';state.processes.forEach((p,pi)=>{h+=`<tr><td class="name"><span class="proc-dot" style="--pc:${p.color}"></span><input style="width:calc(100% - 70px)" data-name="${pi}" value="${esc(p.name||'')}" placeholder="Процесс ${pi+1}"><span class="reorder-buttons"><button data-up="${pi}">↑</button><button data-down="${pi}">↓</button><button data-detail="${pi}">⌁</button></span></td><td class="goalcol"><input data-goal="${pi}" value="${pct(p.goal||.8)}%"></td>`;for(let d=0;d<days;d++){const v=state.months[mi][pi][d],cl=v==='✓'?'done':v==='○'?'fail':v==='—'?'skip':'';h+=`<td class="day ${cl}" data-p="${pi}" data-d="${d}" style="--pc:${p.color}">${v}</td>`}h+=`<td class="remove" data-rm="${pi}">✕</td></tr>`});h+='</tbody>';t.innerHTML=h;t.querySelectorAll('[data-p]').forEach(td=>td.onclick=()=>{const p=+td.dataset.p,d=+td.dataset.d;state.months[mi][p][d]=cycle(state.months[mi][p][d]);save();renderAll()});t.querySelectorAll('[data-name]').forEach(i=>i.onchange=()=>{state.processes[+i.dataset.name].name=i.value.trim();save();renderAll()});t.querySelectorAll('[data-goal]').forEach(i=>i.onchange=()=>{const v=parseFloat(i.value);state.processes[+i.dataset.goal].goal=Math.max(0,Math.min(1,(isNaN(v)?80:v)/100));save();renderAll()});t.querySelectorAll('[data-rm]').forEach(x=>x.onclick=()=>removeProcess(+x.dataset.rm));
 t.querySelectorAll('[data-up]').forEach(x=>x.onclick=()=>moveProcess(+x.dataset.up,+x.dataset.up-1));
 t.querySelectorAll('[data-down]').forEach(x=>x.onclick=()=>moveProcess(+x.dataset.down,+x.dataset.down+1));
@@ -1812,7 +1752,7 @@ function renderAll(){
  try{
    normalize();
    const hidden=hiddenByOwners();legacyRenderSkipped=hidden.tracker||hidden.analytics;
-   renderTodayScreen();renderSavings();
+   renderSavings();
    if(!hidden.analytics){renderKPIs();renderChart();renderTrendChart();renderBars();renderDots();}
    renderMonthSelect();
    if(!hidden.tracker){renderTracker();renderMobileTracker();renderProcessSummary();renderCalendar();renderMonthSummary();}
@@ -1848,7 +1788,7 @@ document.getElementById('editFromDetail').onclick=()=>{
 };
 document.getElementById('addProcess').onclick=addProcess;
 document.getElementById('addJournal').onclick=()=>{state.journal.push({priority:'Средний',status:'Не начато'});save();renderJournal()};
-document.getElementById('exportBtn').onclick=()=>{const D=window.STACK_DATA,a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(D?.exportFull?D.exportFull(state):state,null,2)],{type:'application/json'}));a.download='STACK_backup_'+(D?.dateKey?D.dateKey():new Date().toISOString().slice(0,10))+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
+document.getElementById('exportBtn').onclick=()=>{const D=window.STACK_DATA,a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(D?.exportFull?D.exportFull(state):state,null,2)],{type:'application/json'}));a.download='STACK_backup_'+(D?.dateKey?D.dateKey():new Date().toISOString().slice(0,10))+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);D?.touchBackupMeta?.(true)};
 
 function validateImportedState(x){
  if(!x||typeof x!=='object')throw new Error('Неверный формат');
@@ -1876,6 +1816,8 @@ function validateImportedState(x){
    due:String(j?.due??'').slice(0,10),
    priority:['Высокий','Средний','Низкий'].includes(j?.priority)?j.priority:'Средний',
    status:['Не начато','В работе','Готово'].includes(j?.status)?j.status:'Не начато',
+   /* the status a task had before it was ticked off on «Сегодня» (restored when the tick is removed) */
+   ...(['Не начато','В работе'].includes(j?.prevStatus)?{prevStatus:j.prevStatus}:{}),
    note:String(j?.note??'').slice(0,TASK_NOTE_MAX),
    /* id of the task card in stack_task_details_v227 (description, checklist): dropping it orphaned them */
    ...(typeof j?.__v227id==='string'&&j.__v227id?{__v227id:j.__v227id.slice(0,40)}:{})
@@ -1915,9 +1857,13 @@ document.getElementById('fileInput').onchange=e=>{
      /* validate first: a bad file must not touch any stored data */
      const next=validateImportedState(full?full.state:parsed);
      if(full&&!confirm('Импорт заменит текущие данные (задачи, финансы, Fitness, питание) данными из файла. Продолжить?'))return;
+     /* a restore point of what is about to be replaced (captured synchronously, before any key is touched) */
+     try{STACK_RECOVERY.snapshotNow('before-import')}catch(_){}
      if(full)D.importStorage(full.storage);
+     /* the revision (state._meta, v22.2) must keep growing across an import: a reset to 1 made the older IndexedDB copy look newer and the next start rolled the import back */
+     next._meta={...(next._meta||{}),revision:Math.max(Number(state._meta?.revision)||0,Number(next._meta?.revision)||0)};
      state=next;
-     normalize();save();loadFxCache();
+     normalize();save();idbFlush();loadFxCache();
 const startupMonth=dateToMonthIndex(new Date());
 if(startupMonth>=0 && !sessionStorage.getItem('stack_month_manual'))state.currentMonth=startupMonth;
 renderAll();alert('Импорт выполнен');
@@ -1932,12 +1878,17 @@ renderAll();
 
 function persistNow(){
  try{save()}catch(e){}
+ idbFlush()
 }
 window.addEventListener('pagehide',persistNow);
 window.addEventListener('beforeunload',persistNow);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')persistNow()});
 
 if('serviceWorker' in navigator){
+ /* a new build took over an already-controlled page: reload it the next time it is hidden — never while it is in the user's hands (an open form keeps its draft) */
+ const hadController=!!navigator.serviceWorker.controller;let buildChanged=false;
+ navigator.serviceWorker.addEventListener('controllerchange',()=>{if(hadController)buildChanged=true});
+ document.addEventListener('visibilitychange',()=>{if(buildChanged&&document.visibilityState==='hidden')location.reload()});
  window.addEventListener('load',async()=>{
    try{
      const reg=await navigator.serviceWorker.register('./sw.js');

@@ -1,7 +1,8 @@
 name: verify
 
-# Same checks CLAUDE.md asks for by hand: syntax of every script, then the headless
-# walkthrough (5 sections, Fitness tabs, behaviour scenarios, overflow, JS errors).
+# Same checks CLAUDE.md asks for by hand: syntax of every script, unit tests of the data layer,
+# formatting, real-bug lint, then the headless walkthrough (5 sections, Fitness tabs, behaviour scenarios,
+# overflow, service worker, JS errors).
 on:
   pull_request:
   push:
@@ -10,7 +11,7 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -23,14 +24,23 @@ jobs:
           set -e
           for f in *.js scripts/*.js; do node --check "$f"; done
 
-      - name: Install Playwright + Chromium
+      - name: Unit tests (data layer, no browser)
+        run: node scripts/stack-unit.js
+
+      - name: Install Playwright + Chromium + ESLint + Prettier
         run: |
           mkdir -p "$RUNNER_TEMP/pw"
           cd "$RUNNER_TEMP/pw"
           npm init -y > /dev/null
-          npm i playwright
+          npm i playwright eslint@10 prettier@3
           npx playwright install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Format check (Prettier, JS only — `npm run format` fixes it)
+        run: node "$RUNNER_TEMP/pw/node_modules/prettier/bin/prettier.cjs" --check "*.js" "scripts/*.js"
+
+      - name: Lint (undefined names, duplicate keys, unreachable code …)
+        run: node scripts/stack-lint.js
 
       - name: Headless verification
         run: node scripts/stack-verify.js

@@ -5,71 +5,547 @@
    v29.5.0 — the right-hand control on a task row marks it done (status «Готово») and back; done
    tasks stay visible for the day. cycleMark(index,date) is the one process-mark writer (Today and
    Дела → Процессы «Отметки за день»), so the workout sync applies to past days too.
+   v29.82 — «Сегодня»: overdue tasks (max 5 + «Ещё N»), a ticked task keeps its «В работе» status, workout recognised by word (not by substring),
+   one render per change, redraw on resume/midnight, 44px tap zones.
    v29.6.0 — one secondary line «Питание · факт / цель ккал» under the list; tap → Fitness → Питание. */
-(()=>{'use strict';
-const BUILD='29.6.0';
-const MOBILE=()=>innerWidth<=720;
-const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const read=(k,f={})=>{try{return JSON.parse(localStorage.getItem(k)||'null')??f}catch(_){return f}};
-const dateKey=(d=new Date())=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-const liveState=()=>{try{if(typeof state!=='undefined'&&state)return state}catch(_){}return null};
-const stateNow=()=>liveState()||globalThis.STACK_DATA?.main?.()||read('stack_neon_mix9_calendar_v1',{});
-let current='today';
-function scheduledProcesses(d=new Date()){
- const s=stateNow(),ps=Array.isArray(s?.processes)?s.processes:[],mi=typeof dateToMonthIndex==='function'?dateToMonthIndex(d):-1,day=d.getDate()-1,out=[];
- ps.forEach((p,i)=>{try{if(typeof isScheduledOnDate==='function'&&!isScheduledOnDate(i,d))return}catch(_){}
-  const mark=mi>=0?(s?.months?.[mi]?.[i]?.[day]||''):'';
-  out.push({kind:'process',index:i,name:p?.name||`Процесс ${i+1}`,mark,color:p?.color||'#9133e4'});
- });return out;
-}
-function taskDone(t){return/готов|выполн|done|complete/.test(String(t?.status||'').toLowerCase())}
-function dueTasks(d=new Date()){
- const s=stateNow(),today=dateKey(d),a=Array.isArray(s?.journal)?s.journal:[];
- return a.map((t,index)=>({t,index})).filter(({t})=>t&&(t.date===today||t.due===today)&&String(t.status||'').toLowerCase()!=='архив').map(({t,index})=>({kind:'task',index,name:t.task||'Без названия',mark:taskDone(t)?'✓':'',color:'#0877f3'}));
-}
-function todayModel(){
- const d=new Date(),processes=scheduledProcesses(d),tasks=dueTasks(d),active=processes.filter(x=>x.mark!=='—'),done=active.filter(x=>x.mark==='✓').length,skipped=processes.filter(x=>x.mark==='—').length,total=active.length,pct=total?Math.round(done/total*100):0;
- return{d,processes,tasks,active,done,skipped,total,pct,rows:[...tasks,...processes]};
-}
-function isWorkout(a){return/тренир|спорт|зал/.test(String(a?.name||'').toLowerCase())}
-function actionIcon(a){const n=String(a?.name||'').toLowerCase();if(isWorkout(a))return'<span class="v29-workout-glyph" aria-hidden="true"></span>';if(/питан|еда|завтрак|обед|ужин/.test(n))return'🍽';if(a?.kind==='task')return'□';return'↻'}
-function markIcon(mark){return mark==='✓'?'✓':mark==='○'?'○':mark==='—'?'—':''}
-function markLabel(mark){return mark==='✓'?'Выполнено':mark==='○'?'Пропущено':mark==='—'?'Не требовалось':'Не отмечено'}
-function installStyle(){if(document.getElementById('stackV29Style'))return;const s=document.createElement('style');s.id='stackV29Style';s.textContent=`@media(max-width:720px){html.stack-v29-ready.stack-minimal-gate body::before,html.stack-v29-ready.stack-minimal-gate body::after{display:none!important}body.v29-native-today>.app{display:none!important}#mobileNav{display:none!important}#stackV29Root{position:relative;z-index:1000;min-height:100dvh;color:#eef4ff;font-family:Arial,Segoe UI,sans-serif}#stackV29Root.v29-legacy{pointer-events:none;min-height:0}#stackV29Root.v29-legacy .v29-main{display:none}#stackV29Root.v29-legacy .v29-nav{pointer-events:auto}.v29-main{min-height:100dvh;padding:max(14px,env(safe-area-inset-top)) 12px calc(86px + env(safe-area-inset-bottom));background:radial-gradient(circle at 50% -12%,#11133f 0,#040917 34%,#01050b 72%)}.v29-kicker{font-size:9px;letter-spacing:.12em;color:#7e8da5;font-weight:900}.v29-title{margin:4px 0 2px;font-size:30px;line-height:1}.v29-date{font-size:11px;color:#8592a7}.v29-progress{display:grid;grid-template-columns:76px 1fr;align-items:center;gap:14px;margin-top:16px;padding:15px;border:1px solid #29415f;border-radius:18px;background:linear-gradient(155deg,#071522,#030914)}.v29-progress>b{font-size:30px;line-height:1}.v29-progress strong,.v29-progress small{display:block}.v29-progress strong{font-size:14px}.v29-progress small{margin-top:5px;color:#8290a6;font-size:10px}.v29-section-label{margin:17px 3px 7px;font-size:9px;color:#7f8da2;letter-spacing:.08em;font-weight:900}.v29-list{overflow:hidden;border:1px solid #203753;border-radius:17px;background:#040c17}.v29-row{min-height:59px;display:grid;grid-template-columns:36px minmax(0,1fr) 42px;gap:10px;align-items:center;padding:8px 10px 8px 12px;border-top:1px solid #14263c}.v29-row:first-child{border-top:0}.v29-action-icon{width:34px;height:34px;display:grid;place-items:center;border:1px solid color-mix(in srgb,var(--a) 62%,#253653);border-radius:11px;background:color-mix(in srgb,var(--a) 9%,#06101e);color:var(--a);font-size:17px;font-style:normal;box-shadow:0 0 10px color-mix(in srgb,var(--a) 18%,transparent)}.v29-action-icon.workout{border-color:#7650b8;background:radial-gradient(circle at 50% 45%,#1d1232 0,#07101c 72%);box-shadow:0 0 12px #9133e44f,inset 0 0 10px #0877f31f}.v29-workout-glyph{position:relative;width:18px;height:4px;border-radius:999px;background:linear-gradient(90deg,#0ed2e7,#9b5cff 52%,#f12bb8);box-shadow:0 0 8px #9b5cff,0 0 13px #0877f355}.v29-workout-glyph::before,.v29-workout-glyph::after{content:'';position:absolute;top:50%;width:4px;height:15px;border-radius:999px;transform:translateY(-50%);background:linear-gradient(180deg,#0ed2e7,#b15cff 55%,#f12bb8);box-shadow:0 0 7px #9b5cff}.v29-workout-glyph::before{left:-2px}.v29-workout-glyph::after{right:-2px}.v29-open{min-width:0;min-height:43px;padding:0;border:0;background:transparent;color:#eef4ff;text-align:left;font-size:13px;font-weight:800}.v29-status{width:40px;height:40px;border:1px solid #263d5f;border-radius:11px;background:#07111f;color:var(--a);font-size:18px;font-weight:900}.v29-row .v29-status[data-mark=""]::after{content:"";display:block;width:16px;height:16px;margin:auto;border:2px solid var(--a);border-radius:50%;opacity:.75}.v29-status[data-mark="—"]{color:#e0ad37;border-color:#695423}.v29-status[data-mark="○"]{color:#f04b6c;border-color:#653143}.v29-status[data-mark="✓"]{color:#68d43f;border-color:#315d38}.v29-food{width:100%;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:4px 10px;margin-top:10px;padding:12px 14px;border:1px solid #203753;border-radius:15px;background:#040c17;color:#eef4ff;text-align:left}.v29-food span{grid-row:span 2;color:#7f8da2;font-size:9px;font-weight:900;letter-spacing:.08em}.v29-food b{font-size:14px}.v29-food small{grid-column:2;color:#8290a6;font-size:10px}.v29-food i{grid-row:1/span 2;grid-column:3;font-style:normal;color:#7f8da2;font-size:18px}.v29-empty{padding:26px 18px;text-align:center;color:#7f8da2;font-size:11px}.v29-nav{--dock:#f55bd1;--dock-glow:#f12bb866;position:fixed;z-index:2147483000;left:10px;right:10px;bottom:max(8px,env(safe-area-inset-bottom));height:62px;display:grid;grid-template-columns:repeat(5,1fr);padding:0 6px;filter:drop-shadow(0 8px 20px #0877f31f)}.v29-dock-bg{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible;pointer-events:none}.v29-dock-bg path{fill:rgba(2,7,16,.97);stroke:#243653;stroke-width:1}.v29-bead{position:absolute;z-index:2;left:0;top:-27px;width:50px;height:50px;border-radius:50%;display:grid;place-items:center;background:var(--dock);color:#050912;box-shadow:inset 0 0 0 1px #ffffff2e,0 6px 18px var(--dock-glow);transition:background .3s,box-shadow .3s;touch-action:none;cursor:grab;will-change:transform}.v29-bead.drag{cursor:grabbing;transform-origin:center}.v29-bead svg{display:block;stroke-width:2}.v29-nav button{position:relative;z-index:1;min-width:0;height:62px;display:grid;place-items:center;align-content:center;gap:3px;border:0;background:transparent;color:#7f8da2;font-size:9px;font-weight:800;-webkit-tap-highlight-color:transparent}.v29-nav button i{display:grid;place-items:center;width:22px;height:22px;font-style:normal}.v29-nav button i svg{display:block}.v29-nav button.active{align-content:end;padding-bottom:10px;color:var(--dock);text-shadow:0 0 8px var(--dock-glow)}.v29-nav button.active i{display:none}#screenTasks.v233-mode-tasks #v2212Tasks .v2212-add{width:44px!important;height:44px!important;min-width:44px!important;padding:0!important;font-size:0!important;border-radius:12px!important;display:grid!important;place-items:center!important}#screenTasks.v233-mode-tasks #v2212Tasks .v2212-add::after{content:'+';font-size:25px;line-height:1;color:#eef4ff;text-shadow:0 0 9px #9133e4,0 0 14px #0877f366}body:not(.v29-native-today){padding-bottom:72px!important}}`;document.head.appendChild(s)}
-function root(){let r=document.getElementById('stackV29Root');if(r)return r;r=document.createElement('div');r.id='stackV29Root';document.body.appendChild(r);return r}
-const NAV=[['today',`<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 9-9 9-9-9z"/><circle cx="12" cy="12" r="1.2"/></svg>`,'Сегодня','screenToday'],['deals',`<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3.5"/><path d="M8.5 12.2l2.6 2.6 4.6-5.4"/></svg>`,'Дела','screenTasks'],['fitness',`<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3L5.5 13H11l-1 8L18.5 11H13z"/></svg>`,'Fitness','screenTracker'],['finance',`<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M10 7.5v9M10 7.5h3.2a2.4 2.4 0 010 4.8H10M8 14.2h5.4"/></svg>`,'Финансы','screenSavings'],['analytics',`<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 20v-6M12 20V6M18 20v-9"/></svg>`,'Аналитика','screenAnalytics']];
-function navHtml(){return `<nav class="v29-nav"><svg class="v29-dock-bg" aria-hidden="true"><path d=""/></svg><span class="v29-bead" aria-hidden="true"></span>${NAV.map(([id,icon,label])=>`<button data-v29-nav="${id}" class="${current===id?'active':''}" ${current===id?'aria-current="page"':''}><i>${icon}</i><span>${label}</span></button>`).join('')}</nav>`}
-function release(){document.documentElement.classList.add('stack-v29-ready','stack-minimal-ready');document.documentElement.classList.remove('stack-minimal-loading')}
-function progressText(x){if(x.total)return{head:`${x.pct}%`,strong:`${x.done} из ${x.total} обязательных выполнено`,small:`${Math.max(0,x.total-x.done)} осталось${x.skipped?` · ${x.skipped} не требовалось`:''}`};if(x.skipped)return{head:'—',strong:'Сегодня обязательных нет',small:`${x.skipped} отмечено как «не требовалось»`};return{head:'0%',strong:'Сегодня обязательных процессов нет',small:'Нечего считать как выполненное'}}
-function nutritionLine(){try{const n=globalThis.STACK_NUTRITION;if(!n?.dayFact)return'';const t=n.targets?.(),f=n.dayFact(dateKey());if(!t&&!f.kcal)return'';const pct=t?.kcal?Math.round(f.kcal/t.kcal*100):null;return `<button type="button" class="v29-food" data-v29-food><span>ПИТАНИЕ</span><b>${Math.round(f.kcal)}${t?.kcal?` / ${Math.round(t.kcal)}`:''} ккал</b><small>${pct===null?'цель не задана':pct>=90&&pct<=110?'в плане':pct>110?'выше цели':`осталось ${Math.max(0,Math.round(t.kcal-f.kcal))} ккал`}</small><i>›</i></button>`}catch(_){return''}}
-function renderToday(){if(!MOBILE())return;current='today';document.body.classList.add('v29-native-today');const x=todayModel(),p=progressText(x),date=x.d.toLocaleDateString('ru-RU',{weekday:'long',day:'numeric',month:'long'}),r=root();r.className='';r.innerHTML=`<main class="v29-main"><div class="v29-kicker">STACK · СЕГОДНЯ</div><h1 class="v29-title">Сегодня</h1><div class="v29-date">${esc(date)}</div><section class="v29-progress"><b>${p.head}</b><div><strong>${esc(p.strong)}</strong><small>${esc(p.small)}</small></div></section><div class="v29-section-label">ЧТО ДЕЛАТЬ СЕЙЧАС</div><section class="v29-list">${x.rows.length?x.rows.map(a=>`<div class="v29-row" data-v29-kind="${a.kind}" data-v29-index="${a.index??''}" data-v29-route="${isWorkout(a)?'fitness':'deals'}" data-v29-tab="${a.kind==='task'?'tasks':'processes'}" style="--a:${a.color}"><i class="v29-action-icon ${isWorkout(a)?'workout':''}">${actionIcon(a)}</i><button class="v29-open" type="button">${esc(a.name)}</button>${a.kind==='process'?`<button class="v29-status" type="button" data-mark="${a.mark}" aria-label="${esc(markLabel(a.mark))}">${markIcon(a.mark)}</button>`:`<button class="v29-status" type="button" data-mark="${a.mark}" aria-label="${a.mark?'Выполнено — снять отметку':'Отметить выполненной'}">${a.mark?'✓':''}</button>`}</div>`).join(''):`<div class="v29-empty">На сегодня ничего не запланировано</div>`}</section>${nutritionLine()}</main>${navHtml()}`;wire();release()}
-function simplifyDealsLegacy(){const screen=document.getElementById('screenTasks');if(!screen)return;screen.querySelectorAll('button').forEach(b=>{if(b.classList.contains('v2212-add'))return;const t=(b.textContent||'').replace(/\s+/g,' ').trim().toLowerCase();if(t==='все процессы'||t==='все задачи'||/(новая|добавить|создать)\s+задач/.test(t))b.style.display='none'})}
-function selectDealsTab(tab){const b=tab&&document.querySelector(`#v233shell [data-v233="${tab}"]`);if(b&&!b.classList.contains('on'))b.click()}
-function openLegacy(id,screenId,tab){current=id;document.body.classList.remove('v29-native-today');const r=root();r.className='v29-legacy';r.innerHTML=navHtml();document.querySelectorAll('.mobile-screen').forEach(el=>el.classList.toggle('active',el.id===screenId));try{sessionStorage.setItem('stack_v23_screen',screenId)}catch(_){}if(id==='deals'){selectDealsTab(tab);setTimeout(simplifyDealsLegacy,0)}wire();release()}
-function syncHistory(id,mode){try{const payload={stackV29:id};if(mode==='replace')history.replaceState(payload,'',location.href);else if(mode==='push'&&history.state?.stackV29!==id)history.pushState(payload,'',location.href)}catch(_){}}
-function open(id,mode='push',tab){const item=NAV.find(x=>x[0]===id)||NAV[0];syncHistory(item[0],mode);if(item[0]==='today')renderToday();else openLegacy(item[0],item[3],tab)}
-const WORKOUT_KEY=d=>'stack_fitness_workout_'+dateKey(d);
-function syncWorkout(d,value){const s=liveState(),mi=typeof dateToMonthIndex==='function'?dateToMonthIndex(d):-1;if(!s||mi<0||!Array.isArray(s.processes))return;const mark=value==='done'?'✓':value==='skip'?'○':'',day=d.getDate()-1;let changed=false;s.processes.forEach((p,i)=>{if(!isWorkout(p))return;try{if(typeof isScheduledOnDate==='function'&&!isScheduledOnDate(i,d))return}catch(_){}const row=s.months?.[mi]?.[i];if(!row)return;const cur=row[day]||'';if(cur===mark||(!mark&&cur==='—'))return;row[day]=mark;changed=true});if(!changed)return;try{if(typeof save==='function')save()}catch(_){}try{window.dispatchEvent(new CustomEvent('stack:data-changed',{detail:{source:'fitness-workout-sync'}}))}catch(_){}}
-function cycleMark(index,d=new Date()){const mi=typeof dateToMonthIndex==='function'?dateToMonthIndex(d):-1,s=liveState(),row=mi>=0?s?.months?.[mi]?.[index]:null;if(!row)return null;const day=d.getDate()-1,cur=row[day]||'',next=cur===''?'✓':cur==='✓'?'○':cur==='○'?'—':'';row[day]=next;if(isWorkout(s.processes?.[index]))try{localStorage.setItem(WORKOUT_KEY(d),next==='✓'?'1':next==='○'?'skip':'0')}catch(_){}try{if(typeof save==='function')save()}catch(_){}try{window.dispatchEvent(new CustomEvent('stack:data-changed',{detail:{source:'v29-shell'}}))}catch(_){}return next}
-function cycleProcess(index){if(cycleMark(index)===null){open('deals','push','processes');return}renderToday()}
-function toggleTask(index){const s=liveState(),t=s?.journal?.[index];if(!t)return;t.status=taskDone(t)?'Не начато':'Готово';try{if(typeof save==='function')save()}catch(_){}try{window.dispatchEvent(new CustomEvent('stack:data-changed',{detail:{source:'v29-shell-task'}}))}catch(_){}try{if(typeof renderAll==='function')renderAll()}catch(_){}renderToday()}
-const DOCK_COLORS={today:['#f55bd1','#f12bb866'],deals:['#a56bff','#9133e466'],fitness:['#19d3ee','#0ed2e766'],finance:['#9bea3a','#68d43f55'],analytics:['#ffb347','#ffa02a55']};
-let dockX=null,dockRaf=0,dockColor=null;
-function dockPath(W,H,cx){const r=18,half=46,d=22,a=Math.max(r,cx-half),b=Math.min(W-r,cx+half),l=(cx-a)/2,m=(b-cx)/2;return `M${r},0H${a}C${a+l},0 ${cx-l},${d} ${cx},${d}C${cx+m},${d} ${b-m},0 ${b},0H${W-r}Q${W},0 ${W},${r}V${H-r}Q${W},${H} ${W-r},${H}H${r}Q0,${H} 0,${H-r}V${r}Q0,0 ${r},0Z`}
-function dock(animate=true){cancelAnimationFrame(dockRaf);const nav=document.querySelector('.v29-nav'),bead=nav?.querySelector('.v29-bead'),path=nav?.querySelector('.v29-dock-bg path');if(!nav||!bead||!path)return;const nr=nav.getBoundingClientRect(),W=nr.width,H=nr.height,centers=[...nav.querySelectorAll('[data-v29-nav]')].map(b=>{const q=b.getBoundingClientRect();return q.left-nr.left+q.width/2}),i=Math.max(0,NAV.findIndex(x=>x[0]===current)),to=centers[i],col=DOCK_COLORS[current]||DOCK_COLORS.today;
- const paint=x=>{dockX=x;path.setAttribute('d',dockPath(W,H,x));bead.style.transform=`translateX(${x-25}px)`};
- bead.innerHTML=NAV[i][1];
- if(dockColor){nav.style.setProperty('--dock',dockColor[0]);nav.style.setProperty('--dock-glow',dockColor[1]);void bead.offsetWidth}
- nav.style.setProperty('--dock',col[0]);nav.style.setProperty('--dock-glow',col[1]);dockColor=col;
- const from=dockX==null?to:dockX,ms=animate&&dockX!=null&&!matchMedia('(prefers-reduced-motion: reduce)').matches?380:0;
- const glide=(x0,x1,t)=>{const t0=performance.now(),step=now=>{const k=t?Math.min(1,(now-t0)/t):1,e=1-Math.pow(1-k,3);paint(x0+(x1-x0)*e);if(k<1)dockRaf=requestAnimationFrame(step)};step(t0)};
- glide(from,to,ms);
- let drag=false;const lo=centers[0],hi=centers[centers.length-1],pos=e=>Math.min(hi,Math.max(lo,e.clientX-nr.left)),near=x=>centers.reduce((k,c,j)=>Math.abs(c-x)<Math.abs(centers[k]-x)?j:k,0);
- bead.onpointerdown=e=>{drag=true;cancelAnimationFrame(dockRaf);bead.setPointerCapture(e.pointerId);bead.classList.add('drag');paint(pos(e))};
- bead.onpointermove=e=>{if(drag)paint(pos(e))};
- const end=e=>{if(!drag)return;drag=false;bead.classList.remove('drag');const j=near(pos(e));if(NAV[j][0]!==current)open(NAV[j][0],'push');else glide(dockX,to,220)};
- bead.onpointerup=end;bead.onpointercancel=end}
-function wire(){const r=root();r.querySelectorAll('[data-v29-nav]').forEach(b=>b.onclick=()=>open(b.dataset.v29Nav,'push'));r.querySelector('[data-v29-food]')?.addEventListener('click',()=>{open('fitness','push');document.querySelector('.v234-tabs [data-v234="nutrition"]')?.click()});r.querySelectorAll('.v29-row').forEach(row=>{row.querySelector('.v29-open')?.addEventListener('click',()=>open(row.dataset.v29Route||'deals','push',row.dataset.v29Tab));row.querySelector('.v29-status')?.addEventListener('click',()=>{if(row.dataset.v29Kind==='process')cycleProcess(+row.dataset.v29Index);else toggleTask(+row.dataset.v29Index)})});dock()}
-function boot(){Object.defineProperty(globalThis,'STACK_V29_SHELL',{value:Object.freeze({build:BUILD,open,refresh:()=>open(current,'none'),refreshToday:()=>{if(current==='today'&&MOBILE())renderToday()},syncWorkout,cycleMark}),configurable:true});if(!MOBILE()){release();return}installStyle();window.addEventListener('resize',()=>dock(false));document.title='STACK — Персональная система управления';document.querySelector('meta[name="stack-build"]')?.setAttribute('content','v29.3.1');let start='today';try{const fromHistory=history.state?.stackV29;if(NAV.some(x=>x[0]===fromHistory))start=fromHistory;else{const legacy=sessionStorage.getItem('stack_v23_screen');const found=NAV.find(x=>x[3]===legacy);if(found)start=found[0]}}catch(_){}open(start,'replace');window.addEventListener('popstate',e=>{const id=e.state?.stackV29;if(id&&NAV.some(x=>x[0]===id))open(id,'none')});window.addEventListener('stack:data-changed',()=>{if(current==='today')setTimeout(renderToday,0);if(current==='deals')setTimeout(simplifyDealsLegacy,30)});window.addEventListener('resize',()=>{if(!MOBILE()){document.body.classList.remove('v29-native-today');release()}});const mo=new MutationObserver(()=>{if(current==='deals')simplifyDealsLegacy()});mo.observe(document.body,{childList:true,subtree:true});console.info('STACK v29 shell',BUILD)}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+(() => {
+  'use strict';
+  const BUILD = '29.86.0';
+  const MOBILE = () => innerWidth <= 720;
+  const esc = v =>
+    String(v ?? '').replace(
+      /[&<>"']/g,
+      c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]
+    );
+  const read = (k, f = {}) => {
+    try {
+      return JSON.parse(localStorage.getItem(k) || 'null') ?? f;
+    } catch (_) {
+      return f;
+    }
+  };
+  const dateKey = (d = new Date()) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const liveState = () => {
+    try {
+      if (typeof state !== 'undefined' && state) return state;
+    } catch (_) {}
+    return null;
+  };
+  const stateNow = () => liveState() || globalThis.STACK_DATA?.main?.() || read('stack_neon_mix9_calendar_v1', {});
+  let current = 'today';
+  function scheduledProcesses(d = new Date()) {
+    const s = stateNow(),
+      ps = Array.isArray(s?.processes) ? s.processes : [],
+      mi = typeof dateToMonthIndex === 'function' ? dateToMonthIndex(d) : -1,
+      day = d.getDate() - 1,
+      out = [];
+    ps.forEach((p, i) => {
+      try {
+        if (typeof isScheduledOnDate === 'function' && !isScheduledOnDate(i, d)) return;
+      } catch (_) {}
+      const mark = mi >= 0 ? s?.months?.[mi]?.[i]?.[day] || '' : '';
+      out.push({ kind: 'process', index: i, name: p?.name || `Процесс ${i + 1}`, mark, color: p?.color || '#9133e4' });
+    });
+    return out;
+  }
+  function taskDone(t) {
+    return /готов|выполн|done|complete/.test(String(t?.status || '').toLowerCase());
+  }
+  /* v29.82: overdue tasks (a past `due`, not done) are shown too — «Сегодня» used to hide exactly what was already late. At most OVERDUE_SHOWN, newest
+   deadline first, the rest behind one «Ещё N» row; a task ticked off here stays on screen until you leave «Сегодня». */
+  const OVERDUE_SHOWN = 5;
+  let justDone = new WeakSet();
+  const isDateKey = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
+  const daysBetween = (a, b) => {
+    const t = k => Date.UTC(+k.slice(0, 4), +k.slice(5, 7) - 1, +k.slice(8, 10));
+    return Math.round((t(b) - t(a)) / 864e5);
+  };
+  function dueTasks(d = new Date()) {
+    const s = stateNow(),
+      today = dateKey(d),
+      a = Array.isArray(s?.journal) ? s.journal : [],
+      todays = [],
+      late = [];
+    const row = (t, index) => ({
+      kind: 'task',
+      index,
+      name: t.task || 'Без названия',
+      mark: taskDone(t) ? '✓' : '',
+      color: '#0877f3',
+      late: isDateKey(t.due) && t.due < today && !taskDone(t) ? daysBetween(t.due, today) : 0,
+    });
+    a.forEach((t, index) => {
+      if (!t || String(t.status || '').toLowerCase() === 'архив') return;
+      if (t.date === today || t.due === today) todays.push(row(t, index));
+      else if (isDateKey(t.due) && t.due < today && (!taskDone(t) || justDone.has(t))) late.push({ t, index });
+    });
+    late.sort((x, y) => y.t.due.localeCompare(x.t.due));
+    return {
+      today: todays,
+      overdue: late
+        .slice(0, OVERDUE_SHOWN)
+        .map(({ t, index }) => ({ ...row(t, index), late: daysBetween(t.due, today) })),
+      overdueMore: Math.max(0, late.length - OVERDUE_SHOWN),
+    };
+  }
+  function todayModel() {
+    const d = new Date(),
+      processes = scheduledProcesses(d),
+      due = dueTasks(d),
+      tasks = due.today,
+      active = processes.filter(x => x.mark !== '—'),
+      done = active.filter(x => x.mark === '✓').length,
+      skipped = processes.filter(x => x.mark === '—').length,
+      total = active.length,
+      pct = total ? Math.round((done / total) * 100) : 0;
+    return {
+      d,
+      processes,
+      tasks,
+      active,
+      done,
+      skipped,
+      total,
+      pct,
+      overdueMore: due.overdueMore,
+      rows: [...due.overdue, ...tasks, ...processes],
+    };
+  }
+  /* processes only (a task «Продлить паспорт» is not a workout); the word rule lives in stack-data.js */
+  function isWorkout(a) {
+    return a?.kind !== 'task' && !!globalThis.STACK_DATA?.isWorkoutName?.(a?.name);
+  }
+  const FOOD_NAME = /(^|[^а-яё])(питан|еда($|[^а-яё])|завтрак|обед|ужин)/;
+  function actionIcon(a) {
+    const n = String(a?.name || '').toLowerCase();
+    if (isWorkout(a)) return '<span class="v29-workout-glyph" aria-hidden="true"></span>';
+    if (a?.kind === 'task') return '□';
+    if (FOOD_NAME.test(n)) return '🍽';
+    return '↻';
+  }
+  function markIcon(mark) {
+    return mark === '✓' ? '✓' : mark === '○' ? '○' : mark === '—' ? '—' : mark === '◐' ? '◐' : '';
+  }
+  function markLabel(mark) {
+    return mark === '✓'
+      ? 'Выполнено'
+      : mark === '○'
+        ? 'Пропущено'
+        : mark === '—'
+          ? 'Не требовалось'
+          : mark === '◐'
+            ? 'Частично (старая отметка)'
+            : 'Не отмечено';
+  }
+  function installStyle() {
+    if (document.getElementById('stackV29Style')) return;
+    const s = document.createElement('style');
+    s.id = 'stackV29Style';
+    s.textContent = `@media(max-width:720px){html.stack-v29-ready.stack-minimal-gate body::before,html.stack-v29-ready.stack-minimal-gate body::after{display:none!important}body.v29-native-today>.app{display:none!important}#mobileNav{display:none!important}#stackV29Root{position:relative;z-index:1000;min-height:100dvh;color:#eef4ff;font-family:Arial,Segoe UI,sans-serif}#stackV29Root.v29-legacy{pointer-events:none;min-height:0}#stackV29Root.v29-legacy .v29-main{display:none}#stackV29Root.v29-legacy .v29-nav{pointer-events:auto}.v29-main{min-height:100dvh;padding:max(14px,env(safe-area-inset-top)) 12px calc(86px + env(safe-area-inset-bottom));background:radial-gradient(circle at 50% -12%,#11133f 0,#040917 34%,#01050b 72%)}.v29-kicker{font-size:9px;letter-spacing:.12em;color:#7e8da5;font-weight:900}.v29-title{margin:4px 0 2px;font-size:30px;line-height:1}.v29-date{font-size:11px;color:#8592a7}.v29-progress{display:grid;grid-template-columns:76px 1fr;align-items:center;gap:14px;margin-top:16px;padding:15px;border:1px solid #29415f;border-radius:18px;background:linear-gradient(155deg,#071522,#030914)}.v29-progress>b{font-size:30px;line-height:1}.v29-progress strong,.v29-progress small{display:block}.v29-progress strong{font-size:14px}.v29-progress small{margin-top:5px;color:#8290a6;font-size:10px}.v29-section-label{margin:17px 3px 7px;font-size:9px;color:#7f8da2;letter-spacing:.08em;font-weight:900}.v29-list{overflow:hidden;border:1px solid #203753;border-radius:17px;background:#040c17}.v29-row{min-height:59px;display:grid;grid-template-columns:36px minmax(0,1fr) 44px;gap:10px;align-items:center;padding:8px 10px 8px 12px;border-top:1px solid #14263c}.v29-row:first-child{border-top:0}.v29-action-icon{width:34px;height:34px;display:grid;place-items:center;border:1px solid color-mix(in srgb,var(--a) 62%,#253653);border-radius:11px;background:color-mix(in srgb,var(--a) 9%,#06101e);color:var(--a);font-size:17px;font-style:normal;box-shadow:0 0 10px color-mix(in srgb,var(--a) 18%,transparent)}.v29-action-icon.workout{border-color:#7650b8;background:radial-gradient(circle at 50% 45%,#1d1232 0,#07101c 72%);box-shadow:0 0 12px #9133e44f,inset 0 0 10px #0877f31f}.v29-workout-glyph{position:relative;width:18px;height:4px;border-radius:999px;background:linear-gradient(90deg,#0ed2e7,#9b5cff 52%,#f12bb8);box-shadow:0 0 8px #9b5cff,0 0 13px #0877f355}.v29-workout-glyph::before,.v29-workout-glyph::after{content:'';position:absolute;top:50%;width:4px;height:15px;border-radius:999px;transform:translateY(-50%);background:linear-gradient(180deg,#0ed2e7,#b15cff 55%,#f12bb8);box-shadow:0 0 7px #9b5cff}.v29-workout-glyph::before{left:-2px}.v29-workout-glyph::after{right:-2px}.v29-open{min-width:0;min-height:44px;padding:0;border:0;background:transparent;color:#eef4ff;text-align:left;font-size:13px;font-weight:800}.v29-status{width:44px;height:44px;border:1px solid #263d5f;border-radius:11px;background:#07111f;color:var(--a);font-size:18px;font-weight:900}.v29-row .v29-status[data-mark=""]::after{content:"";display:block;width:16px;height:16px;margin:auto;border:2px solid var(--a);border-radius:50%;opacity:.75}.v29-status[data-mark="—"]{color:#e0ad37;border-color:#695423}.v29-status[data-mark="○"]{color:#f04b6c;border-color:#653143}.v29-status[data-mark="◐"]{color:#8f4cff;border-color:#4d3478}.v29-status[data-mark="✓"]{color:#68d43f;border-color:#315d38}.v29-food{width:100%;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:4px 10px;margin-top:10px;padding:12px 14px;border:1px solid #203753;border-radius:15px;background:#040c17;color:#eef4ff;text-align:left}.v29-food span{grid-row:span 2;color:#7f8da2;font-size:9px;font-weight:900;letter-spacing:.08em}.v29-food b{font-size:14px}.v29-food small{grid-column:2;color:#8290a6;font-size:10px}.v29-food i{grid-row:1/span 2;grid-column:3;font-style:normal;color:#7f8da2;font-size:18px}.v29-late{display:block;margin-top:2px;color:#f08a5d;font-size:10px;font-weight:700}.v29-more{width:100%;min-height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;border:0;border-top:1px solid #14263c;background:transparent;color:#f08a5d;font-size:12px;font-weight:800;text-align:left}.v29-more i{font-style:normal;color:#7f8da2;font-size:18px}.v29-empty{padding:26px 18px;text-align:center;color:#7f8da2;font-size:11px}.v29-nav{--dock:#f55bd1;--dock-glow:#f12bb866;position:fixed;z-index:2147483000;left:10px;right:10px;bottom:max(8px,env(safe-area-inset-bottom));height:62px;display:grid;grid-template-columns:repeat(5,1fr);padding:0 6px;filter:drop-shadow(0 8px 20px #0877f31f)}.v29-dock-bg{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible;pointer-events:none}.v29-dock-bg path{fill:rgba(2,7,16,.97);stroke:#243653;stroke-width:1}.v29-bead{position:absolute;z-index:2;left:0;top:-27px;width:50px;height:50px;border-radius:50%;display:grid;place-items:center;background:var(--dock);color:#050912;box-shadow:inset 0 0 0 1px #ffffff2e,0 6px 18px var(--dock-glow);transition:background .3s,box-shadow .3s;touch-action:none;cursor:grab;will-change:transform}.v29-bead.drag{cursor:grabbing;transform-origin:center}.v29-bead svg{display:block;stroke-width:2}.v29-nav button{position:relative;z-index:1;min-width:0;height:62px;display:grid;place-items:center;align-content:center;gap:3px;border:0;background:transparent;color:#7f8da2;font-size:9px;font-weight:800;-webkit-tap-highlight-color:transparent}.v29-nav button i{display:grid;place-items:center;width:22px;height:22px;font-style:normal}.v29-nav button i svg{display:block}.v29-nav button.active{align-content:end;padding-bottom:10px;color:var(--dock);text-shadow:0 0 8px var(--dock-glow)}.v29-nav button.active i{display:none}#screenTasks.v233-mode-tasks #v2212Tasks .v2212-add{width:44px!important;height:44px!important;min-width:44px!important;padding:0!important;font-size:0!important;border-radius:12px!important;display:grid!important;place-items:center!important}#screenTasks.v233-mode-tasks #v2212Tasks .v2212-add::after{content:'+';font-size:25px;line-height:1;color:#eef4ff;text-shadow:0 0 9px #9133e4,0 0 14px #0877f366}body:not(.v29-native-today){padding-bottom:72px!important}}`;
+    document.head.appendChild(s);
+  }
+  function root() {
+    let r = document.getElementById('stackV29Root');
+    if (r) return r;
+    r = document.createElement('div');
+    r.id = 'stackV29Root';
+    document.body.appendChild(r);
+    return r;
+  }
+  const NAV = [
+    [
+      'today',
+      `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 9-9 9-9-9z"/><circle cx="12" cy="12" r="1.2"/></svg>`,
+      'Сегодня',
+      'screenToday',
+    ],
+    [
+      'deals',
+      `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3.5"/><path d="M8.5 12.2l2.6 2.6 4.6-5.4"/></svg>`,
+      'Дела',
+      'screenTasks',
+    ],
+    [
+      'fitness',
+      `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3L5.5 13H11l-1 8L18.5 11H13z"/></svg>`,
+      'Fitness',
+      'screenTracker',
+    ],
+    [
+      'finance',
+      `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M10 7.5v9M10 7.5h3.2a2.4 2.4 0 010 4.8H10M8 14.2h5.4"/></svg>`,
+      'Финансы',
+      'screenSavings',
+    ],
+    [
+      'analytics',
+      `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 20v-6M12 20V6M18 20v-9"/></svg>`,
+      'Аналитика',
+      'screenAnalytics',
+    ],
+  ];
+  function navHtml() {
+    return `<nav class="v29-nav"><svg class="v29-dock-bg" aria-hidden="true"><path d=""/></svg><span class="v29-bead" aria-hidden="true"></span>${NAV.map(([id, icon, label]) => `<button data-v29-nav="${id}" class="${current === id ? 'active' : ''}" ${current === id ? 'aria-current="page"' : ''}><i>${icon}</i><span>${label}</span></button>`).join('')}</nav>`;
+  }
+  function release() {
+    document.documentElement.classList.add('stack-v29-ready', 'stack-minimal-ready');
+    document.documentElement.classList.remove('stack-minimal-loading');
+  }
+  function progressText(x) {
+    if (x.total)
+      return {
+        head: `${x.pct}%`,
+        strong: `${x.done} из ${x.total} обязательных выполнено`,
+        small: `${Math.max(0, x.total - x.done)} осталось${x.skipped ? ` · ${x.skipped} не требовалось` : ''}`,
+      };
+    if (x.skipped)
+      return { head: '—', strong: 'Сегодня обязательных нет', small: `${x.skipped} отмечено как «не требовалось»` };
+    return { head: '0%', strong: 'Сегодня обязательных процессов нет', small: 'Нечего считать как выполненное' };
+  }
+  function nutritionLine() {
+    try {
+      const n = globalThis.STACK_NUTRITION;
+      if (!n?.dayFact) return '';
+      const t = n.targets?.(),
+        f = n.dayFact(dateKey());
+      if (!t && !f.kcal) return '';
+      const pct = t?.kcal ? Math.round((f.kcal / t.kcal) * 100) : null;
+      return `<button type="button" class="v29-food" data-v29-food><span>ПИТАНИЕ</span><b>${Math.round(f.kcal)}${t?.kcal ? ` / ${Math.round(t.kcal)}` : ''} ккал</b><small>${pct === null ? 'цель не задана' : pct >= 90 && pct <= 110 ? 'в плане' : pct > 110 ? 'выше цели' : `осталось ${Math.max(0, Math.round(t.kcal - f.kcal))} ккал`}</small><i>›</i></button>`;
+    } catch (_) {
+      return '';
+    }
+  }
+  /* the only copy that survives a lost phone is the downloaded file: after 14 days without one, say so — one quiet line, one tap */
+  function backupLine() {
+    try {
+      const st = globalThis.STACK_DATA?.backupStatus?.();
+      if (!st?.due) return '';
+      return `<button type="button" class="v29-food" data-v29-backup><span>КОПИЯ</span><b>${st.everBackedUp ? `Не скачивали ${st.days} дн.` : 'Файл копии ещё не скачивали'}</b><small>Скачать файл со всеми данными</small><i>›</i></button>`;
+    } catch (_) {
+      return '';
+    }
+  }
+  /* One render per change: save() announces itself 2–3 times (core, persistence, shell), a status tap used to redraw the screen as many times */
+  let todayQueued = false,
+    midnightTimer = 0;
+  function scheduleToday() {
+    if (todayQueued) return;
+    todayQueued = true;
+    setTimeout(() => {
+      if (!todayQueued) return;
+      todayQueued = false;
+      if (current === 'today') renderToday();
+    }, 0);
+  }
+  function armMidnight() {
+    clearTimeout(midnightTimer);
+    const n = new Date(),
+      next = new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1, 0, 0, 2);
+    midnightTimer = setTimeout(() => {
+      if (current === 'today' && MOBILE()) renderToday();
+      armMidnight();
+    }, next - n);
+  }
+  function renderToday() {
+    if (!MOBILE()) return;
+    todayQueued = false;
+    current = 'today';
+    document.body.classList.add('v29-native-today');
+    const x = todayModel(),
+      p = progressText(x),
+      date = x.d.toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' }),
+      r = root();
+    r.className = '';
+    r.innerHTML = `<main class="v29-main"><div class="v29-kicker">STACK · СЕГОДНЯ</div><h1 class="v29-title">Сегодня</h1><div class="v29-date">${esc(date)}</div><section class="v29-progress"><b>${p.head}</b><div><strong>${esc(p.strong)}</strong><small>${esc(p.small)}</small></div></section><div class="v29-section-label">ЧТО ДЕЛАТЬ СЕЙЧАС</div><section class="v29-list">${x.rows.length ? x.rows.map(a => `<div class="v29-row" data-v29-kind="${a.kind}" data-v29-index="${a.index ?? ''}" data-v29-route="${isWorkout(a) ? 'fitness' : 'deals'}" data-v29-tab="${a.kind === 'task' ? 'tasks' : 'processes'}" style="--a:${a.color}"><i class="v29-action-icon ${isWorkout(a) ? 'workout' : ''}">${actionIcon(a)}</i><button class="v29-open" type="button">${esc(a.name)}${a.late ? `<small class="v29-late">просрочено · ${a.late} дн.</small>` : ''}</button>${a.kind === 'process' ? `<button class="v29-status" type="button" data-mark="${a.mark}" aria-label="${esc(markLabel(a.mark))}">${markIcon(a.mark)}</button>` : `<button class="v29-status" type="button" data-mark="${a.mark}" aria-label="${a.mark ? 'Выполнено — снять отметку' : 'Отметить выполненной'}">${a.mark ? '✓' : ''}</button>`}</div>`).join('') : `<div class="v29-empty">На сегодня ничего не запланировано</div>`}${x.overdueMore ? `<button type="button" class="v29-more" data-v29-more>Ещё ${x.overdueMore} просроченных<i>›</i></button>` : ''}</section>${nutritionLine()}${backupLine()}</main>${navHtml()}`;
+    wire();
+    release();
+  }
+  function selectDealsTab(tab) {
+    const b = tab && document.querySelector(`#v233shell [data-v233="${tab}"]`);
+    if (b && !b.classList.contains('on')) b.click();
+  }
+  function openLegacy(id, screenId, tab) {
+    current = id;
+    document.body.classList.remove('v29-native-today');
+    const r = root();
+    r.className = 'v29-legacy';
+    r.innerHTML = navHtml();
+    document.querySelectorAll('.mobile-screen').forEach(el => el.classList.toggle('active', el.id === screenId));
+    try {
+      sessionStorage.setItem('stack_v23_screen', screenId);
+    } catch (_) {}
+    if (id === 'deals') selectDealsTab(tab);
+    wire();
+    release();
+  }
+  function syncHistory(id, mode) {
+    try {
+      const payload = { stackV29: id };
+      if (mode === 'replace') history.replaceState(payload, '', location.href);
+      else if (mode === 'push' && history.state?.stackV29 !== id) history.pushState(payload, '', location.href);
+    } catch (_) {}
+  }
+  function open(id, mode = 'push', tab) {
+    if (id !== 'today') justDone = new WeakSet();
+    const item = NAV.find(x => x[0] === id) || NAV[0];
+    syncHistory(item[0], mode);
+    if (item[0] === 'today') renderToday();
+    else openLegacy(item[0], item[3], tab);
+  }
+  const WORKOUT_KEY = d => 'stack_fitness_workout_' + dateKey(d);
+  function syncWorkout(d, value) {
+    const s = liveState(),
+      mi = typeof dateToMonthIndex === 'function' ? dateToMonthIndex(d) : -1;
+    if (!s || mi < 0 || !Array.isArray(s.processes)) return;
+    const mark = value === 'done' ? '✓' : value === 'skip' ? '○' : '',
+      day = d.getDate() - 1;
+    let changed = false;
+    s.processes.forEach((p, i) => {
+      if (!isWorkout(p)) return;
+      try {
+        if (typeof isScheduledOnDate === 'function' && !isScheduledOnDate(i, d)) return;
+      } catch (_) {}
+      const row = s.months?.[mi]?.[i];
+      if (!row) return;
+      const cur = row[day] || '';
+      if (cur === mark || (!mark && cur === '—')) return;
+      row[day] = mark;
+      changed = true;
+    });
+    if (!changed) return;
+    try {
+      if (typeof save === 'function') save();
+    } catch (_) {}
+    try {
+      window.dispatchEvent(new CustomEvent('stack:data-changed', { detail: { source: 'fitness-workout-sync' } }));
+    } catch (_) {}
+  }
+  function cycleMark(index, d = new Date()) {
+    const mi = typeof dateToMonthIndex === 'function' ? dateToMonthIndex(d) : -1,
+      s = liveState(),
+      row = mi >= 0 ? s?.months?.[mi]?.[index] : null;
+    if (!row) return null;
+    const day = d.getDate() - 1,
+      cur = row[day] || '',
+      next = cycle(cur);
+    row[day] = next;
+    if (isWorkout(s.processes?.[index]))
+      try {
+        localStorage.setItem(WORKOUT_KEY(d), next === '✓' ? '1' : next === '○' ? 'skip' : '0');
+      } catch (_) {}
+    try {
+      if (typeof save === 'function') save();
+    } catch (_) {}
+    try {
+      window.dispatchEvent(new CustomEvent('stack:data-changed', { detail: { source: 'v29-shell' } }));
+    } catch (_) {}
+    return next;
+  }
+  function cycleProcess(index) {
+    if (cycleMark(index) === null) {
+      open('deals', 'push', 'processes');
+      return;
+    }
+    renderToday();
+  }
+  function toggleTask(index) {
+    const s = liveState(),
+      t = s?.journal?.[index];
+    if (!t) return;
+    if (taskDone(t)) {
+      const was = String(t.prevStatus || '');
+      t.status = was && !taskDone({ status: was }) ? was : 'Не начато';
+      delete t.prevStatus;
+    } else {
+      if (t.status && t.status !== 'Не начато') t.prevStatus = t.status;
+      else delete t.prevStatus;
+      t.status = 'Готово';
+      justDone.add(t);
+    }
+    try {
+      if (typeof save === 'function') save();
+    } catch (_) {}
+    try {
+      window.dispatchEvent(new CustomEvent('stack:data-changed', { detail: { source: 'v29-shell-task' } }));
+    } catch (_) {}
+    try {
+      if (typeof renderAll === 'function') renderAll();
+    } catch (_) {}
+    renderToday();
+  }
+  const DOCK_COLORS = {
+    today: ['#f55bd1', '#f12bb866'],
+    deals: ['#a56bff', '#9133e466'],
+    fitness: ['#19d3ee', '#0ed2e766'],
+    finance: ['#9bea3a', '#68d43f55'],
+    analytics: ['#ffb347', '#ffa02a55'],
+  };
+  let dockX = null,
+    dockRaf = 0,
+    dockColor = null;
+  function dockPath(W, H, cx) {
+    const r = 18,
+      half = 46,
+      d = 22,
+      a = Math.max(r, cx - half),
+      b = Math.min(W - r, cx + half),
+      l = (cx - a) / 2,
+      m = (b - cx) / 2;
+    return `M${r},0H${a}C${a + l},0 ${cx - l},${d} ${cx},${d}C${cx + m},${d} ${b - m},0 ${b},0H${W - r}Q${W},0 ${W},${r}V${H - r}Q${W},${H} ${W - r},${H}H${r}Q0,${H} 0,${H - r}V${r}Q0,0 ${r},0Z`;
+  }
+  function dock(animate = true) {
+    cancelAnimationFrame(dockRaf);
+    const nav = document.querySelector('.v29-nav'),
+      bead = nav?.querySelector('.v29-bead'),
+      path = nav?.querySelector('.v29-dock-bg path');
+    if (!nav || !bead || !path) return;
+    const nr = nav.getBoundingClientRect(),
+      W = nr.width,
+      H = nr.height,
+      centers = [...nav.querySelectorAll('[data-v29-nav]')].map(b => {
+        const q = b.getBoundingClientRect();
+        return q.left - nr.left + q.width / 2;
+      }),
+      i = Math.max(
+        0,
+        NAV.findIndex(x => x[0] === current)
+      ),
+      to = centers[i],
+      col = DOCK_COLORS[current] || DOCK_COLORS.today;
+    const paint = x => {
+      dockX = x;
+      path.setAttribute('d', dockPath(W, H, x));
+      bead.style.transform = `translateX(${x - 25}px)`;
+    };
+    bead.innerHTML = NAV[i][1];
+    if (dockColor) {
+      nav.style.setProperty('--dock', dockColor[0]);
+      nav.style.setProperty('--dock-glow', dockColor[1]);
+      void bead.offsetWidth;
+    }
+    nav.style.setProperty('--dock', col[0]);
+    nav.style.setProperty('--dock-glow', col[1]);
+    dockColor = col;
+    const from = dockX == null ? to : dockX,
+      ms = animate && dockX != null && !matchMedia('(prefers-reduced-motion: reduce)').matches ? 380 : 0;
+    const glide = (x0, x1, t) => {
+      const t0 = performance.now(),
+        step = now => {
+          const k = t ? Math.min(1, (now - t0) / t) : 1,
+            e = 1 - Math.pow(1 - k, 3);
+          paint(x0 + (x1 - x0) * e);
+          if (k < 1) dockRaf = requestAnimationFrame(step);
+        };
+      step(t0);
+    };
+    glide(from, to, ms);
+    let drag = false;
+    const lo = centers[0],
+      hi = centers[centers.length - 1],
+      pos = e => Math.min(hi, Math.max(lo, e.clientX - nr.left)),
+      near = x => centers.reduce((k, c, j) => (Math.abs(c - x) < Math.abs(centers[k] - x) ? j : k), 0);
+    bead.onpointerdown = e => {
+      drag = true;
+      cancelAnimationFrame(dockRaf);
+      bead.setPointerCapture(e.pointerId);
+      bead.classList.add('drag');
+      paint(pos(e));
+    };
+    bead.onpointermove = e => {
+      if (drag) paint(pos(e));
+    };
+    const end = e => {
+      if (!drag) return;
+      drag = false;
+      bead.classList.remove('drag');
+      const j = near(pos(e));
+      if (NAV[j][0] !== current) open(NAV[j][0], 'push');
+      else glide(dockX, to, 220);
+    };
+    bead.onpointerup = end;
+    bead.onpointercancel = end;
+  }
+  function wire() {
+    const r = root();
+    r.querySelector('[data-v29-more]')?.addEventListener('click', () => open('deals', 'push', 'tasks'));
+    r.querySelector('[data-v29-backup]')?.addEventListener('click', () =>
+      document.getElementById('exportBtn')?.click()
+    );
+    r.querySelectorAll('[data-v29-nav]').forEach(b => (b.onclick = () => open(b.dataset.v29Nav, 'push')));
+    r.querySelector('[data-v29-food]')?.addEventListener('click', () => {
+      open('fitness', 'push');
+      document.querySelector('.v234-tabs [data-v234="nutrition"]')?.click();
+    });
+    r.querySelectorAll('.v29-row').forEach(row => {
+      row
+        .querySelector('.v29-open')
+        ?.addEventListener('click', () => open(row.dataset.v29Route || 'deals', 'push', row.dataset.v29Tab));
+      row.querySelector('.v29-status')?.addEventListener('click', () => {
+        if (row.dataset.v29Kind === 'process') cycleProcess(+row.dataset.v29Index);
+        else toggleTask(+row.dataset.v29Index);
+      });
+    });
+    dock();
+  }
+  function boot() {
+    Object.defineProperty(globalThis, 'STACK_V29_SHELL', {
+      value: Object.freeze({
+        build: BUILD,
+        open,
+        refresh: () => open(current, 'none'),
+        refreshToday: () => {
+          if (current === 'today' && MOBILE()) renderToday();
+        },
+        syncWorkout,
+        cycleMark,
+      }),
+      configurable: true,
+    });
+    if (!MOBILE()) {
+      release();
+      return;
+    }
+    installStyle();
+    window.addEventListener('resize', () => dock(false));
+    document.title = 'STACK — Персональная система управления';
+    document.querySelector('meta[name="stack-build"]')?.setAttribute('content', 'v29.3.1');
+    let start = 'today';
+    try {
+      const fromHistory = history.state?.stackV29;
+      if (NAV.some(x => x[0] === fromHistory)) start = fromHistory;
+      else {
+        const legacy = sessionStorage.getItem('stack_v23_screen');
+        const found = NAV.find(x => x[3] === legacy);
+        if (found) start = found[0];
+      }
+    } catch (_) {}
+    open(start, 'replace');
+    window.addEventListener('popstate', e => {
+      const id = e.state?.stackV29;
+      if (id && NAV.some(x => x[0] === id)) open(id, 'none');
+    });
+    window.addEventListener('stack:backup-done', () => {
+      if (current === 'today') renderToday();
+    });
+    window.addEventListener('stack:data-changed', () => {
+      if (current === 'today') scheduleToday();
+    });
+    window.addEventListener('resize', () => {
+      if (!MOBILE()) {
+        document.body.classList.remove('v29-native-today');
+        release();
+      }
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && current === 'today' && MOBILE()) renderToday();
+    });
+    window.addEventListener('pageshow', e => {
+      if (e.persisted && current === 'today' && MOBILE()) renderToday();
+    });
+    armMidnight();
+    console.info('STACK v29 shell', BUILD);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });
+  else boot();
 })();
