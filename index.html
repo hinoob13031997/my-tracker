@@ -16,10 +16,10 @@
      script list or gate CSS changes; sw.js skips re-injecting once it sees this markup. -->
 <style id="stackV29NetworkGate">@media(max-width:720px){html:not(.stack-v29-ready) body{overflow:hidden!important}html:not(.stack-v29-ready) body::before{content:'';position:fixed;inset:0;z-index:2147483646;background:radial-gradient(circle at 50% -15%,#101142 0,#030817 35%,#01050b 72%)}html:not(.stack-v29-ready) body::after{content:'STACK';position:fixed;left:0;right:0;top:42%;z-index:2147483647;text-align:center;color:#eef4ff;font:900 18px Arial,sans-serif;letter-spacing:.18em;text-shadow:0 0 18px #9133e477}}</style>
 <script>window.__STACK_V29__=true;</script>
-<script defer src="./stack-v29-owner-kit.js?build=29.87.0"></script>
-<script defer src="./stack-v29-shell.js?build=29.87.0"></script>
-<script defer src="./stack-v29-deals-polish.js?build=29.87.0"></script>
-<script defer src="./stack-v29-analytics.js?build=29.87.0"></script>
+<script defer src="./stack-v29-owner-kit.js?build=29.88.0"></script>
+<script defer src="./stack-v29-shell.js?build=29.88.0"></script>
+<script defer src="./stack-v29-deals-polish.js?build=29.88.0"></script>
+<script defer src="./stack-v29-analytics.js?build=29.88.0"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=5,viewport-fit=cover">
 <script>(function(){try{var f=window.__stackFrame;if(!f)return;var wide=function(){return innerWidth>720&&innerWidth!==980};if(wide()){f();return}addEventListener('resize',function(){if(wide())location.reload()})}catch(e){}})();</script>
@@ -764,10 +764,6 @@ body:has(#screenSavings.active) .app,body.savings-active .app{padding-top:max(6p
  <div class="neon sav-history"><div class="panel-title">ИСТОРИЯ ОПЕРАЦИЙ</div><div id="savHistory"></div></div>
 </section>
 <section id="screenTasks" class="mobile-screen">
-  <div class="bottom">
-    <div class="neon journal"><div class="panel-title">ЖУРНАЛ ЗАДАЧ И НАПОМИНАНИЙ</div><table><thead><tr><th>Дата</th><th>Задача / напоминание</th><th>Срок</th><th>Приоритет</th><th>Статус</th><th>Примечание</th></tr></thead><tbody id="journalBody"></tbody></table><button class="btn" id="addJournal" aria-label="Добавить запись в журнал" style="margin:4px">+ запись</button></div>
-    <div class="neon legend"><div><b>Приоритет</b><span class="pill" style="background:#f12bb8">Высокий</span><span class="pill" style="background:#0877f3">Средний</span><span class="pill" style="background:#68a83f">Низкий</span></div><div><b>Статус</b><p>○ Не начато</p><p style="color:#0877f3">● В работе</p><p style="color:#9133e4">● Готово</p></div><div><b>Отметки</b><p>✓ выполнено</p><p style="color:#8f4cff">◐ частично выполнено</p><p>○ не выполнено</p><p>— не требовалось</p></div></div>
-  </div>
   </section>
   <div class="foot">ⓘ Календарь и итоги автоматически пересчитываются по выбранному месяцу и всем добавленным процессам.</div>
 
@@ -1566,39 +1562,6 @@ function renderMonthSummary(){
  <div class="sumrow"><span><span class="icon" style="color:#0877f3">↑</span>Лучший день</span><span class="val">${best===null?'—':pct(best)+'%'}</span></div>
  <div class="sumrow"><span><span class="icon" style="color:#f12bb8">↓</span>Худший день</span><span class="val">${worst===null?'—':pct(worst)+'%'}</span></div>`
 }
-function opts(a,v){return a.map(x=>`<option ${x===(v||a[0])?'selected':''}>${x}</option>`).join('')}
-function journalPriorityClass(v){
-  return v==='Высокий'?'priority-high':v==='Низкий'?'priority-low':'priority-medium'
-}
-function journalStatusClass(v){
-  return v==='Готово'?'status-done':v==='В работе'?'status-work':'status-notstarted'
-}
-function paintJournalSelect(el){
-  if(el.dataset.k==='priority'){
-    el.classList.remove('priority-high','priority-medium','priority-low');
-    el.classList.add(journalPriorityClass(el.value));
-  }
-  if(el.dataset.k==='status'){
-    el.classList.remove('status-notstarted','status-work','status-done');
-    el.classList.add(journalStatusClass(el.value));
-  }
-}
-function renderJournal(){
-  const r=document.getElementById('journalBody');
-  r.innerHTML=state.journal.map((j,i)=>`<tr>
-    <td><input data-i="${i}" data-k="date" type="date" value="${j.date||''}"></td>
-    <td><input data-i="${i}" data-k="task" value="${esc(j.task||'')}"></td>
-    <td><input data-i="${i}" data-k="due" type="date" value="${j.due||''}"></td>
-    <td><select class="${journalPriorityClass(j.priority||'Средний')}" data-i="${i}" data-k="priority">${opts(['Высокий','Средний','Низкий'],j.priority)}</select></td>
-    <td><select class="${journalStatusClass(j.status||'Не начато')}" data-i="${i}" data-k="status">${opts(['Не начато','В работе','Готово'],j.status)}</select></td>
-    <td><input data-i="${i}" data-k="note" value="${esc(j.note||'')}"></td>
-  </tr>`).join('');
-  r.querySelectorAll('input,select').forEach(e=>e.onchange=()=>{
-    state.journal[+e.dataset.i][e.dataset.k]=e.value;
-    if(e.tagName==='SELECT')paintJournalSelect(e);
-    save()
-  })
-}
 
 const SAV_SYMBOL={RUB:'₽',USD:'$',EUR:'€'};
 
@@ -1756,7 +1719,6 @@ function renderAll(){
    if(!hidden.analytics){renderKPIs();renderChart();renderTrendChart();renderBars();renderDots();}
    renderMonthSelect();
    if(!hidden.tracker){renderTracker();renderMobileTracker();renderProcessSummary();renderCalendar();renderMonthSummary();}
-   renderJournal();
  }catch(err){
    console.error('STACK render error:',err);
    const root=document.getElementById('kpis');
@@ -1787,7 +1749,6 @@ document.getElementById('editFromDetail').onclick=()=>{
  document.getElementById('processDetailModal').classList.remove('active');openProcessModal(p)
 };
 document.getElementById('addProcess').onclick=addProcess;
-document.getElementById('addJournal').onclick=()=>{state.journal.push({priority:'Средний',status:'Не начато'});save();renderJournal()};
 document.getElementById('exportBtn').onclick=()=>{const D=window.STACK_DATA,a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(D?.exportFull?D.exportFull(state):state,null,2)],{type:'application/json'}));a.download='STACK_backup_'+(D?.dateKey?D.dateKey():new Date().toISOString().slice(0,10))+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);D?.touchBackupMeta?.(true)};
 
 function validateImportedState(x){

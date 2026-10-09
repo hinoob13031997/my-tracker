@@ -10,7 +10,7 @@
  * overflow on mobile, and DOM-mutation loops (MutationObserver ping-pong).
  *
  * Usage:
- *   node scripts/stack-verify.js [--width=390] [--height=844] [--port=8811] [--only=today,crud,program,data,sw]
+ *   node scripts/stack-verify.js [--width=390] [--height=844] [--port=8811] [--only=today,deals,crud,program,data,sw]
  *
  * Requires Playwright + a Chromium build. In this project's usual sandbox
  * that means the global install at /opt/node22/lib/node_modules and the
@@ -663,6 +663,256 @@ async function runCrudScenarios(browser, baseUrl, args, note, fail, jsErrors) {
 
 // Fitness program calendar, yearly workout goal, configurable start date (v29.80). Each case gets its own context
 // with a pinned clock and (where it matters) a seeded storage.
+/* Дела → Задачи (v29.88): groups by deadline, folded «Готово», dates in words, a tick updates its row in place. */
+async function runDealsScenarios(browser, baseUrl, args, note, fail, jsErrors) {
+  const ctx = await browser.newContext({
+    viewport: { width: args.width, height: args.height },
+    isMobile: args.width <= 720,
+    hasTouch: args.width <= 720,
+    serviceWorkers: 'block',
+  });
+  await ctx.route('**/*', route => (route.request().url().startsWith(baseUrl) ? route.continue() : route.abort()));
+  await ctx.clock.setFixedTime(new Date('2026-10-09T10:00:00'));
+  const day = n => {
+    const d = new Date(2026, 9, 9 + n, 12);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const task = (title, o = {}) => ({
+    date: o.date ?? '',
+    task: title,
+    due: o.due ?? '',
+    priority: o.priority || 'Средний',
+    status: o.status || 'Не начато',
+    note: '',
+    ...(o.prevStatus ? { prevStatus: o.prevStatus } : {}),
+  });
+  const journal = [
+    task('T_LATE_NEW', { due: day(-2), priority: 'Низкий' }),
+    task('T_LATE_OLD', { due: day(-9), priority: 'Средний' }),
+    task('T_TODAY_MID', { due: day(0) }),
+    task('T_TODAY_HIGH', { due: day(0), priority: 'Высокий' }),
+    task('T_PLANNED_TODAY', { date: day(0) }),
+    task('T_TOMORROW', { due: day(1) }),
+    task('T_WEEK', { due: day(5) }),
+    task('T_LATER', { due: day(30), status: 'В работе' }),
+    task('T_NODATE', { date: day(-20) }),
+    ...Array.from({ length: 30 }, (_, i) => task('T_DONE_' + i, { due: day(-3 - i), status: 'Готово' })),
+  ];
+  const procs = ['Чтение'].map(name => ({
+    name,
+    goal: 0.8,
+    color: '#0877f3',
+    schedule: [1, 1, 1, 1, 1, 1, 1],
+    scheduleType: 'daily',
+    monthDay: 1,
+    lastDay: false,
+  }));
+  const lens = [31, 30, 31, 30, 31, 31, 28, 31, 30, 31, 30, 31];
+  const seed = {
+    goal: 0.8,
+    currentMonth: 2,
+    processes: procs,
+    months: lens.map(n => procs.map(() => Array(n).fill(''))),
+    journal,
+    savings: { currency: 'RUB', selectedId: null, goals: [] },
+  };
+  await ctx.addInitScript(s => {
+    if (!localStorage.getItem('__seeded')) {
+      localStorage.setItem('__seeded', '1');
+      localStorage.setItem('stack_neon_mix9_calendar_v1', JSON.stringify(s));
+    }
+  }, seed);
+  const page = await ctx.newPage();
+  page.setDefaultTimeout(8000);
+  page.on('pageerror', e => jsErrors.push('[deals] ' + e.message));
+  page.on('dialog', d => d.accept().catch(() => {}));
+  const check = (ok, label) => (ok ? note(`  scenario OK: ${label}`) : fail(`scenario: ${label}`));
+  const step = async (label, fn) => {
+    try {
+      await fn();
+    } catch (e) {
+      fail(`scenario: ${label} threw: ${String(e.message).split('\n')[0]}`);
+    }
+  };
+  await page.goto(`${baseUrl}/index.html`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+  await page.waitForSelector('.v29-nav', { timeout: 15000 });
+  await page.waitForTimeout(1400);
+  await page.click('.v29-nav [data-v29-nav="deals"]');
+  await page.waitForSelector('#v2212Tasks .v2212-group');
+  const names = (scope = '#v2212Tasks') =>
+    page.evaluate(
+      sc =>
+        [...document.querySelectorAll(sc + ' .v2212-group')].map(g => ({
+          head: g.querySelector('.v2212-gh span')?.textContent || '',
+          rows: [...g.querySelectorAll('.v2212-name')].map(n => n.textContent),
+        })),
+      scope
+    );
+
+  await step('groups and order', async () => {
+    const g = await names();
+    const heads = g.map(x => x.head).join('|');
+    check(
+      heads === 'Просрочено|Сегодня|Завтра|На этой неделе|Позже|Без срока|Готово',
+      `groups are Просрочено / Сегодня / Завтра / На этой неделе / Позже / Без срока / Готово (${heads})`
+    );
+    const by = Object.fromEntries(g.map(x => [x.head, x.rows.join(',')]));
+    check(by['Просрочено'] === 'T_LATE_OLD,T_LATE_NEW', `overdue: the oldest deadline first (${by['Просрочено']})`);
+    check(
+      by['Сегодня'] === 'T_TODAY_HIGH,T_TODAY_MID,T_PLANNED_TODAY',
+      `today: by priority, then the task planned for today (${by['Сегодня']})`
+    );
+    check(
+      by['Завтра'] === 'T_TOMORROW' &&
+        by['На этой неделе'] === 'T_WEEK' &&
+        by['Позже'] === 'T_LATER' &&
+        by['Без срока'] === 'T_NODATE',
+      'tomorrow / week / later / without a deadline each hold their own task (a past planned day is not «this week»)'
+    );
+    const rows = await page.evaluate(() => document.querySelectorAll('#v2212Tasks .v2212-row').length);
+    check(rows === 9, `30 done tasks are folded away: only the 9 open rows are drawn (${rows})`);
+    const doneHead = await page.evaluate(() => {
+      const b = document.querySelector('#v2212Tasks [data-done-toggle]');
+      return b
+        ? {
+            text: b.textContent.replace(/\s+/g, ' ').trim(),
+            open: b.getAttribute('aria-expanded'),
+            h: b.getBoundingClientRect().height,
+          }
+        : null;
+    });
+    check(
+      !!doneHead && /Готово\s*30/.test(doneHead.text) && doneHead.open === 'false' && doneHead.h >= 44,
+      `«Готово · 30» is a folded 44px header (${JSON.stringify(doneHead)})`
+    );
+  });
+
+  await step('dates and the late label', async () => {
+    const t = await page.evaluate(() => {
+      const meta = [...document.querySelectorAll('#v2212Tasks .v2212-row')].map(r =>
+        r.querySelector('.v2212-meta').textContent.replace(/\s+/g, ' ').trim()
+      );
+      const late = document.querySelector('#v2212Tasks .v2212-late');
+      return {
+        meta,
+        late: late ? { text: late.textContent, color: getComputedStyle(late).color } : null,
+        raw: /\d{4}-\d{2}-\d{2}/.test(document.getElementById('v2212Tasks').innerText),
+      };
+    });
+    check(!t.raw, 'no raw 2026-10-09 dates in the list');
+    check(
+      t.meta.some(m => /◷ 30 сен/.test(m)) &&
+        t.meta.some(m => /◷ Сегодня/.test(m)) &&
+        t.meta.some(m => /◷ Завтра/.test(m)),
+      `dates are in words: «30 сен», «Сегодня», «Завтра» (${t.meta.slice(0, 4).join(' / ')})`
+    );
+    check(
+      !!t.late && /просрочено · 9 дн\./.test(t.late.text) && t.late.color === 'rgb(240, 138, 93)',
+      `an overdue task says how late it is, in orange (${JSON.stringify(t.late)})`
+    );
+  });
+
+  await step('tick in place, previous status back', async () => {
+    const sel = '#v2212Tasks .v2212-row:has-text("T_LATER") .v2212-check';
+    const box = await page.locator(sel).boundingBox();
+    const size = [Math.round(box.width), Math.round(box.height)];
+    check(size[0] >= 44 && size[1] >= 44, `the tick has a 44px tap area (${size})`);
+    await page.evaluate(() => {
+      window.__row = [...document.querySelectorAll('#v2212Tasks .v2212-row')].find(r =>
+        r.textContent.includes('T_LATER')
+      );
+      window.__nodes = document.querySelectorAll('#v2212Tasks *').length;
+    });
+    await page.click(sel);
+    await page.waitForTimeout(150);
+    const a = await page.evaluate(() => {
+      const t = state.journal.find(x => x.task === 'T_LATER');
+      const row = [...document.querySelectorAll('#v2212Tasks .v2212-row')].find(r => r.textContent.includes('T_LATER'));
+      return {
+        same: row === window.__row,
+        nodes: document.querySelectorAll('#v2212Tasks *').length === window.__nodes,
+        done: row.classList.contains('done'),
+        status: t.status,
+        prev: t.prevStatus,
+        aria: row.querySelector('.v2212-check').getAttribute('aria-pressed'),
+      };
+    });
+    check(
+      a.same && a.nodes && a.done && a.status === 'Готово' && a.prev === 'В работе' && a.aria === 'true',
+      `a tick changes only its row: same element, nothing redrawn, status «Готово» (${JSON.stringify(a)})`
+    );
+    await page.click(sel);
+    await page.waitForTimeout(150);
+    const b = await page.evaluate(() => {
+      const t = state.journal.find(x => x.task === 'T_LATER');
+      return { status: t.status, prev: 'prevStatus' in t };
+    });
+    check(
+      b.status === 'В работе' && !b.prev,
+      `an untick gives «В работе» back, not «Не начато» (${JSON.stringify(b)})`
+    );
+  });
+
+  await step('folded Готово and its paging', async () => {
+    await page.click('#v2212Tasks [data-done-toggle]');
+    await page.waitForTimeout(150);
+    let n = await page.evaluate(() => ({
+      rows: document.querySelectorAll('#v2212Tasks .v2212-row.done').length,
+      more: document.querySelector('#v2212Tasks [data-done-more]')?.textContent || '',
+      first: document.querySelector('#v2212Tasks .v2212-donehead')?.nextElementSibling?.querySelector('.v2212-name')
+        ?.textContent,
+    }));
+    check(
+      n.rows === 20 && /Показать ещё 10/.test(n.more) && n.first === 'T_DONE_0',
+      `opening «Готово» shows the newest 20 and «Показать ещё 10» (${JSON.stringify(n)})`
+    );
+    await page.click('#v2212Tasks [data-done-more]');
+    await page.waitForTimeout(150);
+    n = await page.evaluate(() => ({
+      rows: document.querySelectorAll('#v2212Tasks .v2212-row.done').length,
+      more: !!document.querySelector('#v2212Tasks [data-done-more]'),
+    }));
+    check(n.rows === 30 && !n.more, `«Показать ещё» adds the rest (${JSON.stringify(n)})`);
+    await page.click('#v2212Tasks [data-done-toggle]');
+    await page.waitForTimeout(150);
+  });
+
+  await step('filters', async () => {
+    await page.click('#v2212Tasks [data-f="today"]');
+    await page.waitForTimeout(150);
+    let g = await names();
+    check(
+      g.map(x => x.head).join('|') === 'Просрочено|Сегодня',
+      `«Сегодня» filter: only overdue and today (${g.map(x => x.head).join('|')})`
+    );
+    await page.click('#v2212Tasks [data-f="done"]');
+    await page.waitForTimeout(150);
+    g = await names();
+    check(
+      g.length === 1 && g[0].head === 'Готово' && g[0].rows.length === 20,
+      `«Готово» filter: the done tasks, 20 at a time (${g.map(x => x.head + ':' + x.rows.length)})`
+    );
+    await page.click('#v2212Tasks [data-f="important"]');
+    await page.waitForTimeout(150);
+    g = await names();
+    check(
+      g.length === 1 && g[0].head === 'Сегодня' && g[0].rows.join() === 'T_TODAY_HIGH',
+      `«Важные» filter: high priority only (${g.map(x => x.head + ':' + x.rows)})`
+    );
+    await page.click('#v2212Tasks [data-f="all"]');
+    await page.waitForTimeout(150);
+  });
+
+  await step('layout', async () => {
+    const o = await page.evaluate(() => ({
+      x: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      h: document.documentElement.scrollHeight,
+    }));
+    check(!o.x && o.h < 3000, `no horizontal overflow, the page is ${o.h}px tall instead of a graveyard of done tasks`);
+  });
+  await ctx.close();
+}
+
 async function runProgramScenarios(browser, baseUrl, args, note, fail, jsErrors) {
   const check = (ok, label) => (ok ? note(`  scenario OK: ${label}`) : fail(`scenario: ${label}`));
   const open = async (iso, { tz = 'Europe/Moscow', seed = {} } = {}) => {
@@ -1828,7 +2078,7 @@ async function runServiceWorkerScenarios(chromium, launchOpts, root, port, note,
 async function run() {
   const { chromium } = loadPlaywright();
   const args = parseArgs(process.argv);
-  /* --only=today,crud,program,data,sw runs just those scenario groups (the quick loop while working on one screen); a full run is the default */
+  /* --only=today,deals,crud,program,data,sw runs just those scenario groups (the quick loop while working on one screen); a full run is the default */
   const only = args.only ? String(args.only).split(',') : null;
   const want = name => !only || only.includes(name);
   const root = path.resolve(__dirname, '..');
@@ -2199,6 +2449,7 @@ async function run() {
     }
 
     if (want('crud')) await runCrudScenarios(browser, baseUrl, args, note, fail, jsErrors);
+    if (want('deals')) await runDealsScenarios(browser, baseUrl, args, note, fail, jsErrors);
     if (want('program')) await runProgramScenarios(browser, baseUrl, args, note, fail, jsErrors);
     if (want('data')) await runDataScenarios(browser, baseUrl, args, note, fail, jsErrors);
     if (want('today')) await runTodayScenarios(browser, baseUrl, args, note, fail, jsErrors);

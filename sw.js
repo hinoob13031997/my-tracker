@@ -1,5 +1,5 @@
-const BUILD = '29.87.0';
-const CACHE = 'stack-v29-87-today-move';
+const BUILD = '29.88.0';
+const CACHE = 'stack-v29-88-deals-groups';
 const SCRIPT_PATHS = [
   'backup.js',
   'stack-data.js',
