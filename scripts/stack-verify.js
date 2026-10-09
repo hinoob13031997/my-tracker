@@ -855,10 +855,10 @@ async function runTodayScenarios(browser, baseUrl, args, note, fail, jsErrors) {
 function checkVersions(root, note, fail) {
   const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const sw = read('sw.js'), pers = read('stack-persistence.js'), shell = read('stack-v29-shell.js'), html = read('index.html'), manifest = JSON.parse(read('manifest.webmanifest'));
-  const build = (sw.match(/const BUILD='([\d.]+)';/) || [])[1];
-  const cache = (sw.match(/const CACHE='([^']+)';/) || [])[1];
-  const label = (pers.match(/const VERSION='v([\d.]+)';/) || [])[1];
-  const shellBuild = (shell.match(/^const BUILD='([\d.]+)';/m) || [])[1];
+  const build = (sw.match(/const BUILD\s*=\s*'([\d.]+)';/) || [])[1];
+  const cache = (sw.match(/const CACHE\s*=\s*'([^']+)';/) || [])[1];
+  const label = (pers.match(/const VERSION\s*=\s*'v([\d.]+)';/) || [])[1];
+  const shellBuild = (shell.match(/^\s*const BUILD\s*=\s*'([\d.]+)';/m) || [])[1];
   const queries = [...html.matchAll(/stack-v29-[a-z-]+\.js\?build=([\d.]+)/g)].map((m) => m[1]);
   const short = build ? build.replace(/\.0$/, '') : '';
   const problems = [];

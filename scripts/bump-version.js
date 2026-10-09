@@ -32,10 +32,10 @@ function edit(file, pairs) {
 }
 
 edit('sw.js', [
-  [/const BUILD='[\d.]+';/, `const BUILD='${build}';`, 'BUILD'],
-  [/const CACHE='[^']+';/, `const CACHE='${cache}';`, 'CACHE'],
+  [/(const BUILD\s*=\s*')[\d.]+(';)/, (m, a, b) => a + build + b, 'BUILD'],
+  [/(const CACHE\s*=\s*')[^']+(';)/, (m, a, b) => a + cache + b, 'CACHE'],
 ]);
-edit('stack-persistence.js', [[/const VERSION='v[\d.]+';/, `const VERSION='v${version}';`, 'VERSION']]);
-edit('stack-v29-shell.js', [[/^const BUILD='[\d.]+';/m, `const BUILD='${build}';`, 'BUILD']]);
-edit('index.html', [[/(stack-v29-[a-z-]+\.js\?build=)[\d.]+/g, `$1${build}`, 'v29 ?build=']]);
+edit('stack-persistence.js', [[/(const VERSION\s*=\s*'v)[\d.]+(';)/, (m, a, b) => a + version + b, 'VERSION']]);
+edit('stack-v29-shell.js', [[/^(\s*const BUILD\s*=\s*')[\d.]+(';)/m, (m, a, b) => a + build + b, 'BUILD']]);
+edit('index.html', [[/(stack-v29-[a-z-]+\.js\?build=)[\d.]+/g, (m, a) => a + build, 'v29 ?build=']]);
 console.log(`now ${build} / ${cache}`);

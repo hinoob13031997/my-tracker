@@ -289,6 +289,18 @@ startup gate.
    нужный сценарий; для остального (специфичные сценарии конкретного
    бага) — обычный одноразовый скрипт всё ещё нормально.
 
+   Порядок проверок (v29.86), от быстрой к медленной:
+   `node --check <файлы>` → `node scripts/stack-unit.js` (секунда: данные,
+   миграции, проценты, бэкап — без браузера) → `prettier --check "*.js"
+   "scripts/*.js"` (чинится `--write`; index.html не форматируется) →
+   `node scripts/stack-lint.js` (только реальные баги: неопределённые имена,
+   дубли ключей…) → `node scripts/stack-verify.js`. То же самое делает CI.
+   Новая логика данных — сначала юнит-тест в `stack-unit.js`; новый видимый
+   сценарий — в `stack-verify.js`. После изменения JS:
+   `node scripts/bump-version.js 29.87 short-name`.
+   При удалении «мёртвого» UI — попиксельное сравнение экранов до/после
+   (одни данные, фиксированная дата), а не «на глаз».
+
 ## Git workflow
 
 Ветка: `stack-v29-x-<short-name>`.
@@ -304,7 +316,7 @@ test garbage, закомментированный мусор.
 
 - `git diff main...HEAD`
 - нет случайных файлов
-- JS проходит `node --check`
+- JS проходит `node --check`, `stack-unit.js`, `stack-lint.js`, Prettier
 - новые файлы подключены (script tags / precache)
 - SW build изменён, если нужно
 - cache name изменён, если нужно

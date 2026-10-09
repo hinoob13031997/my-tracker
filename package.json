@@ -1,0 +1,16 @@
+{
+  "name": "stack",
+  "private": true,
+  "description": "STACK — personal life/work system (PWA). No build step: the repository root is what GitHub Pages serves. This file only names the checks (they need playwright, eslint@10 and prettier@3 installed somewhere on NODE_PATH / PATH — CI installs them in a temp dir); nothing here is loaded by the app.",
+  "scripts": {
+    "check": "for f in *.js scripts/*.js; do node --check \"$f\" || exit 1; done",
+    "format": "prettier --write \"*.js\" \"scripts/*.js\"",
+    "format:check": "prettier --check \"*.js\" \"scripts/*.js\"",
+    "unit": "node scripts/stack-unit.js",
+    "lint": "node scripts/stack-lint.js",
+    "verify": "node scripts/stack-verify.js",
+    "test": "npm run check && npm run format:check && npm run unit && npm run lint && npm run verify",
+    "bump": "node scripts/bump-version.js",
+    "icons": "node scripts/make-icons.js"
+  }
+}

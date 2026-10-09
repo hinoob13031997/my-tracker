@@ -14,7 +14,8 @@ STACK — персональная система управления жизн�
 
 Для разработки:
 - CLAUDE.md — правила проекта, архитектура v29, контракты данных.
-- STACK_HANDOFF.md — журнал последних изменений между сессиями.
-- Проверка: node --check <файл>.js, затем node scripts/stack-verify.js (нужен Playwright).
+- STACK_HANDOFF.md — журнал последних изменений между сессиями (старое — docs/handoff-archive.md).
+- Проверка: node --check <файл>.js, node scripts/stack-unit.js, prettier --check, node scripts/stack-lint.js,
+  затем node scripts/stack-verify.js (нужны Playwright, eslint@10, prettier@3).
   То же самое выполняет CI (.github/workflows/verify.yml) на каждый PR.
 - Выпуск: PR в main (squash) → GitHub Pages; после мержа полностью закрыть и открыть приложение.

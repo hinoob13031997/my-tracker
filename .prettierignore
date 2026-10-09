@@ -1,0 +1,5 @@
+# JS only: index.html (markup + 57 KB of CSS + inline script), data, docs and images are not reformatted
+*
+!*.js
+!scripts/
+!scripts/*.js
