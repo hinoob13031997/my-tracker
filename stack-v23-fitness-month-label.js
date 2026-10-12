@@ -15,7 +15,7 @@
   }
   const s = document.createElement('style');
   s.textContent =
-    '@media(max-width:720px){.fx-day-month{padding:10px 11px 0;font-size:10px;font-weight:900;letter-spacing:.08em;color:#cdb2ff;text-shadow:0 0 10px #9133e455;text-transform:uppercase}}';
+    '@media(max-width:720px){.fx-day-month{padding:10px 11px 0;font-size:10px;font-weight:600;letter-spacing:.07em;color:var(--ds-text-3);text-shadow:none;text-transform:uppercase}}';
   document.head.appendChild(s);
   globalThis.STACK_FITNESS_SCREEN?.onRender(apply, 60);
   apply();

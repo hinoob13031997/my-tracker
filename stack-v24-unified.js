@@ -37,7 +37,7 @@
     if (document.getElementById('stackV24Style')) return;
     const style = document.createElement('style');
     style.id = 'stackV24Style';
-    style.textContent = `@media(max-width:720px){#screenTasks:not(.v233-mode-tasks) .v24-deals-pulse{display:none}.v24-deals-pulse{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:-3px 0 10px}.v24-pulse{padding:9px 5px;border:1px solid #203957;border-radius:11px;background:#06101d;text-align:center}.v24-pulse b{display:block;font-size:16px}.v24-pulse span{font-size:7px;color:#7f8da2}.v24-pulse.alert b{color:#f06b85}}`;
+    style.textContent = `@media(max-width:720px){#screenTasks:not(.v233-mode-tasks) .v24-deals-pulse{display:none}.v24-deals-pulse{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:-3px 0 10px}.v24-pulse{padding:9px 5px;border:1px solid var(--ds-line);border-radius:var(--ds-r-sm);background:var(--ds-tile);text-align:center}.v24-pulse b{display:block;font-size:16px}.v24-pulse span{font-size:7px;color:var(--ds-text-3)}.v24-pulse.alert b{color:#f06b85}}`;
     document.head.appendChild(style);
   }
 
