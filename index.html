@@ -16,10 +16,10 @@
      script list or gate CSS changes; sw.js skips re-injecting once it sees this markup. -->
 <style id="stackV29NetworkGate">@media(max-width:720px){html:not(.stack-v29-ready) body{overflow:hidden!important}html:not(.stack-v29-ready) body::before{content:'';position:fixed;inset:0;z-index:2147483646;background:radial-gradient(circle at 50% -15%,#101142 0,#030817 35%,#01050b 72%)}html:not(.stack-v29-ready) body::after{content:'STACK';position:fixed;left:0;right:0;top:42%;z-index:2147483647;text-align:center;color:#eef4ff;font:900 18px Arial,sans-serif;letter-spacing:.18em;text-shadow:0 0 18px #9133e477}}</style>
 <script>window.__STACK_V29__=true;</script>
-<script defer src="./stack-v29-owner-kit.js?build=29.90.0"></script>
-<script defer src="./stack-v29-shell.js?build=29.90.0"></script>
-<script defer src="./stack-v29-deals-polish.js?build=29.90.0"></script>
-<script defer src="./stack-v29-analytics.js?build=29.90.0"></script>
+<script defer src="./stack-v29-owner-kit.js?build=29.91.0"></script>
+<script defer src="./stack-v29-shell.js?build=29.91.0"></script>
+<script defer src="./stack-v29-deals-polish.js?build=29.91.0"></script>
+<script defer src="./stack-v29-analytics.js?build=29.91.0"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=5,viewport-fit=cover">
 <script>(function(){try{var f=window.__stackFrame;if(!f)return;var wide=function(){return innerWidth>720&&innerWidth!==980};if(wide()){f();return}addEventListener('resize',function(){if(wide())location.reload()})}catch(e){}})();</script>
@@ -1110,6 +1110,7 @@ function updateRepeatUI(type){
  const week=document.getElementById('pmWeekWrap'),month=document.getElementById('pmMonthWrap');
  week.style.display=(type==='weekdays'||type==='weekly')?'block':'none';
  month.style.display=type==='monthly'?'block':'none';
+ document.getElementById('pmRepeatOptions').hidden=type==='daily';/* «Каждый день» has no options: the bordered box used to show empty */
  if(type==='daily')document.querySelectorAll('#pmWeekdays .weekday-btn').forEach(b=>b.classList.add('active'));
  if(type==='weekly'){
    const active=[...document.querySelectorAll('#pmWeekdays .weekday-btn.active')];
@@ -1198,18 +1199,13 @@ function prevDelta(){
  }
  return null
 }
+/* v29.91: no marks → progress null («—», «нет отметок»), not a false 0%; the one formula (activeCompletion, legacy ◐ = half) like everywhere else */
 function todayStats(){
  const d=new Date(),mi=dateToMonthIndex(d);
- if(mi<0)return{progress:0,done:0,total:0,monthIndex:-1};
- let doneN=0,total=0;
- state.processes.forEach((_,p)=>{
-   const v=statusForDate(d,p);
-   if(v==='✓'){doneN++;total++}
-   else if(v==='○'){total++}
- });
- return{progress:total?doneN/total:0,done:doneN,total,monthIndex:mi}
+ if(mi<0)return{progress:null,done:0,total:0,monthIndex:-1};
+ const c=activeCompletion(state.processes.map((_,p)=>statusForDate(d,p)));
+ return{progress:c.rate,done:c.done,total:c.total,monthIndex:mi}
 }
-function todayProgress(){return todayStats().progress}
 function weekProgress(){
  const now=new Date();
  const mondayOffset=(now.getDay()+6)%7;
@@ -1221,7 +1217,7 @@ function weekProgress(){
      const d=new Date(s); d.setDate(s.getDate()+i);
      state.processes.forEach((_,p)=>vals.push(statusForDate(d,p)));
    }
-   return activeCompletion(vals).rate??0
+   return activeCompletion(vals).rate
  }
  return [collect(start),collect(prevStart)]
 }
@@ -1238,12 +1234,13 @@ function renderKPIs(){
  ['ВСЕГО ВЫПОЛНЕНИЙ',overall.rate,String(overall.done),overall.total?`${pct(overall.rate)}% от обязательных`:'нет данных','#0869ff','#19a0ff','#168cff'],
  ['СРЕДНИЙ ПРОГРЕСС',av,pct(av)+'%',activeMonths.length?`по ${activeMonths.length} активным мес.`:'нет данных','#7d36ff','#e044c7','#dd48c4'],
  ['ЦЕЛЬ НА МЕСЯЦ',state.goal,pct(state.goal)+'%','изменить цель','#066eff','#18b7ff','#ffffff'],
- ['СЕГОДНЯ',today.progress,pct(today.progress)+'%',`Выполнено ${today.done} из ${today.total}`,'#b92ccf','#ff4f9d','#ffffff'],
- ['СТАТИСТИКА НЕДЕЛИ',wk,pct(wk)+'%',`${pct(pw)}% прошлая • ${wk>=pw?'+':''}${pct(wk-pw)}%`,'#0876ff','#14d8e8','#ffffff']
+ ['СЕГОДНЯ',today.progress??0,today.progress===null?'—':pct(today.progress)+'%',today.total?`Выполнено ${today.done} из ${today.total}`:'нет отметок','#b92ccf','#ff4f9d','#ffffff'],
+ ['СТАТИСТИКА НЕДЕЛИ',wk??0,wk===null?'—':pct(wk)+'%',wk===null?(pw===null?'нет отметок':`${pct(pw)}% прошлая`):pw===null?'прошлая: нет данных':`${pct(pw)}% прошлая • ${wk>=pw?'+':''}${pct(wk-pw)}%`,'#0876ff','#14d8e8','#ffffff']
  ];
+ const weekUp=wk!==null&&pw!==null&&wk>=pw;
  const root=document.getElementById('kpis');root.innerHTML='';data.forEach((d,i)=>{const el=document.createElement('div');el.className='neon kpi';
  const extra=i===5&&todayStats().monthIndex>=0?`<small style="color:#777f90">${new Date().toLocaleDateString('ru-RU',{day:'2-digit',month:'long'})}</small>`:'';
- el.innerHTML=`<h3>${d[0]}</h3><div class="ring" style="--v:${d[1]*100};--c1:${d[4]};--c2:${d[5]}"><span style="color:${d[6]}">${i===4?`<input id="goalInput" class="goal" value="${pct(state.goal)}">%`:d[2]}</span></div><small class="${i===6?'good':''}">${d[3]}</small>${extra}`;root.appendChild(el)});const g=document.getElementById('goalInput');if(g)g.onchange=()=>{state.goal=Math.max(0,Math.min(1,(parseFloat(g.value)||80)/100));save();renderAll()}}
+ el.innerHTML=`<h3>${d[0]}</h3><div class="ring" style="--v:${d[1]*100};--c1:${d[4]};--c2:${d[5]}"><span style="color:${d[6]}">${i===4?`<input id="goalInput" class="goal" value="${pct(state.goal)}">%`:d[2]}</span></div><small class="${i===6&&weekUp?'good':''}">${d[3]}</small>${extra}`;root.appendChild(el)});const g=document.getElementById('goalInput');if(g)g.onchange=()=>{state.goal=Math.max(0,Math.min(1,(parseFloat(g.value)||80)/100));save();renderAll()}}
 /* v29.89: the history charts are drawn in real pixels on a phone (viewBox = the box on screen, CSS keeps its aspect ratio) — they were a 500/700/900-wide
    drawing shrunk to ~350px: axis text 2–4px tall, the plot 48px high in a 190px box — and a month without data was drawn as 0% (the line fell off a cliff
    through every future month). A month with no data is a gap now. */
@@ -1758,7 +1755,7 @@ function renderAll(){
    console.error('STACK render error:',err);
    const root=document.getElementById('kpis');
    if(root)root.innerHTML=`<div class="neon" style="grid-column:1/-1;padding:12px;color:#f04b6c;font-size:11px">
-     Ошибка загрузки данных: ${esc(err?.message||String(err))}. Нажмите «Экспорт», затем очистите данные сайта и импортируйте резервную копию.
+     Ошибка загрузки данных: ${esc(err?.message||String(err))}. Данные не удалены: скачайте копию (Аналитика → Данные → «Скачать копию»), затем полностью закройте и снова откройте приложение.
    </div>`;
  }
 }

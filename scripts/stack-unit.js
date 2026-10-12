@@ -658,6 +658,19 @@ console.log('analytics (windows, one formula, no stale numbers)');
     const s = plainInsight(d);
     assert.match(s.text, /перенеси просроченные/);
   });
+  test('the legacy «Сегодня» / «Неделя» rings: no marks → no percent and no trend, not 0% and «−83%»', () => {
+    const d = boot({ now: NOW }); // Friday 9 Oct 2026: the week started on Monday 5 Oct
+    const at = (dd, i, v) =>
+      d.get(`(state.months[dateToMonthIndex(new Date(2026,9,${dd},12))][${i}][${dd - 1}]=${JSON.stringify(v)},1)`);
+    assert.deepStrictEqual(d.get('todayStats()'), { progress: null, done: 0, total: 0, monthIndex: 2 });
+    assert.deepStrictEqual(d.get('weekProgress()'), [null, null]);
+    at(1, 0, '✓'); // last week only
+    assert.deepStrictEqual(d.get('weekProgress()'), [null, 1]);
+    at(9, 0, '✓');
+    at(9, 1, '◐'); // the one formula: a legacy half mark is half, as everywhere else
+    assert.deepStrictEqual(d.get('todayStats()'), { progress: 0.75, done: 1, total: 2, monthIndex: 2 });
+    assert.deepStrictEqual(d.get('weekProgress()'), [0.75, 1]);
+  });
   function plainInsight(d) {
     return JSON.parse(JSON.stringify(d.ctx.STACK_CORE.insight()));
   }

@@ -338,7 +338,7 @@
       rec = recommendation(selected, days),
       options = Object.keys(META);
     return (
-      '<section class="fxa-card" data-fxa-exercise><div class="fxa-head"><div><div class="fx-eye">СИЛА · ИСТОРИЯ УПРАЖНЕНИЯ</div><h2>Progression</h2></div></div><div class="fxa-controls"><select data-fxa-exercise-select>' +
+      '<section class="fxa-card" data-fxa-exercise><div class="fxa-head"><div><div class="fx-eye">СИЛА · ИСТОРИЯ УПРАЖНЕНИЯ</div><h2>Рост силы</h2></div></div><div class="fxa-controls"><select data-fxa-exercise-select>' +
       options
         .map(function (id) {
           return (

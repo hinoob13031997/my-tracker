@@ -225,9 +225,8 @@
     return (
       '<section class="f25-card"><div class="f25-eye">НОВАЯ ОПЕРАЦИЯ</div><h2>Куда внести деньги?</h2><p class="f25-note">Выбери цель: операция попадёт только в неё.</p><div class="f25-picks">' +
       (pick || 'Сначала создай цель.') +
-      '</div><div class="f25-actions"><button data-f25-action="deposit">+ В ' +
-      esc(g?.name || 'ЦЕЛЬ') +
-      '</button><button data-f25-action="withdraw">− СНЯТЬ</button></div></section><section class="f25-card"><div class="f25-eye">ОПЕРАЦИИ · ВСЕ ЦЕЛИ</div><h2>Журнал движения</h2>' +
+      /* the goal is the highlighted chip right above: «+ В Подушка безопасности» read as broken Russian */
+      '</div><div class="f25-actions"><button data-f25-action="deposit">+ Пополнить</button><button data-f25-action="withdraw">− Снять</button></div></section><section class="f25-card"><div class="f25-eye">ОПЕРАЦИИ · ВСЕ ЦЕЛИ</div><h2>Журнал движения</h2>' +
       (rows.length
         ? '<div class="f25-list">' +
           rows
@@ -239,7 +238,7 @@
                 '<button class="f25-row" data-f25-goal="' +
                 esc(r.g.id) +
                 '"><time>' +
-                esc(r.t.date || '—') +
+                esc((r.t.date && D()?.formatDay?.(String(r.t.date).slice(0, 10))) || r.t.date || '—') +
                 '</time><span><b>' +
                 esc(r.g.name || 'Цель') +
                 '</b><small>' +

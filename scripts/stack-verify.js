@@ -476,6 +476,15 @@ async function runCrudScenarios(browser, baseUrl, args, note, fail, jsErrors) {
   await page.waitForSelector('.v29-nav', { timeout: 15000 });
   await page.waitForTimeout(1500);
 
+  await step('launch', async () => {
+    /* v29.91: v22.js saved on every launch — a «✓ Сохранено» toast on opening the app and one more revision, with nothing changed */
+    const l = await page.evaluate(() => ({
+      toast: document.getElementById('stackBackupToast')?.style.opacity === '1',
+      written: localStorage.getItem('stack_neon_mix9_calendar_v1') !== null,
+    }));
+    check(!l.toast && !l.written, `opening the app writes nothing and shows no «Сохранено» (${JSON.stringify(l)})`);
+  });
+
   await step('task create', async () => {
     const before = await page.evaluate(() => state.journal.length);
     await goto('deals');
@@ -548,6 +557,15 @@ async function runCrudScenarios(browser, baseUrl, args, note, fail, jsErrors) {
     await page.evaluate(() => openProcessModal(null));
     await page.waitForTimeout(300);
     await noOverflow('process modal');
+    const box = async () => page.evaluate(() => document.getElementById('pmRepeatOptions').offsetHeight > 0);
+    const daily = await box();
+    await page.click('#pmRepeatTypes [data-repeat="weekly"]');
+    const weekly = await box();
+    await page.click('#pmRepeatTypes [data-repeat="daily"]');
+    check(
+      !daily && weekly && !(await box()),
+      `«Каждый день» shows no empty options box (daily=${daily}, weekly=${weekly})`
+    );
     await page.fill('#pmName', 'CRUD процесс');
     await page.fill('#pmGoal', '70');
     await page.click('#pmRepeatTypes [data-repeat="weekdays"]');
