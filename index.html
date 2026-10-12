@@ -9,23 +9,24 @@
      v29.84: the same frame for ANY top-level page wider than 720px — a tablet, a phone turned to landscape (the old layout used to appear there).
      That check runs right after the viewport meta below, where innerWidth is already right (before it a phone reports 980); a page that gets
      wider while open (rotation) reloads into the frame. -->
-<script>(function(){function frame(){try{window.stop();var src=location.pathname+(location.search?location.search+'&':'?')+'frame=1'+location.hash;document.documentElement.innerHTML='<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#01050b"><link rel="icon" href="./icon.svg"><title>STACK — Персональная система управления</title><style>html,body{margin:0;height:100%;overflow:hidden;background:radial-gradient(circle at 50% -10%,#11133f 0,#030817 45%,#01050b 80%)}body{display:flex;align-items:center;justify-content:center}iframe{display:block;width:min(430px,100vw);height:min(100vh,940px);border:1px solid #243653;border-radius:22px;background:#01050b;box-shadow:0 0 44px #0877f322,0 0 90px #9133e414}@media(max-height:940px){iframe{border-radius:0;border-top:0;border-bottom:0}}</style></head><body><iframe src="'+src.replace(/"/g,'&quot;')+'" title="STACK" allow="clipboard-write; web-share"></iframe></body>'}catch(e){}}try{if(window.top!==window||/[?&]frame=1(&|$)/.test(location.search))return;if(screen.width>720&&matchMedia('(hover:hover) and (pointer:fine)').matches){frame();return}window.__stackFrame=frame}catch(e){}})();</script>
+<script>(function(){function frame(){try{window.stop();var src=location.pathname+(location.search?location.search+'&':'?')+'frame=1'+location.hash;document.documentElement.innerHTML='<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#05070c"><link rel="icon" href="./icon.svg"><title>STACK — Персональная система управления</title><style>html,body{margin:0;height:100%;overflow:hidden;background:radial-gradient(120% 70% at 50% -20%,#1a1650 0,#070912 52%,#05070c 80%)}body{display:flex;align-items:center;justify-content:center}iframe{display:block;width:min(430px,100vw);height:min(100vh,940px);border:1px solid rgba(150,170,215,.16);border-radius:30px;background:#05070c;box-shadow:0 40px 120px -30px rgba(0,0,0,.9),0 0 90px rgba(104,78,255,.12)}@media(max-height:940px){iframe{border-radius:0;border-top:0;border-bottom:0}}</style></head><body><iframe src="'+src.replace(/"/g,'&quot;')+'" title="STACK" allow="clipboard-write; web-share"></iframe></body>'}catch(e){}}try{if(window.top!==window||/[?&]frame=1(&|$)/.test(location.search))return;if(screen.width>720&&matchMedia('(hover:hover) and (pointer:fine)').matches){frame();return}window.__stackFrame=frame}catch(e){}})();</script>
 <!-- STACK v29 shell markers, baked in so the very first page load (before the service
      worker in sw.js is registered/active) also gets the new shell instead of a legacy-UI
      flash. Mirrors GATE_STYLE + V29_HEAD in sw.js exactly — keep both in sync if the v29
      script list or gate CSS changes; sw.js skips re-injecting once it sees this markup. -->
-<style id="stackV29NetworkGate">@media(max-width:720px){html:not(.stack-v29-ready) body{overflow:hidden!important}html:not(.stack-v29-ready) body::before{content:'';position:fixed;inset:0;z-index:2147483646;background:radial-gradient(circle at 50% -15%,#101142 0,#030817 35%,#01050b 72%)}html:not(.stack-v29-ready) body::after{content:'STACK';position:fixed;left:0;right:0;top:42%;z-index:2147483647;text-align:center;color:#eef4ff;font:900 18px Arial,sans-serif;letter-spacing:.18em;text-shadow:0 0 18px #9133e477}}</style>
+<style id="stackV29NetworkGate">@media(max-width:720px){html:not(.stack-v29-ready) body{overflow:hidden!important}html:not(.stack-v29-ready) body::before{content:'';position:fixed;inset:0;z-index:2147483646;background:radial-gradient(120% 60% at 50% -15%,#1a1650 0,#070912 50%,#05070c 78%)}html:not(.stack-v29-ready) body::after{content:'STACK';position:fixed;left:0;right:0;top:42%;z-index:2147483647;text-align:center;color:#f3f5fa;font:800 18px -apple-system,BlinkMacSystemFont,Inter,Segoe UI,Roboto,Arial,sans-serif;letter-spacing:.22em;text-shadow:0 0 22px rgba(139,72,240,.55)}}</style>
 <script>window.__STACK_V29__=true;</script>
-<script defer src="./stack-v29-owner-kit.js?build=29.90.0"></script>
-<script defer src="./stack-v29-shell.js?build=29.90.0"></script>
-<script defer src="./stack-v29-deals-polish.js?build=29.90.0"></script>
-<script defer src="./stack-v29-analytics.js?build=29.90.0"></script>
+<script defer src="./stack-v29-owner-kit.js?build=29.92.0"></script>
+<script defer src="./stack-v29-shell.js?build=29.92.0"></script>
+<script defer src="./stack-v29-deals-polish.js?build=29.92.0"></script>
+<script defer src="./stack-v29-analytics.js?build=29.92.0"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=5,viewport-fit=cover">
 <script>(function(){try{var f=window.__stackFrame;if(!f)return;var wide=function(){return innerWidth>720&&innerWidth!==980};if(wide()){f();return}addEventListener('resize',function(){if(wide())location.reload()})}catch(e){}})();</script>
 <title>STACK • Рабочий трекер 2026/2027</title>
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#030914">
+<meta name="theme-color" content="#05070c">
+<meta name="color-scheme" content="dark">
 <meta name="stack-build" content="v20-final-2026-08-26">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -35,10 +36,28 @@
 :root{
   --bg:#01050b;--panel:#030914;--panel2:#06101e;--text:#f3f4f8;--muted:#8992a4;
   --pink:#f12bb8;--purple:#9133e4;--blue:#0877f3;--cyan:#0eb1db;--green:#68d43f;
-  --red:#f04b6c;--gold:#e0ad37;--grid:#142137;--track:#1a2030
+  --red:#f04b6c;--gold:#e0ad37;--grid:#142137;--track:#1a2030;
+  /* v29.92 design system — the one set of values every screen draws with (CLAUDE.md → Design system). Surfaces are near-black and neutral-cool,
+     edges are hairlines, colour is spent on data and on the one primary action; the brand gradient is the icon's blue → violet → pink. */
+  --ds-font:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Inter","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --ds-bg:#05070c;--ds-glow:radial-gradient(140% 52% at 50% -14%,rgba(104,78,255,.2) 0,rgba(46,98,255,.07) 46%,transparent 72%);
+  --ds-card:#0b0f17;--ds-card-bg:linear-gradient(180deg,#0e131d,#0a0e16);--ds-tile:#111724;--ds-tile-2:#171e2d;--ds-input:#0d121c;
+  --ds-line:rgba(150,170,215,.11);--ds-line-2:rgba(150,170,215,.18);--ds-sep:rgba(150,170,215,.075);
+  --ds-text:#f3f5fa;--ds-text-2:#a5afc1;--ds-text-3:#7d889c;
+  --ds-accent:#9483ff;--ds-accent-soft:rgba(148,131,255,.14);
+  --ds-grad:linear-gradient(120deg,#3b6ff2 0%,#8b48f0 54%,#e03aa0 100%);--ds-primary:linear-gradient(120deg,#3563e8 0%,#7c3fe4 55%,#cf3593 100%);
+  --ds-seg-track:#0a0e16;--ds-seg:#1d2536;--ds-seg-shadow:inset 0 0 0 1px rgba(160,180,225,.14),0 8px 18px -12px rgba(0,0,0,.95);
+  --ds-sheet-bg:linear-gradient(180deg,#131927,#0b0f17);--ds-overlay:rgba(2,3,7,.74);
+  --ds-ok:#3fd68f;--ds-bad:#ff6382;--ds-warn:#f2b44c;
+  --ds-r-xl:20px;--ds-r-lg:16px;--ds-r-md:14px;--ds-r-sm:12px;
+  --ds-shadow:inset 0 1px 0 rgba(255,255,255,.035),0 18px 40px -26px rgba(0,0,0,.9);
+  color-scheme:dark
 }
 *{box-sizing:border-box}
-html,body{margin:0;background:var(--bg);color:var(--text);font-family:Arial,Segoe UI,sans-serif}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--ds-font);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility}
+/* form controls do not inherit the page font on their own: buttons and inputs were drawn in the system font while the text around them was Arial */
+button,input,select,textarea{font-family:inherit}
+input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--ds-accent);outline-offset:1px}
 body{min-height:100vh;background:radial-gradient(circle at 18% -10%,rgba(145,51,228,.05),transparent 30%),radial-gradient(circle at 84% -8%,rgba(8,119,243,.04),transparent 28%),#01050b}
 .app{max-width:1540px;margin:auto;padding:8px}
 .head{display:flex;justify-content:space-between;align-items:flex-end}
@@ -710,6 +729,54 @@ body:has(#screenSavings.active) .app,body.savings-active .app{padding-top:max(6p
   box-shadow:0 0 5px #f12bb8,0 0 12px #9b42ff66,inset 0 0 8px #f12bb822!important
 }
 
+/* v29.92 design system — the modals that live in this file (process, process card, savings goal, operation) on a phone: one bottom-sheet look */
+@media(max-width:720px){
+.app-modal{padding:0;background:var(--ds-overlay);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.app-modal .modal-card{width:100%;max-width:560px;border:1px solid var(--ds-line-2);border-bottom:0;border-radius:26px 26px 0 0;background:var(--ds-sheet-bg);box-shadow:0 -20px 60px -20px rgba(0,0,0,.8);padding:18px 16px max(20px,env(safe-area-inset-bottom))!important}
+.app-modal .modal-head{margin-bottom:12px}
+.app-modal .modal-head strong{font-size:17px;font-weight:700;letter-spacing:-.01em;color:var(--ds-text)}
+.app-modal .modal-close{width:40px;height:40px;border:0;border-radius:50%;background:var(--ds-tile-2);color:var(--ds-text-2);font-size:20px}
+.app-modal .form-row{gap:6px;margin:12px 0}
+.app-modal .form-row label{font-size:12px;font-weight:600;color:var(--ds-text-3)}
+.app-modal .form-row input,.app-modal .form-row select,.app-modal .form-row textarea{min-height:48px;border:1px solid var(--ds-line-2);border-radius:var(--ds-r-sm);background:var(--ds-input);color:var(--ds-text);padding:10px 14px;font-size:16px}
+.app-modal .repeat-types{gap:8px}
+.app-modal .repeat-type,.app-modal .weekday-btn,.app-modal .month-day-step{border:1px solid var(--ds-line);border-radius:var(--ds-r-sm);background:var(--ds-tile);color:var(--ds-text-2);font-size:14px;font-weight:500;box-shadow:none}
+.app-modal .repeat-type{min-height:46px}
+.app-modal .weekday-btn{min-height:42px;font-size:13px}
+.app-modal .repeat-type.active,.app-modal .weekday-btn.active{border-color:rgba(148,131,255,.5);background:var(--ds-accent-soft);color:var(--ds-text);font-weight:600;box-shadow:none}
+.app-modal .repeat-options{margin-top:8px;padding:10px;border:1px solid var(--ds-line);border-radius:var(--ds-r-md);background:var(--ds-tile)}
+.app-modal .month-last{color:var(--ds-text-2);font-size:13px}
+.app-modal .color-picks{gap:10px 8px}
+.app-modal .color-pick{width:40px;height:40px;justify-self:center;border-radius:50%;border:2px solid transparent;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
+.app-modal .color-pick.active{border-color:#fff;box-shadow:0 0 0 3px rgba(255,255,255,.1),0 0 14px var(--pick)}
+.app-modal .btn{min-height:52px;margin-top:14px!important;border:1px solid transparent;border-radius:var(--ds-r-md);background:var(--ds-primary);box-shadow:0 10px 24px -14px rgba(124,63,228,.9);color:#fff;font-size:16px;font-weight:600}
+.app-modal .detail-kpi{border:0;border-radius:var(--ds-r-md);background:var(--ds-tile)}
+.app-modal .detail-kpi span{font-size:11px;color:var(--ds-text-3)}
+.app-modal .detail-kpi strong{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+/* Аналитика → «Показать графики и историю»: the legacy charts on the same card surface (no neon gradient frames, no 6–9px captions) */
+#screenAnalytics .neon{border:1px solid var(--ds-line);background:var(--ds-card-bg);box-shadow:var(--ds-shadow);border-radius:var(--ds-r-xl)}
+#screenAnalytics .kpis{gap:10px}
+#screenAnalytics .kpi{height:auto;min-height:150px;padding:14px 8px 12px;border-radius:var(--ds-r-lg)}
+#screenAnalytics .kpi h3{min-height:0;margin-bottom:10px;font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--ds-text-3)}
+#screenAnalytics .kpi small{margin-top:10px;font-size:12px;line-height:1.3;color:var(--ds-text-2)}
+#screenAnalytics .kpi small.good{color:var(--ds-ok)}
+#screenAnalytics .ring{box-shadow:0 0 14px color-mix(in srgb,var(--c2) 35%,transparent)}
+#screenAnalytics .ring:after{background:#0b0f17;box-shadow:none}
+#screenAnalytics .ring span{font-weight:700;text-shadow:none;letter-spacing:-.02em}
+#screenAnalytics .mobile-kpi-hint{margin:2px 0 6px;color:var(--ds-text-3);font-size:11px}
+#screenAnalytics .analytics{gap:12px}
+#screenAnalytics .panel-title{padding:14px 16px 4px;color:var(--ds-text-3);font-size:11px;font-weight:600;letter-spacing:.07em}
+#screenAnalytics #bars,#screenAnalytics #dots{height:auto;padding:6px 16px 14px}
+#screenAnalytics .barrow{font-size:12px;margin:10px 0}
+#screenAnalytics .dots{font-size:12px}
+#screenAnalytics .trend-panel{margin-top:12px;border-radius:var(--ds-r-xl)}
+#screenAnalytics .trend-head{padding:14px 16px 2px}
+#screenAnalytics .trend-head select{border:1px solid var(--ds-line-2);border-radius:var(--ds-r-sm);background:var(--ds-input);box-shadow:none;color:var(--ds-text)}
+#screenAnalytics .trend-sub{padding:6px 16px 0}
+#screenAnalytics .trend-sub span{font-size:12px!important;color:var(--ds-text-3)}
+#screenAnalytics .trend-sub strong{font-size:13px!important;color:var(--ds-text)}
+#screenAnalytics .trend-tooltip{margin:8px 16px 4px;border:1px solid var(--ds-line);border-radius:var(--ds-r-md);background:var(--ds-tile);box-shadow:none;font-size:13px!important}
+}
 </style>
 </head>
 <body>
@@ -1110,6 +1177,7 @@ function updateRepeatUI(type){
  const week=document.getElementById('pmWeekWrap'),month=document.getElementById('pmMonthWrap');
  week.style.display=(type==='weekdays'||type==='weekly')?'block':'none';
  month.style.display=type==='monthly'?'block':'none';
+ document.getElementById('pmRepeatOptions').hidden=type==='daily';/* «Каждый день» has no options: the bordered box used to show empty */
  if(type==='daily')document.querySelectorAll('#pmWeekdays .weekday-btn').forEach(b=>b.classList.add('active'));
  if(type==='weekly'){
    const active=[...document.querySelectorAll('#pmWeekdays .weekday-btn.active')];
@@ -1198,18 +1266,13 @@ function prevDelta(){
  }
  return null
 }
+/* v29.91: no marks → progress null («—», «нет отметок»), not a false 0%; the one formula (activeCompletion, legacy ◐ = half) like everywhere else */
 function todayStats(){
  const d=new Date(),mi=dateToMonthIndex(d);
- if(mi<0)return{progress:0,done:0,total:0,monthIndex:-1};
- let doneN=0,total=0;
- state.processes.forEach((_,p)=>{
-   const v=statusForDate(d,p);
-   if(v==='✓'){doneN++;total++}
-   else if(v==='○'){total++}
- });
- return{progress:total?doneN/total:0,done:doneN,total,monthIndex:mi}
+ if(mi<0)return{progress:null,done:0,total:0,monthIndex:-1};
+ const c=activeCompletion(state.processes.map((_,p)=>statusForDate(d,p)));
+ return{progress:c.rate,done:c.done,total:c.total,monthIndex:mi}
 }
-function todayProgress(){return todayStats().progress}
 function weekProgress(){
  const now=new Date();
  const mondayOffset=(now.getDay()+6)%7;
@@ -1221,7 +1284,7 @@ function weekProgress(){
      const d=new Date(s); d.setDate(s.getDate()+i);
      state.processes.forEach((_,p)=>vals.push(statusForDate(d,p)));
    }
-   return activeCompletion(vals).rate??0
+   return activeCompletion(vals).rate
  }
  return [collect(start),collect(prevStart)]
 }
@@ -1238,12 +1301,13 @@ function renderKPIs(){
  ['ВСЕГО ВЫПОЛНЕНИЙ',overall.rate,String(overall.done),overall.total?`${pct(overall.rate)}% от обязательных`:'нет данных','#0869ff','#19a0ff','#168cff'],
  ['СРЕДНИЙ ПРОГРЕСС',av,pct(av)+'%',activeMonths.length?`по ${activeMonths.length} активным мес.`:'нет данных','#7d36ff','#e044c7','#dd48c4'],
  ['ЦЕЛЬ НА МЕСЯЦ',state.goal,pct(state.goal)+'%','изменить цель','#066eff','#18b7ff','#ffffff'],
- ['СЕГОДНЯ',today.progress,pct(today.progress)+'%',`Выполнено ${today.done} из ${today.total}`,'#b92ccf','#ff4f9d','#ffffff'],
- ['СТАТИСТИКА НЕДЕЛИ',wk,pct(wk)+'%',`${pct(pw)}% прошлая • ${wk>=pw?'+':''}${pct(wk-pw)}%`,'#0876ff','#14d8e8','#ffffff']
+ ['СЕГОДНЯ',today.progress??0,today.progress===null?'—':pct(today.progress)+'%',today.total?`Выполнено ${today.done} из ${today.total}`:'нет отметок','#b92ccf','#ff4f9d','#ffffff'],
+ ['СТАТИСТИКА НЕДЕЛИ',wk??0,wk===null?'—':pct(wk)+'%',wk===null?(pw===null?'нет отметок':`${pct(pw)}% прошлая`):pw===null?'прошлая: нет данных':`${pct(pw)}% прошлая • ${wk>=pw?'+':''}${pct(wk-pw)}%`,'#0876ff','#14d8e8','#ffffff']
  ];
+ const weekUp=wk!==null&&pw!==null&&wk>=pw;
  const root=document.getElementById('kpis');root.innerHTML='';data.forEach((d,i)=>{const el=document.createElement('div');el.className='neon kpi';
  const extra=i===5&&todayStats().monthIndex>=0?`<small style="color:#777f90">${new Date().toLocaleDateString('ru-RU',{day:'2-digit',month:'long'})}</small>`:'';
- el.innerHTML=`<h3>${d[0]}</h3><div class="ring" style="--v:${d[1]*100};--c1:${d[4]};--c2:${d[5]}"><span style="color:${d[6]}">${i===4?`<input id="goalInput" class="goal" value="${pct(state.goal)}">%`:d[2]}</span></div><small class="${i===6?'good':''}">${d[3]}</small>${extra}`;root.appendChild(el)});const g=document.getElementById('goalInput');if(g)g.onchange=()=>{state.goal=Math.max(0,Math.min(1,(parseFloat(g.value)||80)/100));save();renderAll()}}
+ el.innerHTML=`<h3>${d[0]}</h3><div class="ring" style="--v:${d[1]*100};--c1:${d[4]};--c2:${d[5]}"><span style="color:${d[6]}">${i===4?`<input id="goalInput" class="goal" value="${pct(state.goal)}">%`:d[2]}</span></div><small class="${i===6&&weekUp?'good':''}">${d[3]}</small>${extra}`;root.appendChild(el)});const g=document.getElementById('goalInput');if(g)g.onchange=()=>{state.goal=Math.max(0,Math.min(1,(parseFloat(g.value)||80)/100));save();renderAll()}}
 /* v29.89: the history charts are drawn in real pixels on a phone (viewBox = the box on screen, CSS keeps its aspect ratio) — they were a 500/700/900-wide
    drawing shrunk to ~350px: axis text 2–4px tall, the plot 48px high in a 190px box — and a month without data was drawn as 0% (the line fell off a cliff
    through every future month). A month with no data is a gap now. */
@@ -1758,7 +1822,7 @@ function renderAll(){
    console.error('STACK render error:',err);
    const root=document.getElementById('kpis');
    if(root)root.innerHTML=`<div class="neon" style="grid-column:1/-1;padding:12px;color:#f04b6c;font-size:11px">
-     Ошибка загрузки данных: ${esc(err?.message||String(err))}. Нажмите «Экспорт», затем очистите данные сайта и импортируйте резервную копию.
+     Ошибка загрузки данных: ${esc(err?.message||String(err))}. Данные не удалены: скачайте копию (Аналитика → Данные → «Скачать копию»), затем полностью закройте и снова откройте приложение.
    </div>`;
  }
 }

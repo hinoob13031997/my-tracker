@@ -21,7 +21,7 @@ html{-webkit-text-size-adjust:100%}
 #v234Fitness .fx-goal-meta,#v234Fitness .fx-empty-plan,#v234Fitness .fx-legacy{font-size:11px;line-height:1.5}
 #v234Fitness .fx-goal-badge{font-size:10px}
 #v234Fitness .fx-goal-actions button,#v234Fitness .fx-plan-btn{font-size:11px}
-#v234Fitness .fxi-goal-grid span,#v234Fitness .fxi-strategy small,#v234Fitness .fxi-box span{font-size:9.5px;line-height:1.25}
+#v234Fitness .fxi-goal-grid span,#v234Fitness .fxi-strategy small,#v234Fitness .fxi-box span{font-size:10.5px;line-height:1.25}
 #v234Fitness .fxi-goal-grid b,#v234Fitness .fxi-strategy b{font-size:12px}
 #v234Fitness .fxi-note,#v234Fitness .fxi-recommend{font-size:11.5px;line-height:1.5}
 #v234Fitness .fxi-box small{font-size:10.5px;line-height:1.4}
@@ -49,10 +49,10 @@ html{-webkit-text-size-adjust:100%}
 #v234Fitness .fx-meal p{font-size:12px;line-height:1.45;overflow-wrap:anywhere}
 #v234Fitness .fxa-head h2{font-size:21px}
 #v234Fitness .fxa-sub{font-size:12px;line-height:1.45}
-#v234Fitness .fxa-controls{grid-template-columns:minmax(0,1fr) auto}
+#v234Fitness .fxa-controls{grid-template-columns:minmax(0,1fr)}
 #v234Fitness .fxa-controls select{font-size:16px}
 #v234Fitness .fxa-ranges button{font-size:11px}
-#v234Fitness .fxa-kpi span{font-size:9.5px;line-height:1.25}
+#v234Fitness .fxa-kpi span{font-size:10.5px;line-height:1.25}
 #v234Fitness .fxa-kpi b{font-size:18px}
 #v234Fitness .fxa-kpi small{font-size:10.5px;line-height:1.3}
 #v234Fitness .fxa-chart{height:190px}
@@ -95,14 +95,12 @@ html{-webkit-text-size-adjust:100%}
 #v234Fitness .fxa-kpi{padding:9px 8px}
 #v234Fitness .fxa-kpi b{font-size:17px}
 }`;
-  /* v29.74 type scale — one minimum for the whole mobile UI (was 7–10.5px): labels 11, meta 11.5, body 12, controls 11.5.
-   Roots are ids so the rules beat module-level styles; secondary grey is lifted to #9aa9bd. */
+  /* v29.74 type scale — one minimum for the whole mobile UI (was 7–10.5px). v29.92: labels 11, meta 12, body and controls 13 (buttons
+   at 11.5px read as fine print next to 15px rows), greys are the design-system tokens; «Сегодня» and the nav set their own type in the shell. */
   const SCALE = (() => {
     const R = { t: '#stackV29Root', d: '#screenTasks', f: '#v234Fitness', m: '#v25Finance', a: '#v29Analytics' };
     const rule = (size, list, extra = '') => list.join(',') + `{font-size:${size}!important;${extra}}`;
     const label = [
-      `${R.t} .v29-kicker`,
-      `${R.t} .v29-section-label`,
       `${R.d} .v233-kicker`,
       `${R.d} .v24-pulse span`,
       `${R.d} .v233-stat span`,
@@ -139,7 +137,6 @@ html{-webkit-text-size-adjust:100%}
       `${R.f} .fxi-box small`,
       `${R.f} .fx-goal-grid small`,
       `${R.m} .f25-goal small`,
-      `${R.t} .v29-progress small`,
       `${R.a} .v29a-week small`,
       `${R.a} .v29a-verdict p`,
       `${R.a} .v29a-score small`,
@@ -169,13 +166,12 @@ html{-webkit-text-size-adjust:100%}
     ];
     return (
       '@media(max-width:720px){' +
-      rule('11px', label, 'color:#9aa9bd') +
-      rule('11.5px', meta, 'color:#a8b5c7') +
-      rule('12px', body) +
-      rule('11.5px', control) +
+      rule('11px', label, 'color:var(--ds-text-3)') +
+      rule('12px', meta, 'color:var(--ds-text-2)') +
+      rule('13px', body) +
+      rule('13px', control) +
       rule('11px', chip) +
-      rule('10px', [`${R.f} .fx-daystrip small`, '#stackVersion', '#stackBackupToast']) +
-      rule('10.5px', ['#stackV29Root .v29-nav button span']) +
+      rule('10px', [`${R.f} .fx-daystrip small`, '#stackVersion']) +
       '}'
     );
   })();

@@ -57,7 +57,7 @@
     };
   const s = document.createElement('style');
   s.textContent =
-    '.fx-tech-img{display:block;width:100%;max-height:210px;object-fit:contain;margin:10px 0;border:1px solid #244a64;border-radius:13px;background:#07111c}';
+    '.fx-tech-img{display:block;width:100%;max-height:210px;object-fit:contain;margin:10px 0;border:1px solid var(--ds-line);border-radius:var(--ds-r-md);background:var(--ds-tile)}';
   document.head.appendChild(s);
   document.addEventListener(
     'click',

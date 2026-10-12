@@ -9,7 +9,7 @@
 (() => {
   'use strict';
   const BUILD = 'v29-81-restore-points';
-  const VERSION = 'v29.90';
+  const VERSION = 'v29.92';
   const SNAP = 'snap:',
     META = 'snapm:',
     END = '￿';
@@ -353,10 +353,10 @@
       el.id = 'stackVersion';
       Object.assign(el.style, {
         textAlign: 'center',
-        font: '600 9px Arial, sans-serif',
+        font: '600 10px var(--ds-font)',
         letterSpacing: '.08em',
-        color: '#667084',
-        opacity: '.72',
+        color: 'var(--ds-text-3)',
+        opacity: '.6',
         padding: '12px 0 max(10px, env(safe-area-inset-bottom))',
         userSelect: 'none',
         pointerEvents: 'none',

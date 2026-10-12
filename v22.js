@@ -16,17 +16,27 @@
   ];
   function init() {
     if (typeof state === 'undefined' || !state.savings) return;
+    /* v29.91: write only when a goal really lacked a field — an unconditional save() here ran on every launch (a «Сохранено» toast nobody
+       asked for, one more revision, one more snapshot candidate) */
+    let changed = false;
+    const set = (o, k, v) => {
+      if (o[k] !== v) {
+        o[k] = v;
+        changed = true;
+      }
+    };
     state.savings.goals.forEach((g, i) => {
-      g.status = g.status || 'active';
-      g.startDate = g.startDate || g.createdAt || '';
-      g.tx = g.tx || [];
+      set(g, 'status', g.status || 'active');
+      set(g, 'startDate', g.startDate || g.createdAt || '');
+      set(g, 'tx', g.tx || []);
       g.tx.forEach((t, j) => {
-        if (!t.id) t.id = 't' + Date.now() + i + '_' + j;
+        if (!t.id) set(t, 'id', 't' + Date.now() + i + '_' + j);
       });
     });
-    try {
-      save();
-    } catch (e) {}
+    if (changed)
+      try {
+        save();
+      } catch (e) {}
     installStartDate();
     installGoalColorPicker();
     patchGoalEditor();

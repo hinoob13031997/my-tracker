@@ -476,6 +476,15 @@ async function runCrudScenarios(browser, baseUrl, args, note, fail, jsErrors) {
   await page.waitForSelector('.v29-nav', { timeout: 15000 });
   await page.waitForTimeout(1500);
 
+  await step('launch', async () => {
+    /* v29.91: v22.js saved on every launch — a «✓ Сохранено» toast on opening the app and one more revision, with nothing changed */
+    const l = await page.evaluate(() => ({
+      toast: document.getElementById('stackBackupToast')?.style.opacity === '1',
+      written: localStorage.getItem('stack_neon_mix9_calendar_v1') !== null,
+    }));
+    check(!l.toast && !l.written, `opening the app writes nothing and shows no «Сохранено» (${JSON.stringify(l)})`);
+  });
+
   await step('task create', async () => {
     const before = await page.evaluate(() => state.journal.length);
     await goto('deals');
@@ -548,6 +557,15 @@ async function runCrudScenarios(browser, baseUrl, args, note, fail, jsErrors) {
     await page.evaluate(() => openProcessModal(null));
     await page.waitForTimeout(300);
     await noOverflow('process modal');
+    const box = async () => page.evaluate(() => document.getElementById('pmRepeatOptions').offsetHeight > 0);
+    const daily = await box();
+    await page.click('#pmRepeatTypes [data-repeat="weekly"]');
+    const weekly = await box();
+    await page.click('#pmRepeatTypes [data-repeat="daily"]');
+    check(
+      !daily && weekly && !(await box()),
+      `«Каждый день» shows no empty options box (daily=${daily}, weekly=${weekly})`
+    );
     await page.fill('#pmName', 'CRUD процесс');
     await page.fill('#pmGoal', '70');
     await page.click('#pmRepeatTypes [data-repeat="weekdays"]');
@@ -807,7 +825,9 @@ async function runDealsScenarios(browser, baseUrl, args, note, fail, jsErrors) {
       `dates are in words: «30 сен», «Сегодня», «Завтра» (${t.meta.slice(0, 4).join(' / ')})`
     );
     check(
-      !!t.late && /просрочено · 9 дн\./.test(t.late.text) && t.late.color === 'rgb(240, 138, 93)',
+      !!t.late &&
+        /просрочено · 9 дн\./.test(t.late.text) &&
+        (([r, g, b]) => r > 220 && g > 110 && g < 180 && b < 130)(t.late.color.match(/\d+/g).map(Number)),
       `an overdue task says how late it is, in orange (${JSON.stringify(t.late)})`
     );
   });
@@ -2459,6 +2479,21 @@ async function run() {
         );
         if (overflow) fail(`horizontal overflow on ${label}`);
         else note(`  overflow OK (${label})`);
+        /* v29.92: no visible text under 10px (the nutrition plan/fact card was drawn at 7–8px, outside the v29.74 type scale) */
+        const tiny = await page.evaluate(() =>
+          [...document.querySelectorAll('body *')]
+            .filter(
+              e =>
+                !e.closest('svg') &&
+                [...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim()) &&
+                e.getClientRects().length &&
+                getComputedStyle(e).visibility !== 'hidden' &&
+                parseFloat(getComputedStyle(e).fontSize) < 10
+            )
+            .slice(0, 3)
+            .map(e => `${getComputedStyle(e).fontSize} «${e.textContent.trim().slice(0, 24)}»`)
+        );
+        if (tiny.length) fail(`text under 10px on ${label}: ${tiny.join(', ')}`);
       }
 
       for (const section of SECTIONS) {
@@ -2466,6 +2501,22 @@ async function run() {
         await page.waitForTimeout(500);
         await checkOverflow(section);
       }
+
+      /* v29.92 design system: controls are drawn in the page font (they used to fall back to the system font next to Arial text),
+         the --ds-* tokens exist, and nothing puts a filter on the nav (that kills the frosted glass behind it) */
+      const ds = await page.evaluate(() => ({
+        font:
+          getComputedStyle(document.body).fontFamily ===
+          getComputedStyle(document.querySelector('.v29-nav button')).fontFamily,
+        arial: /^Arial/.test(getComputedStyle(document.body).fontFamily),
+        tokens: ['--ds-card-bg', '--ds-line', '--ds-text', '--ds-primary', '--ds-sheet-bg'].every(t =>
+          getComputedStyle(document.documentElement).getPropertyValue(t).trim()
+        ),
+        navFilter: getComputedStyle(document.querySelector('.v29-nav')).filter,
+      }));
+      const dsLabel = `design system: one system font for text and controls, --ds-* tokens, no filter on the glass nav (${JSON.stringify(ds)})`;
+      if (ds.font && !ds.arial && ds.tokens && ds.navFilter === 'none') note('  ' + dsLabel);
+      else fail(dsLabel);
 
       // Fitness tab round trip, including the Program drill-down from Progress.
       await page.click('.v29-nav [data-v29-nav="fitness"]');

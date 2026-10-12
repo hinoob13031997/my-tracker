@@ -1,5 +1,5 @@
-const BUILD = '29.90.0';
-const CACHE = 'stack-v29-90-backup-share-finance';
+const BUILD = '29.92.0';
+const CACHE = 'stack-v29-92-premium-design';
 const SCRIPT_PATHS = [
   'backup.js',
   'stack-data.js',
@@ -68,7 +68,7 @@ const STATIC = [
   ...SCRIPT_PATHS.map(x => `./${x}?build=${BUILD}`),
   ...FITNESS_VISUALS.map(x => `./assets/fitness/${x}?build=${BUILD}`),
 ];
-const GATE_STYLE = `<style id="stackV29NetworkGate">@media(max-width:720px){html:not(.stack-v29-ready) body{overflow:hidden!important}html:not(.stack-v29-ready) body::before{content:'';position:fixed;inset:0;z-index:2147483646;background:radial-gradient(circle at 50% -15%,#101142 0,#030817 35%,#01050b 72%)}html:not(.stack-v29-ready) body::after{content:'STACK';position:fixed;left:0;right:0;top:42%;z-index:2147483647;text-align:center;color:#eef4ff;font:900 18px Arial,sans-serif;letter-spacing:.18em;text-shadow:0 0 18px #9133e477}}</style>`;
+const GATE_STYLE = `<style id="stackV29NetworkGate">@media(max-width:720px){html:not(.stack-v29-ready) body{overflow:hidden!important}html:not(.stack-v29-ready) body::before{content:'';position:fixed;inset:0;z-index:2147483646;background:radial-gradient(120% 60% at 50% -15%,#1a1650 0,#070912 50%,#05070c 78%)}html:not(.stack-v29-ready) body::after{content:'STACK';position:fixed;left:0;right:0;top:42%;z-index:2147483647;text-align:center;color:#f3f5fa;font:800 18px -apple-system,BlinkMacSystemFont,Inter,Segoe UI,Roboto,Arial,sans-serif;letter-spacing:.22em;text-shadow:0 0 22px rgba(139,72,240,.55)}}</style>`;
 const V29_HEAD = `<script>window.__STACK_V29__=true;</script><script defer src="./stack-v29-owner-kit.js?build=${BUILD}"></script><script defer src="./stack-v29-shell.js?build=${BUILD}"></script><script defer src="./stack-v29-deals-polish.js?build=${BUILD}"></script><script defer src="./stack-v29-analytics.js?build=${BUILD}"></script>`;
 self.addEventListener('install', event => {
   self.skipWaiting();
@@ -133,7 +133,7 @@ async function withV29Shell(response) {
   }
 }
 const OFFLINE_HTML =
-  '<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>STACK</title></head><body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#01050b;color:#eef4ff;font:600 15px Arial,sans-serif;text-align:center;padding:24px"><div><div style="font:900 18px Arial;letter-spacing:.18em">STACK</div><p style="color:#8b9aae">Нет соединения с сервером. Данные в безопасности — они хранятся на устройстве.</p><button onclick="location.reload()" style="min-height:46px;padding:0 22px;border:1px solid #7134ad;border-radius:12px;background:#21103b;color:#fff;font-weight:800">Повторить</button></div></body></html>';
+  '<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>STACK</title></head><body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#05070c;color:#f3f5fa;font:500 15px -apple-system,BlinkMacSystemFont,Inter,Segoe UI,Roboto,Arial,sans-serif;text-align:center;padding:24px"><div><div style="font-weight:800;font-size:18px;letter-spacing:.22em">STACK</div><p style="color:#a5afc1">Нет соединения с сервером. Данные в безопасности — они хранятся на устройстве.</p><button onclick="location.reload()" style="min-height:50px;padding:0 26px;border:0;border-radius:14px;background:linear-gradient(120deg,#3563e8,#7c3fe4 55%,#cf3593);color:#fff;font:inherit;font-weight:600">Повторить</button></div></body></html>';
 function offlineResponse() {
   return new Response(OFFLINE_HTML, {
     status: 503,

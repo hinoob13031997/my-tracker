@@ -17,13 +17,15 @@
         right: '10px',
         top: 'max(10px, env(safe-area-inset-top))',
         zIndex: '10000',
-        padding: '8px 11px',
-        borderRadius: '10px',
-        background: '#06101eef',
-        border: '1px solid #24503d',
-        color: '#73e6aa',
-        font: '700 10px Arial, sans-serif',
-        boxShadow: '0 0 14px #18e48233',
+        padding: '9px 14px',
+        borderRadius: '999px',
+        background: 'rgba(17,23,36,.88)',
+        WebkitBackdropFilter: 'blur(14px)',
+        backdropFilter: 'blur(14px)',
+        border: '1px solid rgba(63,214,143,.35)',
+        color: '#3fd68f',
+        font: '600 13px var(--ds-font)',
+        boxShadow: '0 10px 30px -12px rgba(0,0,0,.8)',
         opacity: '0',
         transform: 'translateY(-6px)',
         transition: '.2s ease',
@@ -32,8 +34,8 @@
       document.body.appendChild(el);
     }
     el.textContent = text;
-    el.style.color = bad ? '#ff8099' : '#73e6aa';
-    el.style.borderColor = bad ? '#6a2437' : '#24503d';
+    el.style.color = bad ? '#ff6382' : '#3fd68f';
+    el.style.borderColor = bad ? 'rgba(255,99,130,.4)' : 'rgba(63,214,143,.35)';
     el.style.opacity = '1';
     el.style.transform = 'none';
     clearTimeout(toast._t);
