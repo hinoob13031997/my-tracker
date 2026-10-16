@@ -194,10 +194,7 @@
       } catch (e) {}
       window.dispatchEvent(new CustomEvent('stack:data-changed', { detail: { source: 'tasks' } }));
       close();
-      setTimeout(() => {
-        ensureShellVisible();
-        render();
-      }, 40);
+      setTimeout(render, 40);
     };
     return m;
   }
@@ -212,10 +209,6 @@
     m.querySelector('#v235Note').value = '';
     m.classList.add('open');
     setTimeout(() => m.querySelector('#v235Title').focus(), 50);
-  }
-  function ensureShellVisible() {
-    const h = document.getElementById('v233shell');
-    if (h && h.style.getPropertyValue('display')) h.style.removeProperty('display');
   }
   function shell() {
     if (innerWidth > 720) return;
@@ -233,15 +226,12 @@
           render();
         })
     );
-    ensureShellVisible();
     render();
-    new MutationObserver(() => ensureShellVisible()).observe(h, { attributes: true, attributeFilter: ['style'] });
   }
   function render() {
     let screen = document.getElementById('screenTasks'),
       h = document.getElementById('v233shell');
     if (!screen || !h) return;
-    ensureShellVisible();
     screen.classList.toggle('v233-mode-tasks', tab === 'tasks');
     h.querySelectorAll('[data-v233]').forEach(b => b.classList.toggle('on', b.dataset.v233 === tab));
     let p = h.querySelector('#v233Processes');
@@ -260,10 +250,8 @@
     style();
     document.addEventListener('click', capturePlus, true);
     setTimeout(shell, 80);
-    setTimeout(ensureShellVisible, 1050);
     const refresh = () =>
       setTimeout(() => {
-        ensureShellVisible();
         if (document.getElementById('v233shell')) render();
         else shell();
       }, 60);

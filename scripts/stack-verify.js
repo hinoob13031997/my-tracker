@@ -2248,6 +2248,11 @@ function checkVersions(root, note, fail) {
   const label = (pers.match(/const VERSION\s*=\s*'v([\d.]+)';/) || [])[1];
   const shellBuild = (shell.match(/^\s*const BUILD\s*=\s*'([\d.]+)';/m) || [])[1];
   const queries = [...html.matchAll(/stack-v29-[a-z-]+\.js\?build=([\d.]+)/g)].map(m => m[1]);
+  /* v29.93: every local script tag carries the build (a fixed ?v= let the browser keep an old copy of a changed file), and every one of them is precached */
+  const tags = [...html.matchAll(/<script[^>]*\ssrc="\.\/([a-z0-9.-]+\.js)(\?[^"]*)?"/g)].map(m => ({
+    file: m[1],
+    query: m[2] || '',
+  }));
   const short = build ? build.replace(/\.0$/, '') : '';
   const problems = [];
   if (!build) problems.push('sw.js BUILD missing');
@@ -2255,6 +2260,15 @@ function checkVersions(root, note, fail) {
   if (shellBuild !== build) problems.push(`stack-v29-shell.js BUILD ${shellBuild} ≠ ${build}`);
   if (!queries.length || queries.some(q => q !== build))
     problems.push(`index.html v29 ?build= ${[...new Set(queries)].join('/') || 'none'} ≠ ${build}`);
+  const unversioned = tags.filter(t => t.query !== `?build=${build}`).map(t => t.file + t.query);
+  if (!tags.length || unversioned.length)
+    problems.push(`index.html script tags without ?build=${build}: ${unversioned.join(', ') || 'none found'}`);
+  const unlisted = tags.filter(t => !sw.includes(`'${t.file}'`)).map(t => t.file);
+  if (unlisted.length) problems.push('scripts missing from sw.js SCRIPT_PATHS: ' + unlisted.join(', '));
+  const fixed = ['stack-v26-deals-intelligence.js', 'stack-v27-bootstrap.js'].filter(f =>
+    /\.js\?build=\d/.test(read(f))
+  );
+  if (fixed.length) problems.push('a loader hardcodes ?build= instead of passing its own on: ' + fixed.join(', '));
   if (!cache || !cache.startsWith('stack-v' + short.replace('.', '-') + '-'))
     problems.push(`sw.js CACHE «${cache}» does not carry ${short}`);
   const missing = (manifest.icons || []).filter(i => !fs.existsSync(path.join(root, i.src))).map(i => i.src);
@@ -2364,9 +2378,11 @@ async function runServiceWorkerScenarios(chromium, launchOpts, root, port, note,
     );
     delay = 9000;
     const slow = await launch(30000);
+    /* v29.93: files of the current build come straight from the cache and the page waits 1.5 s (not 4 s) for the network
+       before its cached copy — was ~4.4 s */
     check(
-      slow.ready && slow.ms < 9000,
-      `a slow network (9 s per request) does not hold the app on the splash (ready in ${slow.ms} ms)`
+      slow.ready && slow.ms < 3500,
+      `a slow network (9 s per request) does not hold the app on the splash (ready in ${slow.ms} ms, limit 3500)`
     );
     delay = 0;
     await new Promise(resolve => setTimeout(resolve, 9500)); // let the slow requests drain
