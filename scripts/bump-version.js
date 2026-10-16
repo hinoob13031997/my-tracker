@@ -5,7 +5,8 @@
  *   sw.js                 BUILD = '29.86.0',  CACHE = 'stack-v29-86-short-name'
  *   stack-persistence.js  VERSION = 'v29.86'  (the label shown in the app)
  *   stack-v29-shell.js    BUILD = '29.86.0'
- *   index.html            ?build=29.86.0 on the v29 script tags (the baked-in copy of sw.js V29_HEAD)
+ *   index.html            ?build=29.86.0 on EVERY local script tag (v29.93: the legacy ones carried a fixed ?v=24.8, so the
+ *                         browser could keep an old copy of a changed file); the v27 loaders pass it on to the files they load
  * `node scripts/stack-verify.js` fails when these drift apart, so a forgotten spot cannot reach main. */
 'use strict';
 const fs = require('fs');
@@ -40,5 +41,5 @@ edit('sw.js', [
 ]);
 edit('stack-persistence.js', [[/(const VERSION\s*=\s*'v)[\d.]+(';)/, (m, a, b) => a + version + b, 'VERSION']]);
 edit('stack-v29-shell.js', [[/^(\s*const BUILD\s*=\s*')[\d.]+(';)/m, (m, a, b) => a + build + b, 'BUILD']]);
-edit('index.html', [[/(stack-v29-[a-z-]+\.js\?build=)[\d.]+/g, (m, a) => a + build, 'v29 ?build=']]);
+edit('index.html', [[/(src="\.\/[a-z0-9.-]+\.js\?build=)[\d.]+/g, (m, a) => a + build, 'script ?build=']]);
 console.log(`now ${build} / ${cache}`);

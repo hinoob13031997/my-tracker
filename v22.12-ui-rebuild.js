@@ -19,9 +19,18 @@
       details = {};
     }
   }
-  function saveDetails() {
+  /* v29.93: one card at a time on top of what is stored (read-modify-write), never the whole key from the copy in memory —
+     the same rule as stack_income_tracker_v1 (v29.90): a stale copy must not overwrite cards written elsewhere */
+  function saveDetails(key, value) {
     try {
-      localStorage.setItem(TK, JSON.stringify(details));
+      let stored = {};
+      try {
+        stored = JSON.parse(localStorage.getItem(TK) || '{}') || {};
+      } catch (e) {}
+      if (value === undefined) delete stored[key];
+      else stored[key] = value;
+      localStorage.setItem(TK, JSON.stringify(stored));
+      details = stored;
     } catch (e) {}
   }
   function persistedTasks() {
@@ -139,8 +148,7 @@
       t.priority = z.priority;
       t.status = z.status;
       t.note = z.note;
-      details[taskId(t, i)] = z;
-      saveDetails();
+      saveDetails(taskId(t, i), z);
       try {
         globalThis.save?.();
       } catch (e) {}
@@ -155,8 +163,7 @@
       } catch (e) {}
       let key = taskId(t, i);
       a.splice(i, 1);
-      delete details[key];
-      saveDetails();
+      saveDetails(key);
       try {
         globalThis.save?.();
       } catch (e) {}
@@ -204,8 +211,10 @@
   function renderTasks() {
     let screen = document.getElementById('screenTasks');
     if (!screen || !globalThis.STACK_DATA?.taskBucket) return;
+    /* v29.93: the «Задачи / Процессы» header (#v233shell, stack-v23-deals.js) is not ours to hide — hiding it is what the late
+       timer and the MutationObserver there used to undo */
     [...screen.children].forEach(ch => {
-      if (ch.id !== 'v2212Tasks') ch.style.setProperty('display', 'none', 'important');
+      if (ch.id !== 'v2212Tasks' && ch.id !== 'v233shell') ch.style.setProperty('display', 'none', 'important');
     });
     let host = document.getElementById('v2212Tasks');
     if (!host) {
@@ -351,7 +360,6 @@
     installEvents();
     console.info('STACK v22.31 event-driven Tasks UI');
   }
-  if (document.readyState === 'loading')
-    document.addEventListener('DOMContentLoaded', () => setTimeout(init, 900), { once: true });
-  else setTimeout(init, 900);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });
+  else init();
 })();

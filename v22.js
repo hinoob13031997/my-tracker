@@ -189,11 +189,49 @@
     }
   }
   let editTx = null;
+  /* v29.93: «Списано в рублях» for a foreign-currency goal (was v22.18-fx-actual.js, a second wrapper installed by a 1.8 s timer):
+     a new operation keeps t.rubAmount and the actual rate t.actualRate = rubles / amount, which STACK_FX prefers over the CBR rate */
+  const foreignGoal = g => !!g && (globalThis.STACK_DATA?.goalCurrency?.(g) || 'RUB') !== 'RUB';
+  function rubField() {
+    const amount = document.getElementById('stAmount');
+    if (!amount || document.getElementById('stRubCost')) return;
+    const row = document.createElement('div');
+    row.className = 'form-row';
+    row.id = 'stRubCostRow';
+    row.innerHTML =
+      '<label>Списано в рублях <small style="color:#7f899c">для расчёта фактического курса</small></label><input id="stRubCost" type="number" inputmode="decimal" min="0" step="0.01" placeholder="Например, 9000"><div id="stActualRate" style="font-size:9px;color:#7f899c;margin-top:5px"></div>';
+    amount.closest('.form-row')?.after(row);
+    const calc = () => {
+      const g = selectedSavingsGoal(),
+        a = Math.abs(Number(amount.value) || 0),
+        rub = Math.abs(Number(document.getElementById('stRubCost')?.value) || 0),
+        c = globalThis.STACK_DATA?.goalCurrency?.(g) || 'RUB',
+        out = document.getElementById('stActualRate');
+      if (out)
+        out.textContent =
+          c !== 'RUB' && a > 0 && rub > 0
+            ? `Фактический курс: ${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(rub / a)} ₽/${c}`
+            : '';
+    };
+    amount.addEventListener('input', calc);
+    document.getElementById('stRubCost').addEventListener('input', calc);
+  }
+  function showRubField(on) {
+    rubField();
+    const row = document.getElementById('stRubCostRow'),
+      inp = document.getElementById('stRubCost'),
+      out = document.getElementById('stActualRate');
+    if (!row) return;
+    row.style.display = on ? 'block' : 'none';
+    if (inp) inp.value = '';
+    if (out) out.textContent = '';
+  }
   function patchTransactions() {
     const oldOpen = openSavingsTx;
     openSavingsTx = function (t) {
       editTx = null;
       oldOpen(t);
+      showRubField(foreignGoal(selectedSavingsGoal()));
     };
     const oldSave = saveSavingsTx;
     saveSavingsTx = function () {
@@ -211,12 +249,21 @@
         renderSavings();
         return;
       }
+      const before = g?.tx?.length || 0,
+        rub = foreignGoal(g) ? Math.abs(Number(document.getElementById('stRubCost')?.value) || 0) : 0;
       oldSave();
       const last = g?.tx?.at(-1);
+      let dirty = false;
       if (last && !last.id) {
         last.id = 't' + Date.now() + Math.random().toString(36).slice(2, 6);
-        save();
+        dirty = true;
       }
+      if ((g?.tx?.length || 0) > before && rub > 0 && Number(last?.amount)) {
+        last.rubAmount = rub;
+        last.actualRate = rub / Math.abs(Number(last.amount));
+        dirty = true;
+      }
+      if (dirty) save();
     };
     stSave.onclick = saveSavingsTx;
     window.stackEditTx = id => {
@@ -229,6 +276,7 @@
       stAmount.value = Math.abs(t.amount);
       stDate.value = t.date || '';
       stNote.value = t.note || '';
+      showRubField(false); // editing keeps the operation's rate; the field only applies to a new one
       savTxModal.classList.add('active');
     };
   }

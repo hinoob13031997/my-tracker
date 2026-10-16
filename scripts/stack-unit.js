@@ -676,6 +676,21 @@ console.log('analytics (windows, one formula, no stale numbers)');
   }
 }
 
+console.log('fx history');
+{
+  const HKEY = 'stack_fx_history_v1';
+  test('STACK_FX.updateHistory writes only its entries, on top of what is stored (not a copy taken before)', () => {
+    const d = boot({ seed: { [HKEY]: { a: { rate: 80, source: 'CBR' } } } });
+    vm.runInContext(fs.readFileSync(path.join(root, 'stack-fx.js'), 'utf8'), d.ctx, { filename: 'stack-fx.js' });
+    const fx = d.ctx.STACK_FX;
+    const before = fx.history(); // a copy in memory, as the worker holds it during its network calls
+    d.localStorage.setItem(HKEY, JSON.stringify({ ...before, b: { rate: 85, source: 'actual' } })); // written meanwhile
+    assert.strictEqual(fx.updateHistory({ c: { rate: 90, source: 'current-fallback' } }), true);
+    assert.deepStrictEqual(Object.keys(JSON.parse(d.localStorage.getItem(HKEY))).sort(), ['a', 'b', 'c']);
+    assert.strictEqual(fx.updateHistory({}), false, 'nothing to write → no write');
+  });
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) {
   console.log('RESULT: FAIL\n' + failures.map(f => '  - ' + f).join('\n'));

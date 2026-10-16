@@ -16,10 +16,10 @@
      script list or gate CSS changes; sw.js skips re-injecting once it sees this markup. -->
 <style id="stackV29NetworkGate">@media(max-width:720px){html:not(.stack-v29-ready) body{overflow:hidden!important}html:not(.stack-v29-ready) body::before{content:'';position:fixed;inset:0;z-index:2147483646;background:radial-gradient(120% 60% at 50% -15%,#1a1650 0,#070912 50%,#05070c 78%)}html:not(.stack-v29-ready) body::after{content:'STACK';position:fixed;left:0;right:0;top:42%;z-index:2147483647;text-align:center;color:#f3f5fa;font:800 18px -apple-system,BlinkMacSystemFont,Inter,Segoe UI,Roboto,Arial,sans-serif;letter-spacing:.22em;text-shadow:0 0 22px rgba(139,72,240,.55)}}</style>
 <script>window.__STACK_V29__=true;</script>
-<script defer src="./stack-v29-owner-kit.js?build=29.92.0"></script>
-<script defer src="./stack-v29-shell.js?build=29.92.0"></script>
-<script defer src="./stack-v29-deals-polish.js?build=29.92.0"></script>
-<script defer src="./stack-v29-analytics.js?build=29.92.0"></script>
+<script defer src="./stack-v29-owner-kit.js?build=29.93.0"></script>
+<script defer src="./stack-v29-shell.js?build=29.93.0"></script>
+<script defer src="./stack-v29-deals-polish.js?build=29.93.0"></script>
+<script defer src="./stack-v29-analytics.js?build=29.93.0"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=5,viewport-fit=cover">
 <script>(function(){try{var f=window.__stackFrame;if(!f)return;var wide=function(){return innerWidth>720&&innerWidth!==980};if(wide()){f();return}addEventListener('resize',function(){if(wide())location.reload()})}catch(e){}})();</script>
@@ -89,9 +89,8 @@ table.tracker{border-collapse:collapse;width:max-content;min-width:100%}.tracker
 .date.good-day .num{color:#68d43f;text-shadow:0 0 5px #68d43f}
 .date.bad-day .num{color:#f04b6c;text-shadow:0 0 5px #f04b6c}
 .date.skip-day .num{color:#e0ad37;text-shadow:0 0 4px #e0ad37}.date .mini-ring{position:absolute;width:16px;height:16px;border-radius:50%;border:1.5px solid currentColor;box-shadow:0 0 3px currentColor,0 0 8px currentColor}
-.month-summary{--a:#f12bb8;--b:#0877f3;padding:6px}.month-summary h4{font-size:7px;color:#e94abb;margin:0 0 6px}.sumrow{display:grid;grid-template-columns:1fr 34px;gap:6px;align-items:center;font-size:6.2px;margin:8px 0}.sumrow .val{text-align:right;font-size:8px;font-weight:700}.icon{display:inline-grid;place-items:center;width:14px;height:14px;border-radius:50%;border:1px solid currentColor;margin-right:5px;box-shadow:0 0 4px currentColor}
-.bottom{display:grid;grid-template-columns:1.15fr .65fr;gap:4px;margin-top:4px}.journal{--a:#f12bb8;--b:#0877f3;overflow:auto}.journal table{width:100%;min-width:620px;border-collapse:collapse}.journal th,.journal td{font-size:6px;padding:3px;border-bottom:1px solid #172238}.journal th{background:#06101e;color:#a9b0bc}.journal input,.journal select{width:100%;background:#031020;border:1px solid #172844;color:#edf0f5;font-size:6px}.legend{--a:#9133e4;--b:#68d43f;display:grid;grid-template-columns:repeat(3,1fr);padding:7px;font-size:6px;gap:5px}.legend b{color:#e94abb}.pill{display:block;width:52px;padding:3px;text-align:center;margin:4px 0;border-radius:3px}.foot{font-size:5.6px;color:#697386;margin-top:3px}
-@media(max-width:1000px){.kpis{grid-template-columns:repeat(4,1fr)}.analytics,.bottom,.lower{grid-template-columns:1fr}}
+.month-summary{--a:#f12bb8;--b:#0877f3;padding:6px}.month-summary h4{font-size:7px;color:#e94abb;margin:0 0 6px}.sumrow{display:grid;grid-template-columns:1fr 34px;gap:6px;align-items:center;font-size:6.2px;margin:8px 0}.sumrow .val{text-align:right;font-size:8px;font-weight:700}.icon{display:inline-grid;place-items:center;width:14px;height:14px;border-radius:50%;border:1px solid currentColor;margin-right:5px;box-shadow:0 0 4px currentColor}.pill{display:block;width:52px;padding:3px;text-align:center;margin:4px 0;border-radius:3px}.foot{font-size:5.6px;color:#697386;margin-top:3px}
+@media(max-width:1000px){.kpis{grid-template-columns:repeat(4,1fr)}.analytics,.lower{grid-template-columns:1fr}}
 
 /* ===== FINAL RESPONSIVE: DESKTOP + MOBILE ===== */
 body{overflow-x:hidden}
@@ -111,7 +110,6 @@ body{overflow-x:hidden}
   .kpis{grid-template-columns:repeat(7,minmax(0,1fr))}
   .analytics{grid-template-columns:1.18fr .82fr 1fr}
   .lower{grid-template-columns:1fr .65fr}
-  .bottom{grid-template-columns:1.15fr .65fr}
 }
 
 /* Tablet */
@@ -120,7 +118,7 @@ body{overflow-x:hidden}
   .kpis{grid-template-columns:repeat(4,minmax(0,1fr))}
   .analytics{grid-template-columns:1fr 1fr}
   .analytics>div:first-child{grid-column:1/-1}
-  .lower,.bottom{grid-template-columns:1fr}
+  .lower{grid-template-columns:1fr}
   .chart{height:150px}
   .trackgrid{grid-template-columns:1fr 100px}
 }
@@ -180,12 +178,6 @@ body{overflow-x:hidden}
   .sumrow{font-size:8px;margin:10px 0;grid-template-columns:1fr 42px}
   .sumrow .val{font-size:11px}
   .icon{width:18px;height:18px}
-  .bottom{gap:6px}
-  .journal table{min-width:760px}
-  .journal th,.journal td{font-size:8px;padding:6px}
-  .journal input,.journal select{font-size:8px;min-height:30px}
-  .legend{grid-template-columns:1fr;gap:8px;font-size:8px}
-  .legend b{font-size:9px}
   .pill{width:72px;padding:5px}
   .foot{font-size:7px;line-height:1.4;padding:4px 0 8px}
   .mobile-hint{display:block;color:#7f899c;font-size:7px;padding:5px 2px}
@@ -262,15 +254,6 @@ body{overflow-x:hidden}
   .mobile-process-name input{width:100%!important}
   .mobile-process-goal input{width:58px!important;text-align:center!important;padding:4px 2px!important}
 }
-
-
-.journal select.priority-high{color:#ff4fc8!important;border-color:#ff4fc866!important;box-shadow:0 0 5px #ff4fc822}
-.journal select.priority-medium{color:#2f8cff!important;border-color:#2f8cff66!important;box-shadow:0 0 5px #2f8cff22}
-.journal select.priority-low{color:#72d34b!important;border-color:#72d34b66!important;box-shadow:0 0 5px #72d34b22}
-.journal select.status-notstarted{color:#a5adba!important;border-color:#6f788855!important}
-.journal select.status-work{color:#168cff!important;border-color:#168cff66!important;box-shadow:0 0 5px #168cff22}
-.journal select.status-done{color:#a343ff!important;border-color:#a343ff77!important;box-shadow:0 0 3px #a343ff,0 0 8px #a343ff44!important}
-.journal select option{background:#031020;color:#eef2f8}
 
 
 /* Logic/analytics refinements */
@@ -474,20 +457,11 @@ body{overflow-x:hidden}
   .sumrow{font-size:11px;margin:12px 0;grid-template-columns:1fr 52px}
   .sumrow .val{font-size:15px}
   .icon{width:23px;height:23px}
-
-  /* Journal: convert table viewport into contained horizontal scroller */
-  .bottom{display:flex;flex-direction:column;gap:8px}
-  .journal{border-radius:10px;overflow-x:auto}
-  .journal table{min-width:780px}
-  .journal th,.journal td{font-size:10px;padding:8px}
-  .journal input,.journal select{font-size:16px;min-height:40px;border-radius:6px}
-  .legend{grid-template-columns:1fr!important;font-size:11px;gap:10px;padding:12px;border-radius:10px}
-  .legend b{font-size:12px}
   .pill{width:100px;padding:7px}
   .foot{font-size:9px;line-height:1.4;padding-bottom:10px}
 
   /* Prevent accidental page-level horizontal overflow */
-  .analytics,.trend-panel,.month,.lower,.bottom,.calendar-panel,.month-summary,.legend{min-width:0;max-width:100%}
+  .analytics,.trend-panel,.month,.lower,.calendar-panel,.month-summary{min-width:0;max-width:100%}
 }
 
 @media(max-width:390px){
@@ -1988,39 +1962,32 @@ window.addEventListener('load',()=>restoreFromIndexedDB());
 
 </script>
 
-<!-- v24.0 marker retained for one-release service-worker transition: stack-v24-unified.js?v=24.0 -->
-<script src="./backup.js?v=24.8"></script>
-<script src="./stack-data.js?v=24.8"></script>
-<script src="./stack-finance.js?v=24.8"></script>
-<script src="./stack-fx.js?v=24.8"></script>
-<script src="./v22.js?v=24.8"></script>
-<script src="./v22.1.js?v=24.8"></script>
-<script src="./v22.2.js?v=24.8"></script>
-<script src="./v22.3-income.js?v=24.8"></script>
-<script src="./v22.12-ui-rebuild.js?v=24.8"></script>
-<script src="./v22.13-fx-history-safe.js?v=24.8"></script>
-<script src="./v22.14-fx-overview.js?v=24.8"></script>
-<script src="./v22.15-currency-dashboard.js?v=24.8"></script>
-<script src="./v22.16-fx-stability.js?v=24.8"></script>
-<script src="./v22.18-fx-actual.js?v=24.8"></script>
-<script src="./v22.20-finance-stable.js?v=24.8"></script>
-<script src="./stack-persistence.js?v=29.18"></script>
-<script src="./stack-v23-shell.js?v=24.8"></script>
-<script src="./stack-v23-deals.js?v=29.5"></script>
-<script src="./stack-v23-fitness.js?v=24.8"></script>
-<script src="./stack-v23-fitness-pack.js?v=24.8"></script>
-<script src="./stack-v23-fitness-day-picker.js?v=24.8"></script>
-<script src="./stack-v23-fitness-month-label.js?v=24.8"></script>
-<script src="./stack-v23-fitness-info.js?v=24.8"></script>
-<script src="./stack-v23-fitness-progress.js?v=24.8"></script>
-<script src="./stack-v23-fitness-goals.js?v=24.8"></script>
-<script src="./stack-v23-fitness-engine.js?v=24.8"></script>
-<script src="./stack-v23-fitness-library.js?v=24.8"></script>
-<script src="./stack-v23-fitness-intelligence.js?v=24.8"></script>
-<script src="./stack-v24-fitness-analytics.js?v=24.8"></script>
-<script src="./stack-v24-mobile-readability.js?v=24.8.1"></script>
-<script src="./stack-v23-stability.js?v=24.8"></script>
-<script src="./stack-v24-unified.js?v=29.5"></script>
-<script src="./stack-v25-finance.js?v=25.2"></script>
-<script src="./stack-v26-deals-intelligence.js?v=26.0"></script>
+<script src="./backup.js?build=29.93.0"></script>
+<script src="./stack-data.js?build=29.93.0"></script>
+<script src="./stack-finance.js?build=29.93.0"></script>
+<script src="./stack-fx.js?build=29.93.0"></script>
+<script src="./v22.js?build=29.93.0"></script>
+<script src="./v22.1.js?build=29.93.0"></script>
+<script src="./v22.2.js?build=29.93.0"></script>
+<script src="./v22.3-income.js?build=29.93.0"></script>
+<script src="./v22.12-ui-rebuild.js?build=29.93.0"></script>
+<script src="./stack-persistence.js?build=29.93.0"></script>
+<script src="./stack-v23-shell.js?build=29.93.0"></script>
+<script src="./stack-v23-deals.js?build=29.93.0"></script>
+<script src="./stack-v23-fitness.js?build=29.93.0"></script>
+<script src="./stack-v23-fitness-pack.js?build=29.93.0"></script>
+<script src="./stack-v23-fitness-day-picker.js?build=29.93.0"></script>
+<script src="./stack-v23-fitness-month-label.js?build=29.93.0"></script>
+<script src="./stack-v23-fitness-info.js?build=29.93.0"></script>
+<script src="./stack-v23-fitness-progress.js?build=29.93.0"></script>
+<script src="./stack-v23-fitness-goals.js?build=29.93.0"></script>
+<script src="./stack-v23-fitness-engine.js?build=29.93.0"></script>
+<script src="./stack-v23-fitness-library.js?build=29.93.0"></script>
+<script src="./stack-v23-fitness-intelligence.js?build=29.93.0"></script>
+<script src="./stack-v24-fitness-analytics.js?build=29.93.0"></script>
+<script src="./stack-v24-mobile-readability.js?build=29.93.0"></script>
+<script src="./stack-v23-stability.js?build=29.93.0"></script>
+<script src="./stack-v24-unified.js?build=29.93.0"></script>
+<script src="./stack-v25-finance.js?build=29.93.0"></script>
+<script src="./stack-v26-deals-intelligence.js?build=29.93.0"></script>
 </body></html>

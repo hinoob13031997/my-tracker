@@ -1,7 +1,9 @@
 /* STACK v29.0 — legacy domain bootstrap under the new shell. */
 (() => {
   'use strict';
-  const BUILD = '29.0.0';
+  /* v29.93: core / Fitness tabs / nutrition are loaded with this file's own ?build= (index.html → stack-v26 loader), not a fixed
+     29.0.0 — stack-nutrition.js changes often and a fixed query let the browser keep an old copy */
+  const BUILD = new URL(document.currentScript?.src || location.href).searchParams.get('build') || '29.0.0';
   const V29 = () => !!globalThis.__STACK_V29__;
   function releaseFail() {
     document.documentElement.classList.remove('stack-minimal-loading');

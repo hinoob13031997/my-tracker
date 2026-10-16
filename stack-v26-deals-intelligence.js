@@ -4,11 +4,14 @@
    STACK_DATA.processStats, shown by «Аналитика». */
 (() => {
   'use strict';
+  /* v29.93: the build comes from this file's own ?build= (index.html, set by scripts/bump-version.js) — a fixed query let the
+     browser keep an old copy of a changed file */
+  const BUILD = new URL(document.currentScript?.src || location.href).searchParams.get('build') || '';
   function loadBootstrap() {
     if (globalThis.STACK_BOOTSTRAP || document.getElementById('stackV27BootstrapScript')) return;
     const s = document.createElement('script');
     s.id = 'stackV27BootstrapScript';
-    s.src = './stack-v27-bootstrap.js?build=27.2.0';
+    s.src = './stack-v27-bootstrap.js' + (BUILD ? '?build=' + BUILD : '');
     s.async = false;
     document.body.appendChild(s);
   }

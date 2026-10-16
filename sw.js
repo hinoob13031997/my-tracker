@@ -1,5 +1,5 @@
-const BUILD = '29.92.0';
-const CACHE = 'stack-v29-92-premium-design';
+const BUILD = '29.93.0';
+const CACHE = 'stack-v29-93-legacy-cleanup';
 const SCRIPT_PATHS = [
   'backup.js',
   'stack-data.js',
@@ -10,12 +10,6 @@ const SCRIPT_PATHS = [
   'v22.2.js',
   'v22.3-income.js',
   'v22.12-ui-rebuild.js',
-  'v22.13-fx-history-safe.js',
-  'v22.14-fx-overview.js',
-  'v22.15-currency-dashboard.js',
-  'v22.16-fx-stability.js',
-  'v22.18-fx-actual.js',
-  'v22.20-finance-stable.js',
   'stack-persistence.js',
   'stack-v23-shell.js',
   'stack-v23-deals.js',
@@ -143,6 +137,13 @@ function offlineResponse() {
 /* v29.85: files are revalidated with the server (`no-cache`: a 304 costs a header, not the file — it used to be `no-store`, a full re-download of ~45 files on every start) and a slow
    or half-dead network no longer holds the app on the splash screen: after NETWORK_TIMEOUT the cached copy is served while the request keeps running and refreshes the cache. */
 const NETWORK_TIMEOUT = 4000;
+/* v29.93: the start no longer waits on the network for files it already has.
+   - A file of THIS build (`?build=<BUILD>` — every script tag carries it, scripts/bump-version.js moves it on every release) is served
+     straight from the cache: it was precached when this worker installed. It is still revalidated in the background (a 304 costs a header),
+     so a file changed without a version bump reaches the next launch instead of never.
+   - The page itself still comes from the network when the network answers quickly (a new release shows up on the same launch); when a
+     cached copy exists it waits NAV_TIMEOUT instead of NETWORK_TIMEOUT before using it, and the request keeps running to refresh the cache. */
+const NAV_TIMEOUT = 1500;
 function withTimeout(promise, ms) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('timeout')), ms);
@@ -159,6 +160,8 @@ function withTimeout(promise, ms) {
   });
 }
 async function navigationResponse(event) {
+  const cache = await caches.open(CACHE);
+  const cachedShell = await cache.match('./index.html');
   const network = (async () => {
     const preload = await event.preloadResponse;
     const response = preload || (await fetch(event.request, { cache: 'no-cache' }));
@@ -167,10 +170,9 @@ async function navigationResponse(event) {
   })();
   event.waitUntil(network.catch(() => {}));
   try {
-    const response = await withTimeout(network, NETWORK_TIMEOUT);
+    const response = await withTimeout(network, cachedShell ? NAV_TIMEOUT : NETWORK_TIMEOUT);
     if (response && response.ok) return await withV29Shell(response);
   } catch (_error) {}
-  const cache = await caches.open(CACHE);
   const fallback =
     (await cache.match('./index.html')) || (await cache.match('./')) || (await caches.match('./index.html'));
   if (fallback) return await withV29Shell(fallback);
@@ -180,8 +182,17 @@ async function navigationResponse(event) {
   } catch (_error) {}
   return offlineResponse();
 }
+function currentBuildFile(request) {
+  try {
+    const url = new URL(request.url);
+    return url.origin === self.location.origin && url.searchParams.get('build') === BUILD;
+  } catch (_error) {
+    return false;
+  }
+}
 async function networkFirst(event) {
   const request = event.request;
+  const hit = currentBuildFile(request) ? await (await caches.open(CACHE)).match(request) : null;
   const network = fetch(request, { cache: 'no-cache' }).then(async response => {
     if (response && response.ok) {
       try {
@@ -192,6 +203,7 @@ async function networkFirst(event) {
     return response;
   });
   event.waitUntil(network.catch(() => {}));
+  if (hit) return hit;
   try {
     return await withTimeout(network, NETWORK_TIMEOUT);
   } catch (_error) {}
